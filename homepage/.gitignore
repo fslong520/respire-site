@@ -1,0 +1,3 @@
+node_modules/
+# 工具临时文件（preview-i18n.mjs --extract 的中间产物）
+.tmp-*
