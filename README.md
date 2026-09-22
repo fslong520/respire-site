@@ -32,6 +32,10 @@ npm run build   # → ../site/dist/client/
 
 详见 [homepage/README.md](homepage/README.md)。发 develop 官网：在 `1memory-server` 跑 workflow **Deploy Web**（`site_ref` 默认 `main`）。
 
+## 发布
+
+打 `v*` 触发 **Release**：本仓 GitHub Release，并 dispatch `1memory-server` **Deploy Web**（prod）。仓库 secret：`SERVER_DEPLOY_TOKEN`（对 `1memory-server` 有 `actions:write` 的 PAT）。也可在 server 仓手动 Deploy Web。
+
 ## 提交要求
 
 - i18n 键集 en/zh 必须一致（`npm test`）

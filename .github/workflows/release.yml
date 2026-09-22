@@ -1,0 +1,77 @@
+# Tag v* (or workflow_dispatch): GitHub Release + tell 1memory-server to Deploy Web.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [develop, prod]
+        default: prod
+      ref:
+        description: git ref to publish
+        default: main
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF_NAME}"
+            ENV=prod
+          else
+            TAG="${{ github.event.inputs.ref }}"
+            TAG="${TAG#refs/tags/}"
+            ENV="${{ github.event.inputs.environment }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "env=$ENV" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ steps.meta.outputs.tag }}
+      - name: tag must be on main
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::v* must be an ancestor of origin/main"
+            exit 1
+          fi
+      - name: GitHub Release
+        if: startsWith(steps.meta.outputs.tag, 'v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $TAG exists"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes
+          fi
+      - name: Dispatch Deploy Web on 1memory-server
+        env:
+          GH_TOKEN: ${{ secrets.SERVER_DEPLOY_TOKEN || secrets.CORE_REPO_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          ENV="${{ steps.meta.outputs.env }}"
+          REF="${{ steps.meta.outputs.tag }}"
+          gh api --method POST repos/one-memory/1memory-server/dispatches \
+            -f event_type=deploy-web \
+            -f "client_payload[environment]=${ENV}" \
+            -f "client_payload[site_ref]=${REF}"
+          echo "dispatched Deploy Web env=$ENV site_ref=$REF"
