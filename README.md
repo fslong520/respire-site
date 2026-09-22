@@ -1,5 +1,39 @@
 # 1memory-site
 
-官网源码与 Sites 部署配置。`site/` 是 Sites 应用，`homepage/` 是当前 1memory 官网源码。
+1memory 官网源码。`homepage/` 是当前站点（Vite，英文 `/`、中文 `/zh/`）。`site/` 为历史 Sites 应用，不是现网入口。
 
-官网文案改动应只触发本仓库的站点构建和部署，不触发 CLI、server 或 desktop client。
+组织图与提交要求：[1memory-docs/docs/repos.md](https://github.com/one-memory/1memory-docs/blob/main/docs/repos.md)。
+
+## 本仓职责
+
+官网文案、多语言、品牌与预览页。改本仓**不应**触发 CLI / API / 桌面客户端发版。
+
+现网由 `1memory-server` 的 **Deploy Web** 检出本仓 `homepage/`，编进 `1memory-web`（develop `127.0.0.1:8087`）。**不再**编进 API 二进制。
+
+## 与其他仓库
+
+| 仓 | 关系 |
+|---|---|
+| `1memory-server` | Deploy Web 构建本仓 homepage + server 仓 `admin-ui` |
+| `1memory-docs` | 产品叙事 `docs/story.md` |
+| 其余 | 无编译依赖 |
+
+登录入口相对路径 `/dashboard`（与 API 同源域名，nginx 分流）。
+
+## 使用
+
+```bash
+git clone git@github.com:one-memory/1memory-site.git
+cd homepage
+npm ci
+npm test
+npm run build   # → ../site/dist/client/
+```
+
+详见 [homepage/README.md](homepage/README.md)。发 develop 官网：在 `1memory-server` 跑 workflow **Deploy Web**（`site_ref` 默认 `main`）。
+
+## 提交要求
+
+- i18n 键集 en/zh 必须一致（`npm test`）
+- 不把 API 或 CLI 源码拷进本仓
+- 其余见 [docs/repos.md](https://github.com/one-memory/1memory-docs/blob/main/docs/repos.md)

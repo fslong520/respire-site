@@ -1,13 +1,13 @@
 # 1memory 官网首页
 
-源码在本目录。`npm run build` 产物写入 `../site/dist/client/`，由 `service/build.rs` 编进 `1memory-server`。
+源码在本目录。`npm run build` 产物写入 `../site/dist/client/`。现网由 `1memory-server` 的 **Deploy Web** 编进 `1memory-web` nginx 镜像，**不再**编进 API 二进制。
 
 登录入口使用相对路径 `/dashboard`，dev 与生产同源。
 
 ## 多语言
 
-支持英文（默认）与中文。**英文出在站点根 `/`，中文出在 `/zh/`**——服务端
-（`service/src/server.rs`）按 URL 前缀返回对应产物，前端按 `location.pathname` 选定词条集，
+支持英文（默认）与中文。**英文出在站点根 `/`，中文出在 `/zh/`**——`1memory-web` nginx
+按目录提供静态页，前端按 `location.pathname` 选定词条集，
 两处必须一致（`src/i18n/index.js` 是唯一判据来源）。
 
 | 位置 | 作用 |
@@ -27,10 +27,9 @@ URL 决定语言，不做自动重定向，以免分享链接与搜索引擎见�
 
 1. 加 `src/i18n/<locale>.js`，键集照抄 `en.js`（测试会校验）。
 2. `src/i18n/index.js` 的 `LOCALES` 加该语言。
-3. `homepage/vite.config.mjs` 的 `LOCALES` 与 `HEAD` 加该语言。
-4. `service/build.rs` 的 `SITE_LOCALES` 列表加该语言；`service/src/server.rs` 无须改动。
-5. `public/preview/client.<locale>.html` 放该语言的客户端预览（可先用英文版复制）。
-6. `npm test` 与 `cargo test -p one_memory_service --bin 1memory-server site_locale_routes` 须全过。
+3. `vite.config.mjs` 的 `LOCALES` 与 `HEAD` 加该语言；Deploy Web 按目录提供 `/<locale>/`。
+4. `public/preview/client.<locale>.html` 放该语言的客户端预览（可先用英文版复制）。
+5. `npm test` 须全过。
 
 ## 客户端交互预览
 
