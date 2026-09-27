@@ -4,7 +4,7 @@ window.ONE_MEMORY_CONFIG = Object.freeze({
   github: null,
   benchmark: null,
   docs: null,
-  account: 'https://1memory.ai/dashboard',
-  releases: 'https://github.com/one-memory/1memory-releases/releases',
-  downloadBase: 'https://github.com/one-memory/1memory-releases/releases/latest/download/',
+  account: 'https://memocap.ai/dashboard',
+  releases: 'https://github.com/memocap-ai/memocap-releases/releases',
+  downloadBase: 'https://github.com/memocap-ai/memocap-releases/releases/latest/download/',
 });

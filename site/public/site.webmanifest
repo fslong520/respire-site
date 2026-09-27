@@ -1,6 +1,6 @@
 {
-  "name": "1Memory",
-  "short_name": "1Memory",
+  "name": "memocap",
+  "short_name": "memocap",
   "icons": [
     {
       "src": "/icon-192.png",

@@ -1,12 +1,12 @@
-# 1memory 官网首页
+# memocap 官网首页
 
-源码在本目录。`npm run build` 产物写入 `../site/dist/client/`。现网由 `1memory-server` 的 **Deploy Web** 编进 `1memory-web` nginx 镜像，**不再**编进 API 二进制。
+源码在本目录。`npm run build` 产物写入 `../site/dist/client/`。现网由 `memocap-server` 的 **Deploy Web** 编进 `memocap-web` nginx 镜像，**不再**编进 API 二进制。
 
 登录入口使用相对路径 `/dashboard`，dev 与生产同源。
 
 ## 多语言
 
-支持英文（默认）与中文。**英文出在站点根 `/`，中文出在 `/zh/`**——`1memory-web` nginx
+支持英文（默认）与中文。**英文出在站点根 `/`，中文出在 `/zh/`**——`memocap-web` nginx
 按目录提供静态页，前端按 `location.pathname` 选定词条集，
 两处必须一致（`src/i18n/index.js` 是唯一判据来源）。
 

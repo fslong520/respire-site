@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "1Memory — Teach once. Every AI remembers.",
+  title: "memocap — Teach once. Every AI remembers.",
   description:
     "把你教给 AI 的规则、技能与项目上下文，变成可加密、可同步、可注入的记忆。一次教会，所有智能体都会。",
   icons: {

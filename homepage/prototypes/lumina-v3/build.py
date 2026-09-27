@@ -34,7 +34,7 @@ class EnglishPage(HTMLParser):
             if tag == 'html' and name == 'lang':
                 value = 'en'
             if tag == 'meta' and values.get('name') == 'description' and name == 'content':
-                value = catalog['1Memory 是独立于 Agent 的个人记忆层。']['en']
+                value = catalog['memocap 是独立于 Agent 的个人记忆层。']['en']
             if tag == 'iframe' and name == 'src':
                 value = 'preview/client.en.html'
             translated.append(name if value is None else name + '="' + html.escape(value, quote=True) + '"')

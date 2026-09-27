@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-labelledby="title">
-  <title id="title">1Memory</title>
+  <title id="title">memocap</title>
   <defs>
     <linearGradient id="one-gradient" x1="22" y1="14" x2="104" y2="116" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#7B4DFF"/>

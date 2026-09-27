@@ -2,20 +2,20 @@
 export default {
   // Common
   'meta.htmlLang': 'en',
-  'meta.title': '1memory — Teach once. Every AI remembers.',
+  'meta.title': 'memocap — Teach once. Every AI remembers.',
   'meta.description':
-    '1memory turns your background, preferences, and project experience into one memory tree. Stored locally, end-to-end encrypted, and shared with your AI tools only within the scope you choose.',
+    'memocap turns your background, preferences, and project experience into one memory tree. Stored locally, end-to-end encrypted, and shared with your AI tools only within the scope you choose.',
   'a11y.skipToMain': 'Skip to main content',
   'a11y.mainNav': 'Main navigation',
-  'a11y.home': '1memory home',
-  'a11y.github': 'View 1memory on GitHub',
+  'a11y.home': 'memocap home',
+  'a11y.github': 'View memocap on GitHub',
   'a11y.openMenu': 'Open menu',
   'a11y.closeMenu': 'Close menu',
   'a11y.mobileNav': 'Mobile navigation',
   'a11y.backHome': 'Back to home',
   'a11y.productPreview': 'Client product preview',
   'a11y.previewTabs': 'Try client features',
-  'a11y.previewFrame': '1memory client interaction preview',
+  'a11y.previewFrame': 'memocap client interaction preview',
   'a11y.expandPreview': 'Expand preview',
   'a11y.closeFullscreen': 'Close fullscreen preview',
   'a11y.chooseOS': 'Choose operating system',
@@ -54,7 +54,7 @@ export default {
   'hero.scoped': 'Scoped access',
 
   // Client preview
-  'preview.brand': '1memory client',
+  'preview.brand': 'memocap client',
   'preview.expand': 'Expand preview',
   'preview.mode.tree': 'Memory Tree',
   'preview.mode.sync': 'Sync',
@@ -74,7 +74,7 @@ export default {
   'intro.titleLead': 'Introducing yourself again',
   'intro.titleTail': 'should take less every time.',
   'intro.p1': 'The phrasing you corrected, the decisions you made together, the detours a project took — all of it is worth keeping.',
-  'intro.p2': '1memory gives that context a home of its own. Organize it, find it again, and carry it into the next piece of work.',
+  'intro.p2': 'memocap gives that context a home of its own. Organize it, find it again, and carry it into the next piece of work.',
   'intro.card1.title': 'Every memory has a source',
   'intro.card1.body': 'Parent and child links connect background to outcome, organized by project or topic. Find one memory and see the context around it.',
   'intro.card1.action': 'Open the Memory Tree',
@@ -125,8 +125,8 @@ export default {
   'faq.leadMid': 'see the ',
   'faq.leadDocs': 'documentation',
   'faq.leadTail': '.',
-  'faq.q1': 'How is 1memory different from chat history?',
-  'faq.a1': 'Chat history preserves the course of one conversation. 1memory keeps reusable background, preferences, decisions, and lessons, organized as a tree so they are easy to find and use next time.',
+  'faq.q1': 'How is memocap different from chat history?',
+  'faq.a1': 'Chat history preserves the course of one conversation. memocap keeps reusable background, preferences, decisions, and lessons, organized as a tree so they are easy to find and use next time.',
   'faq.q2': 'Do I have to sign in to use it?',
   'faq.a2': 'With no remote service configured, memories can live on this machine alone. Sign up or sign in from the client when you need to sync across devices, and set up the matching unlock material.',
   'faq.q3': 'Which AI tools can I connect?',
@@ -140,23 +140,23 @@ export default {
   'download.kicker': 'Start accumulating',
   'download.titleLead': 'One prompt,',
   'download.titleTail': 'and AI installs it for you.',
-  'download.bodyLead': '1memory is a tool for your AI — you do not have to install it by hand.',
-  'download.bodyTail': 'Copy the prompt to your AI. It installs and configures everything, then you run 1memory web for the GUI.',
+  'download.bodyLead': 'memocap is a tool for your AI — you do not have to install it by hand.',
+  'download.bodyTail': 'Copy the prompt to your AI. It installs and configures everything, then you run memocap web for the GUI.',
   'download.dashboard': 'Open Dashboard',
   'download.guide': 'Read the install guide',
   'download.promptTitle': 'Send this to your AI',
   'download.promptTools': 'Works with Claude Code, Codex, OpenCode, and similar tools',
-  'download.promptHint': 'AI installs the CLI, injects local AI tools first, then asks whether you want cloud sync (register) or offline. Then run 1memory web.',
+  'download.promptHint': 'AI installs the CLI, injects local AI tools first, then asks whether you want cloud sync (register) or offline. Then run memocap web.',
   'download.copyPrompt': 'Copy prompt',
   'download.promptCopied': 'Copied',
-  'download.prompt': `Install 1memory for me (npm package @1memory/cli, a cross-device memory system for my AI). Do everything automatically; do not stop to ask me along the way:
+  'download.prompt': `Install memocap for me (npm package @memocap/cli, a cross-device memory system for my AI). Do everything automatically; do not stop to ask me along the way:
 
-1. Run npm i -g @1memory/cli, then 1memory doctor to fill in dependencies (it downloads models).
-2. Run 1memory inject to inject memory into local AI tools (must happen before login/register).
+1. Run npm i -g @memocap/cli, then memocap doctor to fill in dependencies (it downloads models).
+2. Run memocap inject to inject memory into local AI tools (must happen before login/register).
 3. Ask whether I want cloud sync or offline:
-   Cloud sync → ask for my username and password, run 1memory register --user <name> --pass <password>. You MUST show me the returned [super password] and wait until I reply "saved" before continuing (losing it means new devices cannot unlock memories), then run 1memory keys-export and remind me to back it up;
-   Offline → run 1memory keygen.
-4. Run 1memory remember and 1memory recall once to verify, then tell me I can run 1memory web to open the local GUI.`,
+   Cloud sync → ask for my username and password, run memocap register --user <name> --pass <password>. You MUST show me the returned [super password] and wait until I reply "saved" before continuing (losing it means new devices cannot unlock memories), then run memocap keys-export and remind me to back it up;
+   Offline → run memocap keygen.
+4. Run memocap remember and memocap recall once to verify, then tell me I can run memocap web to open the local GUI.`,
   'download.manualKicker': 'Manual install',
   'download.manualTitleLead': 'Need a desktop client?',
   'download.manualTitleTail': 'Linux and Mac only.',
@@ -171,7 +171,7 @@ export default {
   'download.cliDocs': 'Guide',
   'download.copied': 'Command copied.',
   'download.copyDenied': 'Copy was blocked — select the text above manually.',
-  'download.copyHint': 'After installing, run 1memory doctor to check your environment.',
+  'download.copyHint': 'After installing, run memocap doctor to check your environment.',
   'platform.macOS.title': 'For Mac',
   'platform.macOS.help': 'Use a Mac with Apple silicon (arm64).',
   'platform.Windows.title': 'For Windows',
@@ -195,7 +195,7 @@ export default {
   'footer.tagline': 'One memory, growing with you.',
   'footer.docs': 'Docs',
   'footer.dashboard': 'Dashboard',
-  'footer.copyright': '© 2026 1memory',
+  'footer.copyright': '© 2026 memocap',
   'footer.summary': 'Stored locally · Encrypted sync · Connected on demand',
   'footer.backToTop': 'Back to top',
 };

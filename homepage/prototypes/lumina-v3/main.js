@@ -4,7 +4,7 @@ const config = window.ONE_MEMORY_CONFIG;
 const I18n = window.OneMemoryI18n;
 const t = value => I18n.t(value);
 const currentPrompt = () => window.ONE_MEMORY_PROMPTS[I18n.language];
-const installCommand = 'npm i -g @1memory/cli\n1memory doctor';
+const installCommand = 'npm i -g @memocap/cli\nmemocap doctor';
 document.getElementById('prompt-preview').textContent = currentPrompt();
 
 let toastTimer;
@@ -218,12 +218,12 @@ document.querySelectorAll('[data-preview]').forEach(button => button.addEventLis
 }));
 
 const platformData = {
-  mac: { title: 'Mac 客户端', help: '适用于 Apple 芯片（arm64）的 Mac。', options: [['Apple 芯片 · arm64 · .dmg', '1memory-macos-arm64.dmg']] },
+  mac: { title: 'Mac 客户端', help: '适用于 Apple 芯片（arm64）的 Mac。', options: [['Apple 芯片 · arm64 · .dmg', 'memocap-macos-arm64.dmg']] },
   linux: { title: 'Linux 客户端', help: '按发行版和处理器架构选择安装包。', options: [
-    ['Debian / Ubuntu · x64 · .deb', '1memory-linux-x64.deb'],
-    ['Fedora / RHEL · x64 · .rpm', '1memory-linux-x64.rpm'],
-    ['Debian / Ubuntu · ARM64 · .deb', '1memory-linux-arm64.deb'],
-    ['Fedora / RHEL · ARM64 · .rpm', '1memory-linux-arm64.rpm'],
+    ['Debian / Ubuntu · x64 · .deb', 'memocap-linux-x64.deb'],
+    ['Fedora / RHEL · x64 · .rpm', 'memocap-linux-x64.rpm'],
+    ['Debian / Ubuntu · ARM64 · .deb', 'memocap-linux-arm64.deb'],
+    ['Fedora / RHEL · ARM64 · .rpm', 'memocap-linux-arm64.rpm'],
   ] },
 };
 const architecture = document.getElementById('architecture');

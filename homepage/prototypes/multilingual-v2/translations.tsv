@@ -1,4 +1,4 @@
-1Memory — 换 AI，不换记忆。|1Memory — Switch AI. Keep Memory.|1Memory — Cambia de IA. Conserva tu memoria.|1Memory — Changez d’IA. Gardez votre mémoire.|1Memory — AI는 바꿔도, 기억은 그대로.|1Memory — AIを変えても、記憶はそのまま。
+memocap — 换 AI，不换记忆。|memocap — Switch AI. Keep Memory.|memocap — Cambia de IA. Conserva tu memoria.|memocap — Changez d’IA. Gardez votre mémoire.|memocap — AI는 바꿔도, 기억은 그대로.|memocap — AIを変えても、記憶はそのまま。
 跳到正文|Skip to content|Ir al contenido|Aller au contenu|본문으로 이동|本文へ移動
 产品体验|Product|Producto|Produit|제품 체험|製品を体験
 如何使用|How it works|Cómo funciona|Fonctionnement|사용 방법|使い方
@@ -11,12 +11,12 @@ AI 一键安装|Install with AI|Instalar con IA|Installer avec l’IA|AI로 설�
 Claude、Codex，以及下一个 AI。|Claude, Codex, and the next AI.|Claude, Codex y la próxima IA.|Claude, Codex et la prochaine IA.|Claude, Codex, 그리고 다음 AI까지.|Claude、Codex、そして次のAIへ。
 你的偏好、项目背景、重要决定和长期上下文，|Your preferences, project context, key decisions, and long-term context|Tus preferencias, el contexto de tus proyectos y tus decisiones importantes|Vos préférences, le contexte de vos projets et vos décisions importantes|취향, 프로젝트 배경, 중요한 결정, 장기적인 맥락을|好み、プロジェクトの背景、重要な決定、長期的な文脈。
 不必每次重新开始。|do not have to start over every time.|no tienen que empezar de cero cada vez.|n’ont pas à repartir de zéro à chaque fois.|매번 처음부터 설명할 필요 없습니다.|毎回、最初からやり直す必要はありません。
-1Memory 是独立于 Agent 的个人记忆层。|1Memory is your personal memory layer, independent of any agent.|1Memory es tu capa de memoria personal, independiente de cualquier agente.|1Memory est votre couche de mémoire personnelle, indépendante des agents.|1Memory는 Agent와 독립된 개인 기억 계층입니다.|1Memoryは、Agentから独立した個人の記憶レイヤーです。
+memocap 是独立于 Agent 的个人记忆层。|memocap is your personal memory layer, independent of any agent.|memocap es tu capa de memoria personal, independiente de cualquier agente.|memocap est votre couche de mémoire personnelle, indépendante des agents.|memocap는 Agent와 독립된 개인 기억 계층입니다.|memocapは、Agentから独立した個人の記憶レイヤーです。
 复制提示词，让 AI 装好|Copy prompt. Let AI install.|Copia el prompt. La IA lo instala.|Copiez le prompt. L’IA installe.|프롬프트 복사하고 AI로 설치|プロンプトをコピーしてAIで導入
 手动下载 Linux / Mac|Manual Linux / Mac download|Descarga manual Linux / Mac|Téléchargement Linux / Mac|Linux / Mac 직접 다운로드|Linux / Macを手動でダウンロード
 本地优先|Local first|Local primero|Priorité au local|로컬 우선|ローカル優先
 加密同步|Encrypted sync|Sincronización cifrada|Synchronisation chiffrée|암호화 동기화|暗号化同期
-1Memory 客户端|1Memory client|Cliente 1Memory|Client 1Memory|1Memory 클라이언트|1Memoryクライアント
+memocap 客户端|memocap client|Cliente memocap|Client memocap|memocap 클라이언트|memocapクライアント
 记忆树|Memory Tree|Árbol de memoria|Arbre de mémoire|기억 트리|記憶ツリー
 展开体验|Expand preview|Ampliar vista|Agrandir l’aperçu|미리보기 확대|プレビューを拡大
 整理记忆|Organize memories|Organizar recuerdos|Organiser les souvenirs|기억 정리|記憶を整理
@@ -49,7 +49,7 @@ Memory 保持连续。|Memory stays continuous.|La memoria continúa.|La mémoir
 换 Agent、换会话、换设备，继续之前的工作。|Switch agents, sessions, or devices. Continue your work.|Cambia de agente, sesión o dispositivo y continúa tu trabajo.|Changez d’agent, de session ou d’appareil. Poursuivez votre travail.|Agent, 대화, 기기를 바꿔도 하던 일을 이어가세요.|Agent、会話、デバイスを変えても、作業を続けられます。
 记错了就改，过期了就更新，不需要了就删除。|Correct mistakes, update what is outdated, delete what you no longer need.|Corrige errores, actualiza lo antiguo y elimina lo que ya no necesitas.|Corrigez les erreurs, actualisez les informations et supprimez l’inutile.|잘못 기억한 것은 고치고, 오래된 정보는 갱신하고, 필요 없는 것은 지우세요.|間違いは直し、古い情報は更新し、不要なものは削除します。
 记忆有没有用，看下一次能不能接得上。|Useful memory lets you pick up where you left off.|La memoria sirve si permite retomar el trabajo.|Une mémoire utile permet de reprendre le travail.|기억의 가치는 다음 작업을 이어갈 수 있는지에 있습니다.|役立つ記憶とは、次に続きを始められること。
-1Memory Benchmark 持续测试：|1Memory Benchmark continuously tests:|1Memory Benchmark prueba de forma continua:|1Memory Benchmark teste en continu :|1Memory Benchmark는 지속적으로 테스트합니다:|1Memory Benchmarkが継続的にテストすること：
+memocap Benchmark 持续测试：|memocap Benchmark continuously tests:|memocap Benchmark prueba de forma continua:|memocap Benchmark teste en continu :|memocap Benchmark는 지속적으로 테스트합니다:|memocap Benchmarkが継続的にテストすること：
 跨 Agent 接续|Cross-agent handoff|Continuidad entre agentes|Reprise entre agents|Agent 간 작업 이어가기|Agent間の引き継ぎ
 旧信息更新|Updating old information|Actualización de información|Actualisation des informations|오래된 정보 갱신|古い情報の更新
 多项目隔离|Project isolation|Separación de proyectos|Isolation des projets|프로젝트 간 분리|プロジェクト間の分離
@@ -78,7 +78,7 @@ Agent 原生记忆|Agent-native memory|Memoria nativa del agente|Mémoire native
 同步可以上云。|Sync can use the cloud.|Sincroniza en la nube.|Synchronisez dans le cloud.|동기화는 클라우드로.|同期はクラウドへ。
 明文不用上云。|Plaintext does not have to.|Sin enviar texto en claro.|Sans y envoyer de texte en clair.|평문은 보내지 않습니다.|平文は送らずに。
 需要跨设备时，|When you need multiple devices,|Cuando uses varios dispositivos,|Lorsque vous utilisez plusieurs appareils,|여러 기기가 필요할 때,|複数のデバイスで使うとき、
-1Memory 同步的是|1Memory syncs|1Memory sincroniza|1Memory synchronise|1Memory가 동기화하는 것은|1Memoryが同期するのは
+memocap 同步的是|memocap syncs|memocap sincroniza|memocap synchronise|memocap가 동기화하는 것은|memocapが同期するのは
 加密后的数据|encrypted data|datos cifrados|des données chiffrées|암호화된 데이터입니다|暗号化されたデータです
 内容、标题、标签、项目等数据进入加密载荷。|Content, titles, tags, projects, and related data are included in the encrypted payload.|Contenido, títulos, etiquetas, proyectos y otros datos forman parte de la carga cifrada.|Contenus, titres, étiquettes, projets et autres données sont inclus dans la charge chiffrée.|내용, 제목, 태그, 프로젝트 등의 데이터가 암호화된 페이로드에 포함됩니다.|内容、タイトル、タグ、プロジェクトなどを暗号化ペイロードに含めます。
 密钥由用户侧生成和持有。|Keys are generated and held on the user’s side.|Las claves se generan y conservan del lado del usuario.|Les clés sont générées et conservées côté utilisateur.|키는 사용자 측에서 생성하고 보관합니다.|鍵はユーザー側で生成・保持します。
@@ -88,7 +88,7 @@ Agent 原生记忆|Agent-native memory|Memoria nativa del agente|Mémoire native
 它是同步架构的一部分。|It is part of the sync architecture.|Es parte de la arquitectura de sincronización.|Il fait partie de l’architecture de synchronisation.|동기화 아키텍처의 일부입니다.|同期アーキテクチャの一部です。
 不只告诉你“安全”。|More than a promise of safety.|Más que prometer seguridad.|Au-delà d’une promesse de sécurité.|안전하다는 말에 그치지 않습니다.|「安全」と言うだけでなく、
 把代码打开给你看。|The code is yours to inspect.|El código está a tu alcance.|Le code est ouvert à votre examen.|코드를 열어 직접 확인하게 합니다.|コードを公開して確かめられるように。
-1Memory 开放源码。|1Memory is open source.|1Memory es de código abierto.|1Memory est open source.|1Memory는 오픈소스입니다.|1Memoryはオープンソースです。
+memocap 开放源码。|memocap is open source.|memocap es de código abierto.|memocap est open source.|memocap는 오픈소스입니다.|memocapはオープンソースです。
 你可以检查：|You can inspect:|Puedes comprobar:|Vous pouvez vérifier :|직접 확인할 수 있습니다:|確認できること：
 记忆怎样存储。|How memories are stored.|Cómo se almacena la memoria.|Comment la mémoire est stockée.|기억의 저장 방식.|記憶の保存方法。
 数据怎样加密。|How data is encrypted.|Cómo se cifran los datos.|Comment les données sont chiffrées.|데이터의 암호화 방식.|データの暗号化方法。
@@ -113,7 +113,7 @@ AI 记错了？|Did AI remember it wrong?|¿La IA lo recordó mal?|L’IA s’es
 更新。|Update it.|Actualízala.|Actualisez.|갱신하세요.|更新する。
 不需要了？|No longer needed?|¿Ya no lo necesitas?|Vous n’en avez plus besoin ?|더 이상 필요 없나요?|もう必要なくなったら？
 删除。|Delete it.|Elimínalo.|Supprimez.|삭제하세요.|削除する。
-以后不再使用 1Memory？|Leaving 1Memory one day?|¿Dejarás de usar 1Memory?|Vous quittez 1Memory un jour ?|언젠가 1Memory를 떠난다면?|いつか1Memoryを使わなくなったら？
+以后不再使用 memocap？|Leaving memocap one day?|¿Dejarás de usar memocap?|Vous quittez memocap un jour ?|언젠가 memocap를 떠난다면?|いつかmemocapを使わなくなったら？
 导出并带走。|Export it and take it with you.|Expórtalo y llévatelo.|Exportez et emportez vos souvenirs.|내보내서 가져가세요.|エクスポートして持ち出す。
 从第一次|Start with the first time|Empieza la primera vez|Commencez dès la première fois|자기소개를 반복하지 않는|もう一度自己紹介しなくていい、
 不用重新介绍自己开始。|you do not have to introduce yourself again.|que no tengas que presentarte de nuevo.|où vous n’avez plus à vous présenter.|첫 경험부터 시작하세요.|その最初の体験から。
@@ -144,15 +144,15 @@ Apple 芯片 · arm64 · .dmg|Apple silicon · arm64 · .dmg|Chip de Apple · ar
 全选内容|Select all|Seleccionar todo|Tout sélectionner|전체 선택|すべて選択
 浏览正文和下载无需 JavaScript。启用 JavaScript 后，可复制提示词、切换系统及体验客户端。|Reading and downloads work without JavaScript. Enable it for copying, platform selection and the client preview.|Puedes leer y descargar sin JavaScript. Actívalo para copiar, elegir plataforma y probar el cliente.|La lecture et les téléchargements fonctionnent sans JavaScript. Activez-le pour copier, changer de plateforme et tester le client.|본문과 다운로드는 JavaScript 없이 이용할 수 있습니다. 복사, 플랫폼 전환, 클라이언트 체험에는 JavaScript가 필요합니다.|本文とダウンロードはJavaScriptなしで利用できます。コピー、OS切り替え、クライアント体験にはJavaScriptを有効にしてください。
 主导航|Main navigation|Navegación principal|Navigation principale|주 메뉴|メインナビゲーション
-1Memory 首页|1Memory home|Inicio de 1Memory|Accueil 1Memory|1Memory 홈|1Memoryホーム
+memocap 首页|memocap home|Inicio de memocap|Accueil memocap|memocap 홈|memocapホーム
 GitHub 入口|GitHub|GitHub|GitHub|GitHub|GitHub
 打开菜单|Open menu|Abrir menú|Ouvrir le menu|메뉴 열기|メニューを開く
 关闭菜单|Close menu|Cerrar menú|Fermer le menu|메뉴 닫기|メニューを閉じる
 手机导航|Mobile navigation|Navegación móvil|Navigation mobile|모바일 메뉴|モバイルナビゲーション
 客户端产品体验|Client product preview|Vista del cliente|Aperçu du client|클라이언트 제품 미리보기|クライアントの製品プレビュー
-1Memory 客户端交互预览|Interactive 1Memory client preview|Vista interactiva de 1Memory|Aperçu interactif de 1Memory|1Memory 클라이언트 인터랙티브 미리보기|1Memoryクライアントの操作プレビュー
+memocap 客户端交互预览|Interactive memocap client preview|Vista interactiva de memocap|Aperçu interactif de memocap|memocap 클라이언트 인터랙티브 미리보기|memocapクライアントの操作プレビュー
 体验客户端功能|Try client features|Probar funciones del cliente|Essayer les fonctions du client|클라이언트 기능 체험|クライアント機能を体験
-Claude、Codex、Next Agent 与 You 连接到同一份 1Memory|Claude, Codex, Next Agent and You connect to one 1Memory|Claude, Codex, Next Agent y tú conectados a un mismo 1Memory|Claude, Codex, Next Agent et vous, connectés à une seule mémoire|Claude, Codex, 다음 Agent와 내가 하나의 1Memory에 연결됩니다|Claude、Codex、次のAgent、あなたが一つの1Memoryにつながる
+Claude、Codex、Next Agent 与 You 连接到同一份 memocap|Claude, Codex, Next Agent and You connect to one memocap|Claude, Codex, Next Agent y tú conectados a un mismo memocap|Claude, Codex, Next Agent et vous, connectés à une seule mémoire|Claude, Codex, 다음 Agent와 내가 하나의 memocap에 연결됩니다|Claude、Codex、次のAgent、あなたが一つのmemocapにつながる
 在预览中体验记住|Try Remember in the preview|Probar Recordar|Essayer Mémoriser|미리보기에서 기억하기 체험|プレビューで記憶を体験
 在预览中体验想起|Try Recall in the preview|Probar Recuperar|Essayer Retrouver|미리보기에서 떠올리기 체험|プレビューで検索を体験
 在预览中体验接续|Try Handoff in the preview|Probar Continuar|Essayer Reprendre|미리보기에서 이어가기 체험|プレビューで引き継ぎを体験

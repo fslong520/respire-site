@@ -30,8 +30,8 @@
       });
     });
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : language;
-    document.title = t('1Memory — 换 AI，不换记忆。');
-    document.querySelector('meta[name="description"]').content = t('1Memory 是独立于 Agent 的个人记忆层。');
+    document.title = t('memocap — 换 AI，不换记忆。');
+    document.querySelector('meta[name="description"]').content = t('memocap 是独立于 Agent 的个人记忆层。');
     document.getElementById('language-select').value = language;
   }
   function setLanguage(next, updateURL = true) {

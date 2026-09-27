@@ -2,20 +2,20 @@
 export default {
   // 通用
   'meta.htmlLang': 'zh-CN',
-  'meta.title': '1memory — 你的记忆，随 AI 同行',
+  'meta.title': 'memocap — 你的记忆，随 AI 同行',
   'meta.description':
-    '1memory 把你的背景、偏好与项目经验整理成一棵记忆树。本地保存，端到端加密，按所选范围接入你的 AI 工具。',
+    'memocap 把你的背景、偏好与项目经验整理成一棵记忆树。本地保存，端到端加密，按所选范围接入你的 AI 工具。',
   'a11y.skipToMain': '跳转到主要内容',
   'a11y.mainNav': '主导航',
-  'a11y.home': '1memory 首页',
-  'a11y.github': '在 GitHub 查看 1memory',
+  'a11y.home': 'memocap 首页',
+  'a11y.github': '在 GitHub 查看 memocap',
   'a11y.openMenu': '打开菜单',
   'a11y.closeMenu': '关闭菜单',
   'a11y.mobileNav': '手机导航',
   'a11y.backHome': '回到首页',
   'a11y.productPreview': '客户端产品体验',
   'a11y.previewTabs': '体验客户端功能',
-  'a11y.previewFrame': '1memory 客户端交互预览',
+  'a11y.previewFrame': 'memocap 客户端交互预览',
   'a11y.expandPreview': '客户端展开体验',
   'a11y.closeFullscreen': '关闭全屏预览',
   'a11y.chooseOS': '选择操作系统',
@@ -54,7 +54,7 @@ export default {
   'hero.scoped': '按范围接入',
 
   // 客户端预览
-  'preview.brand': '1memory 客户端',
+  'preview.brand': 'memocap 客户端',
   'preview.expand': '展开体验',
   'preview.mode.tree': '记忆树',
   'preview.mode.sync': '同步',
@@ -74,7 +74,7 @@ export default {
   'intro.titleLead': '每次重新介绍自己，',
   'intro.titleTail': '都该少一点。',
   'intro.p1': '你纠正过的表达、一起做过的决定、项目走过的弯路，都值得留下。',
-  'intro.p2': '1memory 为这些上下文提供一个独立的家。能整理、能找回，也能带到下一次工作中。',
+  'intro.p2': 'memocap 为这些上下文提供一个独立的家。能整理、能找回，也能带到下一次工作中。',
   'intro.card1.title': '记忆有来处',
   'intro.card1.body': '用父子关系串起背景与结果，按项目或主题组织。找到一条记忆，也能看见它的上下文。',
   'intro.card1.action': '打开记忆树',
@@ -125,8 +125,8 @@ export default {
   'faq.leadMid': '可在 ',
   'faq.leadDocs': '使用文档',
   'faq.leadTail': ' 中查阅。',
-  'faq.q1': '1memory 和聊天记录有什么不同？',
-  'faq.a1': '聊天记录保留一次对话的过程。1memory 用来保存可复用的背景、偏好、决定与经验，并按树形关系组织，方便下次检索和使用。',
+  'faq.q1': 'memocap 和聊天记录有什么不同？',
+  'faq.a1': '聊天记录保留一次对话的过程。memocap 用来保存可复用的背景、偏好、决定与经验，并按树形关系组织，方便下次检索和使用。',
   'faq.q2': '必须登录，才能使用吗？',
   'faq.a2': '未配置远程服务时，记忆可以仅保存在本地。需要跨设备同步时，再在客户端注册或登录，并配置对应的解锁材料。',
   'faq.q3': '哪些 AI 工具可以接入？',
@@ -140,23 +140,23 @@ export default {
   'download.kicker': '开始积累',
   'download.titleLead': '一句话，',
   'download.titleTail': '让 AI 替你装好。',
-  'download.bodyLead': '1memory 是给 AI 用的工具，不用你动手。',
-  'download.bodyTail': '复制提示词发给你的 AI，它自动完成安装与配置，然后运行 1memory web 打开图形界面。',
+  'download.bodyLead': 'memocap 是给 AI 用的工具，不用你动手。',
+  'download.bodyTail': '复制提示词发给你的 AI，它自动完成安装与配置，然后运行 memocap web 打开图形界面。',
   'download.dashboard': '进入 Dashboard',
   'download.guide': '阅读安装指南',
   'download.promptTitle': '把这段话发给你的 AI',
   'download.promptTools': 'Claude Code / Codex / OpenCode 等均可',
-  'download.promptHint': 'AI 会自动装 CLI、先注入本机 AI 工具，再问你选云同步（注册账号）还是离线。装好后运行 1memory web。',
+  'download.promptHint': 'AI 会自动装 CLI、先注入本机 AI 工具，再问你选云同步（注册账号）还是离线。装好后运行 memocap web。',
   'download.copyPrompt': '复制提示词',
   'download.promptCopied': '已复制',
-  'download.prompt': `帮我装好 1memory（npm 包 @1memory/cli，给我的 AI 用的跨设备记忆系统）。全程自动执行，别中途停下问我：
+  'download.prompt': `帮我装好 memocap（npm 包 @memocap/cli，给我的 AI 用的跨设备记忆系统）。全程自动执行，别中途停下问我：
 
-1. npm i -g @1memory/cli，再跑 1memory doctor 补全依赖（会自动下模型）。
-2. 跑 1memory inject，把记忆注入本机 AI 工具（必须在登录/注册之前完成）。
+1. npm i -g @memocap/cli，再跑 memocap doctor 补全依赖（会自动下模型）。
+2. 跑 memocap inject，把记忆注入本机 AI 工具（必须在登录/注册之前完成）。
 3. 问我要云同步还是离线：
-   云同步 → 问我的用户名密码，执行 1memory register --user <名> --pass <密码>，注册返回的【超级密码】必须展示给我、等我回复「已记好」才继续（丢了新设备解不开记忆），再跑 1memory keys-export 提醒备份；
-   离线 → 执行 1memory keygen。
-4. 跑一次 1memory remember 和 1memory recall 验收，最后告诉我可跑 1memory web 开本地图形界面。`,
+   云同步 → 问我的用户名密码，执行 memocap register --user <名> --pass <密码>，注册返回的【超级密码】必须展示给我、等我回复「已记好」才继续（丢了新设备解不开记忆），再跑 memocap keys-export 提醒备份；
+   离线 → 执行 memocap keygen。
+4. 跑一次 memocap remember 和 memocap recall 验收，最后告诉我可跑 memocap web 开本地图形界面。`,
   'download.manualKicker': '手动安装',
   'download.manualTitleLead': '非要下载客户端，',
   'download.manualTitleTail': '再看 Linux 和 Mac。',
@@ -171,7 +171,7 @@ export default {
   'download.cliDocs': '说明',
   'download.copied': '命令已复制。',
   'download.copyDenied': '复制未获允许，可手动选择上方文字。',
-  'download.copyHint': '安装完成后运行 1memory doctor 检查环境。',
+  'download.copyHint': '安装完成后运行 memocap doctor 检查环境。',
   'platform.macOS.title': '适用于 Mac',
   'platform.macOS.help': '请使用 Apple 芯片（arm64）的 Mac。',
   'platform.Windows.title': '适用于 Windows',
@@ -195,7 +195,7 @@ export default {
   'footer.tagline': '一份记忆，随你生长。',
   'footer.docs': '文档',
   'footer.dashboard': 'Dashboard',
-  'footer.copyright': '© 2026 1memory',
+  'footer.copyright': '© 2026 memocap',
   'footer.summary': '本地保存 · 加密同步 · 按需连接',
   'footer.backToTop': '回到顶部',
 };

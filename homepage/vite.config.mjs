@@ -8,7 +8,7 @@ const OUT = resolve(ROOT, "../site/dist/client");
 
 /// 官网多语言构建：默认语言（en）出在站点根，其余语言出在 /<locale>/。
 ///
-/// 站点由 service/build.rs 扫目录嵌入 1memory-server，按 URL 精确查表返回，
+/// 站点由 service/build.rs 扫目录嵌入 memocap-server，按 URL 精确查表返回，
 /// 故每个语言必须有各自的 index.html。单页应用在运行时按 location.pathname 选定
 /// 词条集，各语言 HTML 只有 lang / title / description 不同；哈希资源为绝对路径，
 /// 各语言目录共用同一份。
@@ -21,15 +21,15 @@ const LOCALES = ["en", "zh"];
 const HEAD = {
   en: {
     lang: "en",
-    title: "1memory — Teach once. Every AI remembers.",
+    title: "memocap — Teach once. Every AI remembers.",
     description:
-      "1memory turns your background, preferences, and project experience into one memory tree. Stored locally, end-to-end encrypted, and shared with your AI tools only within the scope you choose.",
+      "memocap turns your background, preferences, and project experience into one memory tree. Stored locally, end-to-end encrypted, and shared with your AI tools only within the scope you choose.",
   },
   zh: {
     lang: "zh-CN",
-    title: "1memory — 你的记忆，随 AI 同行",
+    title: "memocap — 你的记忆，随 AI 同行",
     description:
-      "1memory 把你的背景、偏好与项目经验整理成一棵记忆树。本地保存，端到端加密，按所选范围接入你的 AI 工具。",
+      "memocap 把你的背景、偏好与项目经验整理成一棵记忆树。本地保存，端到端加密，按所选范围接入你的 AI 工具。",
   },
 };
 
@@ -57,7 +57,7 @@ function localize(html, locale) {
 /// 生成各语言入口（默认语言原地改写，其余语言另存到子目录）。
 function multiLocale() {
   return {
-    name: "1memory-multilocale",
+    name: "memocap-multilocale",
     apply: "build",
     closeBundle() {
       const root = resolve(OUT, "index.html");

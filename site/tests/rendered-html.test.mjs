@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-test("renders the 1Memory marketing homepage", async () => {
+test("renders the memocap marketing homepage", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
@@ -27,6 +27,6 @@ test("renders the 1Memory marketing homepage", async () => {
     /^text\/html\b/i,
   );
   const html = await response.text();
-  assert.match(html, /1Memory/i);
+  assert.match(html, /memocap/i);
   assert.match(html, /Teach once|教一次/);
 });

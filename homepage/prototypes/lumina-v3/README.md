@@ -1,4 +1,4 @@
-# 1Memory 官网 · V3 Lumina 风格版
+# memocap 官网 · V3 Lumina 风格版
 
 独立的完整静态前端版本。旧版 V2 文件与 GitHub PR #170 保持不变。
 
@@ -41,7 +41,7 @@ python3 -m http.server 4184 --bind 127.0.0.1
 - `i18n.js`、`locales.js`：运行时语言切换及生成的词条。
 - `prompts.js`：六语安装提示词。
 - `config.js`：公开入口配置。
-- `assets/`：1Memory 官方标志；official.css 仅保留来源副本，新版不加载。
+- `assets/`：memocap 官方标志；official.css 仅保留来源副本，新版不加载。
 - `preview/`：原官方客户端中英文演示快照。
 - `build.py`：生成默认英文首页、词条和单文件版本。
 
@@ -63,6 +63,6 @@ GitHub、Benchmark、Docs 按用户确认暂设为 `null`，点击显示待开�
 
 此交付是官网静态前端，不含后台或真实同步服务。加密算法说明采用用户提供文案，本次未审计加密实现；Benchmark 仅展示测试方向，不包含虚构成绩。Apache 2.0 采用已确认的开源发布计划；此前 npm 元数据仍标 MIT，项目正式发布时需统一许可证元数据。
 
-客户端演示和 1Memory 标志来源： https://1memory.ai/ 、 https://1memory.ai/preview/client.zh.html 、 https://1memory.ai/preview/client.en.html 。这些资源沿用原许可证；本交付不替它们重新声明许可。
+客户端演示和 memocap 标志来源： https://memocap.ai/ 、 https://memocap.ai/preview/client.zh.html 、 https://memocap.ai/preview/client.en.html 。这些资源沿用原许可证；本交付不替它们重新声明许可。
 
 浏览器验证范围与已知限制见 `VERIFICATION.md`。

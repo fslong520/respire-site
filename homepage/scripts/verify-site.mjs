@@ -108,7 +108,7 @@ const CHROME = [
 /// budget 默认 8s；嵌套 iframe 的联动测试要等两层 React 就绪，故可放宽。
 function render(url, budget = 8000) {
   return new Promise((done) => {
-    const profile = join(process.env.TEMP ?? '.', `1memory-verify-${Date.now()}`);
+    const profile = join(process.env.TEMP ?? '.', `memocap-verify-${Date.now()}`);
     const child = spawn(CHROME, [
       '--headless=new',
       '--disable-gpu',

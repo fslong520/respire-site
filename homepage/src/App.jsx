@@ -3,19 +3,19 @@ import { ArrowRight, ArrowUpRight, ArrowDown, ArrowsClockwise, BookOpen, CaretDo
 import logo from '../public/brand/logo.svg?inline';
 import { DEFAULT_LOCALE, dictFor, localeFromPath, prefersLocale } from './i18n/index.js';
 
-const REPOSITORY = 'https://github.com/one-memory/1memory';
-const PUBLIC_RELEASES = 'https://github.com/one-memory/1memory-releases/releases';
+const REPOSITORY = 'https://github.com/memocap-ai/memocap';
+const PUBLIC_RELEASES = 'https://github.com/memocap-ai/memocap-releases/releases';
 const PRIVATE_RELEASES = `${REPOSITORY}/releases`;
 const DOCS = `${REPOSITORY}/tree/main/docs`;
 
 function releaseBase() {
-  if (typeof window !== 'undefined' && window.location.hostname === 'dev.1memory.ai') {
+  if (typeof window !== 'undefined' && window.location.hostname === 'dev.memocap.ai') {
     return PRIVATE_RELEASES;
   }
   return PUBLIC_RELEASES;
 }
 const DASHBOARD = '/dashboard';
-const INSTALL = 'npm i -g @1memory/cli';
+const INSTALL = 'npm i -g @memocap/cli';
 
 // 语言在启动时按 URL 前缀定一次：站点是单页应用，没有客户端路由，不会中途变。
 const LOCALE = localeFromPath(typeof window === 'undefined' ? '/' : window.location.pathname);
@@ -108,7 +108,7 @@ function App() {
     // 英文站上按浏览器偏好给一次中文提示，只提示不跳转——URL 与语言由访客决定。
     if (LOCALE !== DEFAULT_LOCALE || !prefersLocale('zh')) return;
     try {
-      if (sessionStorage.getItem('1memory-lang-hint') === 'dismissed') return;
+      if (sessionStorage.getItem('memocap-lang-hint') === 'dismissed') return;
     } catch { /* 隐私模式下 sessionStorage 不可用，照常提示 */ }
     setLangHint(true);
   }, []);
@@ -122,7 +122,7 @@ function App() {
     return () => window.removeEventListener('keydown', close);
   }, []);
   const dismissLangHint = () => {
-    try { sessionStorage.setItem('1memory-lang-hint', 'dismissed'); } catch { /* 同上 */ }
+    try { sessionStorage.setItem('memocap-lang-hint', 'dismissed'); } catch { /* 同上 */ }
     setLangHint(false);
   };
   const tryMode = page => {
@@ -156,16 +156,16 @@ function App() {
   };
   const platformDownloads = {
     macOS: [
-      { id: 'arm64', label: t('arch.mac.desktop'), file: '1memory-macos-arm64.dmg' },
-      { id: 'cli-arm64', label: t('arch.mac.cli'), file: '1memory-aarch64-apple-darwin' },
+      { id: 'arm64', label: t('arch.mac.desktop'), file: 'memocap-macos-arm64.dmg' },
+      { id: 'cli-arm64', label: t('arch.mac.cli'), file: 'memocap-aarch64-apple-darwin' },
     ],
     Linux: [
-      { id: 'x64-deb', label: t('arch.linux.deb.x64'), file: '1memory-linux-x64.deb' },
-      { id: 'x64-rpm', label: t('arch.linux.rpm.x64'), file: '1memory-linux-x64.rpm' },
-      { id: 'arm64-deb', label: t('arch.linux.deb.arm64'), file: '1memory-linux-arm64.deb' },
-      { id: 'arm64-rpm', label: t('arch.linux.rpm.arm64'), file: '1memory-linux-arm64.rpm' },
-      { id: 'cli-x64', label: t('arch.linux.cli.x64'), file: '1memory-x86_64-unknown-linux-gnu' },
-      { id: 'cli-arm64', label: t('arch.linux.cli.arm64'), file: '1memory-aarch64-unknown-linux-gnu' },
+      { id: 'x64-deb', label: t('arch.linux.deb.x64'), file: 'memocap-linux-x64.deb' },
+      { id: 'x64-rpm', label: t('arch.linux.rpm.x64'), file: 'memocap-linux-x64.rpm' },
+      { id: 'arm64-deb', label: t('arch.linux.deb.arm64'), file: 'memocap-linux-arm64.deb' },
+      { id: 'arm64-rpm', label: t('arch.linux.rpm.arm64'), file: 'memocap-linux-arm64.rpm' },
+      { id: 'cli-x64', label: t('arch.linux.cli.x64'), file: 'memocap-x86_64-unknown-linux-gnu' },
+      { id: 'cli-arm64', label: t('arch.linux.cli.arm64'), file: 'memocap-aarch64-unknown-linux-gnu' },
     ],
   };
   const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
@@ -182,7 +182,7 @@ function App() {
     {langHint && <div className="lang-hint" role="status"><span>{t('lang.suggest')}</span><a href={t('lang.otherHref')}>{t('lang.suggestAction')}</a><button type="button" onClick={dismissLangHint} aria-label={t('lang.suggestDismiss')}><X size={16} /></button></div>}
     <header className="site-header">
       <nav className="nav-container" aria-label={t('a11y.mainNav')}>
-        <a className="brand" href="#top" aria-label={t('a11y.home')}><img src={logo} alt="1Memory.ai" /></a>
+        <a className="brand" href="#top" aria-label={t('a11y.home')}><img src={logo} alt="memocap.ai" /></a>
         <div className="nav-links">{nav.map(([name, href]) => <a href={href} key={href}>{name}</a>)}</div>
         <div className="nav-actions"><a className="github-link" href={REPOSITORY} target="_blank" rel="noreferrer" aria-label={t('a11y.github')}><GithubLogo size={21} /></a><LanguageSwitch /><a className="login-link" href={DASHBOARD}>{t('nav.login')}</a><a className="button primary small" href="#download">{t('nav.download')}<ArrowDown size={16} /></a></div>
         <button className="mobile-toggle" aria-expanded={menu} aria-controls="mobile-navigation" aria-label={menu ? t('a11y.closeMenu') : t('a11y.openMenu')} onClick={() => setMenu(!menu)}>{menu ? <X size={24} /> : <List size={24} />}</button>
@@ -248,8 +248,8 @@ function App() {
 
       <section className="download-section manual-section container" id="manual"><div className="download-copy"><div className="section-index"><span>{t('download.manualKicker')}</span></div><h2>{t('download.manualTitleLead')}<br /><span className="subtle">{t('download.manualTitleTail')}</span></h2><p>{t('download.manualBodyLead')}<br />{t('download.manualBodyTail')}</p></div><div className="download-panel"><div className="platform-tabs" role="tablist" aria-label={t('a11y.chooseOS')}>{['macOS', 'Linux'].map(p => <button key={p} role="tab" aria-selected={p === platform} onClick={() => setPlatform(p)}>{p}</button>)}</div><div className="platform-heading"><div className="feature-icon"><PlatformIcon size={33} /></div><div><h3>{platformInfo[platform][0]}</h3><p>{t('download.desktop')}</p></div></div><p className="platform-help">{platformInfo[platform][1]}</p><div className="download-archs">{platformDownloads[platform].map(item => <a key={item.id} className={`button download-button ${item.id === recommendedArch ? 'primary' : ''}`} href={`${RELEASE_LATEST}/${item.file}`}><DownloadSimple size={20} />{item.label}{item.id === recommendedArch ? t('download.recommended') : ''}<ArrowUpRight size={17} /></a>)}</div><p className="release-note">{t('download.releaseNoteLead')}<a href={RELEASES} target="_blank" rel="noreferrer">{t('download.releaseNoteLink')}</a>{t('download.releaseNoteTail')}</p><div className="cli-block"><div><TerminalWindow size={17} /><strong>{t('download.cliTitle')}</strong><a href={`${REPOSITORY}#cli-的-npm-分发`} target="_blank" rel="noreferrer">{t('download.cliDocs')}<ArrowUpRight size={13} /></a></div><div className="command-line"><code>{INSTALL}</code><button aria-label={t('a11y.copyInstall')} onClick={copyCommand}>{copied ? <Check size={18} /> : <Copy size={18} />}</button></div><p role="status">{copyError ? t('download.copyDenied') : copied ? t('download.copied') : t('download.copyHint')}</p></div></div></section>
     </main>
-    <footer className="footer container"><div className="footer-top"><a className="brand" href="#top" aria-label={t('a11y.backHome')}><img src={logo} alt="1Memory.ai" /></a><p>{t('footer.tagline')}</p><div><a href={DOCS} target="_blank" rel="noreferrer">{t('footer.docs')}</a><a href={REPOSITORY} target="_blank" rel="noreferrer">GitHub</a><a href={DASHBOARD}>{t('footer.dashboard')}</a></div></div><div className="footer-bottom"><span>{t('footer.copyright')}</span><span>{t('footer.summary')}</span><a href="#top">{t('footer.backToTop')}<ArrowUpRight size={15} /></a></div></footer>
-    <dialog ref={dialog} aria-label={t('a11y.expandPreview')} className="preview-dialog" onCancel={() => setExpanded(false)} onClick={e => { if (e.target === dialog.current) setExpanded(false); }}><div className="dialog-heading"><img src={logo} alt="1Memory.ai" /><span>{t('preview.demoTitle')}</span><button onClick={() => setExpanded(false)} aria-label={t('a11y.closeFullscreen')}><X size={22} /></button></div>{expanded && <ClientPreview mode={mode} onMode={setMode} expanded />}</dialog>
+    <footer className="footer container"><div className="footer-top"><a className="brand" href="#top" aria-label={t('a11y.backHome')}><img src={logo} alt="memocap.ai" /></a><p>{t('footer.tagline')}</p><div><a href={DOCS} target="_blank" rel="noreferrer">{t('footer.docs')}</a><a href={REPOSITORY} target="_blank" rel="noreferrer">GitHub</a><a href={DASHBOARD}>{t('footer.dashboard')}</a></div></div><div className="footer-bottom"><span>{t('footer.copyright')}</span><span>{t('footer.summary')}</span><a href="#top">{t('footer.backToTop')}<ArrowUpRight size={15} /></a></div></footer>
+    <dialog ref={dialog} aria-label={t('a11y.expandPreview')} className="preview-dialog" onCancel={() => setExpanded(false)} onClick={e => { if (e.target === dialog.current) setExpanded(false); }}><div className="dialog-heading"><img src={logo} alt="memocap.ai" /><span>{t('preview.demoTitle')}</span><button onClick={() => setExpanded(false)} aria-label={t('a11y.closeFullscreen')}><X size={22} /></button></div>{expanded && <ClientPreview mode={mode} onMode={setMode} expanded />}</dialog>
   </>;
 }
 

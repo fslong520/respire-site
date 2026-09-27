@@ -1,6 +1,6 @@
-# 1Memory homepage v2
+# memocap homepage v2
 
-保留 1memory.ai 的原有八个主要模块、灰白底色、品牌标志、柔和阴影和交互客户端预览。新文案映射到原结构，避免九个独立长屏。
+保留 memocap.ai 的原有八个主要模块、灰白底色、品牌标志、柔和阴影和交互客户端预览。新文案映射到原结构，避免九个独立长屏。
 
 ## 预览
 
@@ -54,8 +54,8 @@ python3 build.py
 
 ## 范围与来源
 
-本交付为静态官网前端，不含后台、真实同步或加密实现。密码算法与安全文案来自用户指定内容，本任务未审计后端；Benchmark 展示测试方向，未伪造测试成绩。Apache 2.0 为用户确认的开源发布计划。核对时 npm `@1memory/cli` 0.2.44 元数据仍写 MIT，实际开源发布时需由项目统一仓库 LICENSE、包元数据及官网表述。
+本交付为静态官网前端，不含后台、真实同步或加密实现。密码算法与安全文案来自用户指定内容，本任务未审计后端；Benchmark 展示测试方向，未伪造测试成绩。Apache 2.0 为用户确认的开源发布计划。核对时 npm `@memocap/cli` 0.2.44 元数据仍写 MIT，实际开源发布时需由项目统一仓库 LICENSE、包元数据及官网表述。
 
-设计资源和客户端预览来源： https://1memory.ai/ 、 https://1memory.ai/preview/client.zh.html 、 https://1memory.ai/preview/client.en.html ，2026-09-20 获取。未对既有嵌入预览资源重新声明许可证。
+设计资源和客户端预览来源： https://memocap.ai/ 、 https://memocap.ai/preview/client.zh.html 、 https://memocap.ai/preview/client.en.html ，2026-09-20 获取。未对既有嵌入预览资源重新声明许可证。
 
 交付未发布到生产网站。单文件版已通过 HTTP 实测；file:// 双击场景未做浏览器验收。

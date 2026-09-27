@@ -1,11 +1,11 @@
 window.ONE_MEMORY_TRANSLATIONS = {
-  "1Memory — 换 AI，不换记忆。": {
-    "zh": "1Memory — 换 AI，不换记忆。",
-    "en": "1Memory — Switch AI. Keep Memory.",
-    "es": "1Memory — Cambia de IA. Conserva tu memoria.",
-    "fr": "1Memory — Changez d’IA. Gardez votre mémoire.",
-    "ko": "1Memory — AI는 바꿔도, 기억은 그대로.",
-    "ja": "1Memory — AIを変えても、記憶はそのまま。"
+  "memocap — 换 AI，不换记忆。": {
+    "zh": "memocap — 换 AI，不换记忆。",
+    "en": "memocap — Switch AI. Keep Memory.",
+    "es": "memocap — Cambia de IA. Conserva tu memoria.",
+    "fr": "memocap — Changez d’IA. Gardez votre mémoire.",
+    "ko": "memocap — AI는 바꿔도, 기억은 그대로.",
+    "ja": "memocap — AIを変えても、記憶はそのまま。"
   },
   "跳到正文": {
     "zh": "跳到正文",
@@ -103,13 +103,13 @@ window.ONE_MEMORY_TRANSLATIONS = {
     "ko": "매번 처음부터 설명할 필요 없습니다.",
     "ja": "毎回、最初からやり直す必要はありません。"
   },
-  "1Memory 是独立于 Agent 的个人记忆层。": {
-    "zh": "1Memory 是独立于 Agent 的个人记忆层。",
-    "en": "1Memory is your personal memory layer, independent of any agent.",
-    "es": "1Memory es tu capa de memoria personal, independiente de cualquier agente.",
-    "fr": "1Memory est votre couche de mémoire personnelle, indépendante des agents.",
-    "ko": "1Memory는 Agent와 독립된 개인 기억 계층입니다.",
-    "ja": "1Memoryは、Agentから独立した個人の記憶レイヤーです。"
+  "memocap 是独立于 Agent 的个人记忆层。": {
+    "zh": "memocap 是独立于 Agent 的个人记忆层。",
+    "en": "memocap is your personal memory layer, independent of any agent.",
+    "es": "memocap es tu capa de memoria personal, independiente de cualquier agente.",
+    "fr": "memocap est votre couche de mémoire personnelle, indépendante des agents.",
+    "ko": "memocap는 Agent와 독립된 개인 기억 계층입니다.",
+    "ja": "memocapは、Agentから独立した個人の記憶レイヤーです。"
   },
   "复制提示词，让 AI 装好": {
     "zh": "复制提示词，让 AI 装好",
@@ -143,13 +143,13 @@ window.ONE_MEMORY_TRANSLATIONS = {
     "ko": "암호화 동기화",
     "ja": "暗号化同期"
   },
-  "1Memory 客户端": {
-    "zh": "1Memory 客户端",
-    "en": "1Memory client",
-    "es": "Cliente 1Memory",
-    "fr": "Client 1Memory",
-    "ko": "1Memory 클라이언트",
-    "ja": "1Memoryクライアント"
+  "memocap 客户端": {
+    "zh": "memocap 客户端",
+    "en": "memocap client",
+    "es": "Cliente memocap",
+    "fr": "Client memocap",
+    "ko": "memocap 클라이언트",
+    "ja": "memocapクライアント"
   },
   "记忆树": {
     "zh": "记忆树",
@@ -407,13 +407,13 @@ window.ONE_MEMORY_TRANSLATIONS = {
     "ko": "기억의 가치는 다음 작업을 이어갈 수 있는지에 있습니다.",
     "ja": "役立つ記憶とは、次に続きを始められること。"
   },
-  "1Memory Benchmark 持续测试：": {
-    "zh": "1Memory Benchmark 持续测试：",
-    "en": "1Memory Benchmark continuously tests:",
-    "es": "1Memory Benchmark prueba de forma continua:",
-    "fr": "1Memory Benchmark teste en continu :",
-    "ko": "1Memory Benchmark는 지속적으로 테스트합니다:",
-    "ja": "1Memory Benchmarkが継続的にテストすること："
+  "memocap Benchmark 持续测试：": {
+    "zh": "memocap Benchmark 持续测试：",
+    "en": "memocap Benchmark continuously tests:",
+    "es": "memocap Benchmark prueba de forma continua:",
+    "fr": "memocap Benchmark teste en continu :",
+    "ko": "memocap Benchmark는 지속적으로 테스트합니다:",
+    "ja": "memocap Benchmarkが継続的にテストすること："
   },
   "跨 Agent 接续": {
     "zh": "跨 Agent 接续",
@@ -639,13 +639,13 @@ window.ONE_MEMORY_TRANSLATIONS = {
     "ko": "여러 기기가 필요할 때,",
     "ja": "複数のデバイスで使うとき、"
   },
-  "1Memory 同步的是": {
-    "zh": "1Memory 同步的是",
-    "en": "1Memory syncs",
-    "es": "1Memory sincroniza",
-    "fr": "1Memory synchronise",
-    "ko": "1Memory가 동기화하는 것은",
-    "ja": "1Memoryが同期するのは"
+  "memocap 同步的是": {
+    "zh": "memocap 同步的是",
+    "en": "memocap syncs",
+    "es": "memocap sincroniza",
+    "fr": "memocap synchronise",
+    "ko": "memocap가 동기화하는 것은",
+    "ja": "memocapが同期するのは"
   },
   "加密后的数据": {
     "zh": "加密后的数据",
@@ -719,13 +719,13 @@ window.ONE_MEMORY_TRANSLATIONS = {
     "ko": "코드를 열어 직접 확인하게 합니다.",
     "ja": "コードを公開して確かめられるように。"
   },
-  "1Memory 开放源码。": {
-    "zh": "1Memory 开放源码。",
-    "en": "1Memory is open source.",
-    "es": "1Memory es de código abierto.",
-    "fr": "1Memory est open source.",
-    "ko": "1Memory는 오픈소스입니다.",
-    "ja": "1Memoryはオープンソースです。"
+  "memocap 开放源码。": {
+    "zh": "memocap 开放源码。",
+    "en": "memocap is open source.",
+    "es": "memocap es de código abierto.",
+    "fr": "memocap est open source.",
+    "ko": "memocap는 오픈소스입니다.",
+    "ja": "memocapはオープンソースです。"
   },
   "你可以检查：": {
     "zh": "你可以检查：",
@@ -919,13 +919,13 @@ window.ONE_MEMORY_TRANSLATIONS = {
     "ko": "삭제하세요.",
     "ja": "削除する。"
   },
-  "以后不再使用 1Memory？": {
-    "zh": "以后不再使用 1Memory？",
-    "en": "Leaving 1Memory one day?",
-    "es": "¿Dejarás de usar 1Memory?",
-    "fr": "Vous quittez 1Memory un jour ?",
-    "ko": "언젠가 1Memory를 떠난다면?",
-    "ja": "いつか1Memoryを使わなくなったら？"
+  "以后不再使用 memocap？": {
+    "zh": "以后不再使用 memocap？",
+    "en": "Leaving memocap one day?",
+    "es": "¿Dejarás de usar memocap?",
+    "fr": "Vous quittez memocap un jour ?",
+    "ko": "언젠가 memocap를 떠난다면?",
+    "ja": "いつかmemocapを使わなくなったら？"
   },
   "导出并带走。": {
     "zh": "导出并带走。",
@@ -1167,13 +1167,13 @@ window.ONE_MEMORY_TRANSLATIONS = {
     "ko": "주 메뉴",
     "ja": "メインナビゲーション"
   },
-  "1Memory 首页": {
-    "zh": "1Memory 首页",
-    "en": "1Memory home",
-    "es": "Inicio de 1Memory",
-    "fr": "Accueil 1Memory",
-    "ko": "1Memory 홈",
-    "ja": "1Memoryホーム"
+  "memocap 首页": {
+    "zh": "memocap 首页",
+    "en": "memocap home",
+    "es": "Inicio de memocap",
+    "fr": "Accueil memocap",
+    "ko": "memocap 홈",
+    "ja": "memocapホーム"
   },
   "GitHub 入口": {
     "zh": "GitHub 入口",
@@ -1215,13 +1215,13 @@ window.ONE_MEMORY_TRANSLATIONS = {
     "ko": "클라이언트 제품 미리보기",
     "ja": "クライアントの製品プレビュー"
   },
-  "1Memory 客户端交互预览": {
-    "zh": "1Memory 客户端交互预览",
-    "en": "Interactive 1Memory client preview",
-    "es": "Vista interactiva de 1Memory",
-    "fr": "Aperçu interactif de 1Memory",
-    "ko": "1Memory 클라이언트 인터랙티브 미리보기",
-    "ja": "1Memoryクライアントの操作プレビュー"
+  "memocap 客户端交互预览": {
+    "zh": "memocap 客户端交互预览",
+    "en": "Interactive memocap client preview",
+    "es": "Vista interactiva de memocap",
+    "fr": "Aperçu interactif de memocap",
+    "ko": "memocap 클라이언트 인터랙티브 미리보기",
+    "ja": "memocapクライアントの操作プレビュー"
   },
   "体验客户端功能": {
     "zh": "体验客户端功能",
@@ -1231,13 +1231,13 @@ window.ONE_MEMORY_TRANSLATIONS = {
     "ko": "클라이언트 기능 체험",
     "ja": "クライアント機能を体験"
   },
-  "Claude、Codex、Next Agent 与 You 连接到同一份 1Memory": {
-    "zh": "Claude、Codex、Next Agent 与 You 连接到同一份 1Memory",
-    "en": "Claude, Codex, Next Agent and You connect to one 1Memory",
-    "es": "Claude, Codex, Next Agent y tú conectados a un mismo 1Memory",
+  "Claude、Codex、Next Agent 与 You 连接到同一份 memocap": {
+    "zh": "Claude、Codex、Next Agent 与 You 连接到同一份 memocap",
+    "en": "Claude, Codex, Next Agent and You connect to one memocap",
+    "es": "Claude, Codex, Next Agent y tú conectados a un mismo memocap",
     "fr": "Claude, Codex, Next Agent et vous, connectés à une seule mémoire",
-    "ko": "Claude, Codex, 다음 Agent와 내가 하나의 1Memory에 연결됩니다",
-    "ja": "Claude、Codex、次のAgent、あなたが一つの1Memoryにつながる"
+    "ko": "Claude, Codex, 다음 Agent와 내가 하나의 memocap에 연결됩니다",
+    "ja": "Claude、Codex、次のAgent、あなたが一つのmemocapにつながる"
   },
   "在预览中体验记住": {
     "zh": "在预览中体验记住",

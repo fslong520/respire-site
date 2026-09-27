@@ -36,13 +36,13 @@ const memories = [
 
 function Logo({ inverse = false }: { inverse?: boolean }) {
   return (
-    <a className="brand" href="#top" aria-label="1Memory 首页">
+    <a className="brand" href="#top" aria-label="memocap 首页">
       <img
         className="brand-logo"
-        src={inverse ? "/brand/1memory-logo-reverse.svg" : "/brand/1memory-logo-dark.svg"}
+        src={inverse ? "/brand/memocap-logo-reverse.svg" : "/brand/memocap-logo-dark.svg"}
         width="733"
         height="128"
-        alt="1Memory.ai"
+        alt="memocap.ai"
       />
     </a>
   );
@@ -68,7 +68,7 @@ function AgentBadge({
 
 function MemoryApp() {
   return (
-    <div className="memory-stage" aria-label="1Memory 产品界面示意">
+    <div className="memory-stage" aria-label="memocap 产品界面示意">
       <div className="orbit orbit-one" />
       <div className="orbit orbit-two" />
       <div className="stage-glow" />
@@ -76,10 +76,10 @@ function MemoryApp() {
         <div className="app-topbar">
           <div className="app-mini-brand">
             <img
-              src="/brand/1memory-logo-dark.svg"
+              src="/brand/memocap-logo-dark.svg"
               width="733"
               height="128"
-              alt="1Memory.ai"
+              alt="memocap.ai"
             />
           </div>
           <div className="secure-state">
@@ -213,8 +213,8 @@ export default function Home() {
             <a href="#security">安全</a>
           </div>
           <div className="nav-actions">
-            <a className="nav-login" href="https://github.com/one-memory/1memory/tree/main/docs">文档</a>
-            <a className="nav-login" href="https://github.com/one-memory/1memory">GitHub</a>
+            <a className="nav-login" href="https://github.com/memocap-ai/memocap/tree/main/docs">文档</a>
+            <a className="nav-login" href="https://github.com/memocap-ai/memocap">GitHub</a>
             <a className="button button-small button-light-outline" href="/dashboard">
               <LogIn size={15} /> 登录
             </a>
@@ -247,7 +247,7 @@ export default function Home() {
               <span>每个 AI 都记得。</span>
             </h1>
             <p className="hero-lead">
-              1Memory 把你教给 AI 的规则、技能与项目上下文，变成可加密、可同步、可注入的 Skill。换电脑、换模型、换智能体，都不必从头再来。
+              memocap 把你教给 AI 的规则、技能与项目上下文，变成可加密、可同步、可注入的 Skill。换电脑、换模型、换智能体，都不必从头再来。
             </p>
             <div className="hero-actions">
               <a className="button button-primary" href="#download">
@@ -277,7 +277,7 @@ export default function Home() {
 
       <section className="problem-section" id="product">
         <div className="section-heading centered">
-          <span className="kicker">WHY 1MEMORY</span>
+          <span className="kicker">WHY memocap</span>
           <h2>AI 越来越聪明，<br />却总不记得你。</h2>
           <p>你真正花时间教会的，不该被锁在某一次对话、某一台电脑、某一个模型里。</p>
         </div>
@@ -335,7 +335,7 @@ export default function Home() {
           <div className="section-heading light-heading">
             <span className="kicker light">HOW IT WORKS</span>
             <h2>把记忆变成<br />AI 可以带走的能力。</h2>
-            <p>不再管理一堆配置。你只管教，1Memory 负责整理、加密、同步与注入。</p>
+            <p>不再管理一堆配置。你只管教，memocap 负责整理、加密、同步与注入。</p>
           </div>
 
           <div className="steps-stack">
@@ -345,7 +345,7 @@ export default function Home() {
               <div className="step-copy">
                 <span>LEARN</span>
                 <h3>像平时一样，把事情丢给 AI。</h3>
-                <p>给它规则、示例、文档或一次纠正。1Memory 自动提炼可复用的偏好、知识与工作方法。</p>
+                <p>给它规则、示例、文档或一次纠正。memocap 自动提炼可复用的偏好、知识与工作方法。</p>
               </div>
               <div className="step-demo learn-demo">
                 <div className="message user-message">以后写报告，先给结论，英文术语首次出现再保留原文。</div>
@@ -376,7 +376,7 @@ export default function Home() {
               <div className="step-copy">
                 <span>INJECT</span>
                 <h3>打开任何智能体，马上接着做。</h3>
-                <p>1Memory 把正确的记忆注入正确的智能体。换设备、换模型，也保留同一套做事方式。</p>
+                <p>memocap 把正确的记忆注入正确的智能体。换设备、换模型，也保留同一套做事方式。</p>
               </div>
               <div className="step-demo inject-demo">
                 {agents.slice(0, 4).map((agent, index) => (
@@ -416,7 +416,7 @@ export default function Home() {
           <div className="network-core">
             <span className="core-ring"><BrainCircuit /></span>
             <small>YOUR</small>
-            <strong>1Memory</strong>
+            <strong>memocap</strong>
             <em><LockKeyhole size={12} /> Encrypted</em>
           </div>
           <div className="network-device network-work">
@@ -467,7 +467,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="key-map" aria-label="1Memory 端到端加密密钥层级">
+          <div className="key-map" aria-label="memocap 端到端加密密钥层级">
             <div className="key-map-top">
               <KeyNode label="用户密码" className="input-key" />
               <span className="plus-sign">+</span>
@@ -502,30 +502,30 @@ export default function Home() {
       <section className="final-cta" id="download">
         <div className="cta-orbit cta-orbit-one" />
         <div className="cta-orbit cta-orbit-two" />
-        <div className="cta-logo" aria-label="1Memory">
+        <div className="cta-logo" aria-label="memocap">
           <img
             className="cta-logo-image"
-            src="/brand/1memory-logo-reverse.svg"
+            src="/brand/memocap-logo-reverse.svg"
             width="733"
             height="128"
-            alt="1Memory.ai"
+            alt="memocap.ai"
           />
         </div>
         <span className="kicker light">YOUR AI, YOUR MEMORY</span>
         <h2>让 AI 从此真正认识你。</h2>
         <p>一次教会，安全保存，到处可用。客户端与 CLI 现已开放下载。</p>
         <div className="cta-actions">
-          <a className="button button-primary button-white" href="https://github.com/one-memory/1memory-releases/releases/latest">
+          <a className="button button-primary button-white" href="https://github.com/memocap-ai/memocap-releases/releases/latest">
             下载桌面客户端 <ArrowRight size={18} />
           </a>
-          <a className="button button-light-outline" href="https://github.com/one-memory/1memory/tree/main/docs">
+          <a className="button button-light-outline" href="https://github.com/memocap-ai/memocap/tree/main/docs">
             阅读文档
           </a>
         </div>
         <div className="cta-install">
-          <code>npm i -g @1memory/cli &amp;&amp; 1memory doctor</code>
+          <code>npm i -g @memocap/cli &amp;&amp; memocap doctor</code>
         </div>
-        <span>1memory.ai · 端到端加密 · 开源</span>
+        <span>memocap.ai · 端到端加密 · 开源</span>
       </section>
 
       <footer>
@@ -536,14 +536,14 @@ export default function Home() {
             <a href="#product">产品</a>
             <a href="#integrations">兼容工具</a>
             <a href="#security">安全</a>
-            <a href="https://github.com/one-memory/1memory/tree/main/docs">文档</a>
+            <a href="https://github.com/memocap-ai/memocap/tree/main/docs">文档</a>
             <a href="/dashboard">登录</a>
-            <a href="https://github.com/one-memory/1memory">GitHub</a>
-            <a href="mailto:hello@1memory.ai">联系我们</a>
+            <a href="https://github.com/memocap-ai/memocap">GitHub</a>
+            <a href="mailto:hello@memocap.ai">联系我们</a>
           </div>
         </div>
         <div className="footer-bottom">
-          <span>© 2026 1Memory. All rights reserved.</span>
+          <span>© 2026 memocap. All rights reserved.</span>
           <span>Encrypted by design · Owned by you</span>
         </div>
       </footer>
