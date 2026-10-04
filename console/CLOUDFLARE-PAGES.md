@@ -36,13 +36,13 @@ cd homepage && npm ci && npm run check && npm test && npm run build && cd ../con
 
 Publish **`site/dist/pages`**. Attach the website, Dashboard and Admin domains to this same project. The default `pages.dev` hostname and website domain serve the homepage. The generated `_worker.js` selects the console by its exact configured hostname and only reads local Pages assets; it never proxies the API.
 
-| Public build variable | Production after separately approved cutover | Isolated deployment |
+| Public build variable | Production project | DEV project |
 | --- | --- | --- |
 | `NODE_VERSION` | `22` | `22` |
-| `VITE_API_BASE_URL` | `https://api.rsrs.rs` | Exact isolated HTTPS API origin |
-| `VITE_DASHBOARD_URL` | `https://dash.rsrs.rs` | Exact isolated Dashboard HTTPS origin |
-| `VITE_ADMIN_URL` | `https://admin.rsrs.rs` | Exact isolated Admin HTTPS origin |
-| `VITE_HOMEPAGE_URL` | `https://rsrs.rs` | Exact isolated homepage HTTPS origin used by console home links |
+| `VITE_API_BASE_URL` | `https://api.rsrs.rs` | `https://dev.rsrs.rs` |
+| `VITE_DASHBOARD_URL` | `https://dash.rsrs.rs` | `https://dash.dev.rsrs.rs` |
+| `VITE_ADMIN_URL` | `https://admin.rsrs.rs` | `https://admin.dev.rsrs.rs` |
+| `VITE_HOMEPAGE_URL` | `https://rsrs.rs` | `https://respire-dev-site.pages.dev` |
 
 No credentials, recovery material, private API token belong in Pages environment variables. Individual component builds remain available for local checks; the combined project publishes the assembled directory, not the parent `console/dist` directory.
 
