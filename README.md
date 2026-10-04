@@ -40,17 +40,12 @@ Frontend source moves now; existing runtime routes and containers remain until A
 
 ## Checks and deployment
 
-Pushes to `main` automatically deploy the DEV Pages project. Production deploys
-only after a `vX.Y.Z` tag is pushed: [the release workflow](.github/workflows/pages-release.yml)
-requires the tagged commit to belong to `main`, runs the existing Site CI, and
-fast-forwards `prod/pages` to that exact commit. The production Pages project
-builds `prod/pages` through its native Git integration. No Cloudflare deployment
-token or backend server configuration is stored in this repository.
-
-The production branch must not receive manual pushes. Older/non-ancestor tags
-fail the fast-forward gate; use the recorded Pages rollback deployment when
-an operator-approved rollback is needed. Creating a local tag does not publish
-until that tag is pushed to GitHub.
+Pushes to `develop` automatically deploy the DEV Pages project. After DEV
+verification and the existing Site CI pass, merge `develop` into `main` to
+automatically deploy production. Both projects use native Cloudflare Pages Git
+integration; tags do not trigger deployment. No Cloudflare deployment token or
+backend server configuration is stored in this repository. Backend/database
+deployment remains operator-local SSH.
 
 [Site CI](.github/workflows/ci.yml) owns build, unit and local browser checks for all three frontends, including the homepage production and development distributions. Linux jobs run the full local browser suites; a Windows clean-checkout console job verifies source, units, builds and provenance with line-ending conversion enabled. Native Cloudflare Pages Git integration builds one combined deployment from its Site revision; see [the project configuration](console/CLOUDFLARE-PAGES.md). Separately approved, isolated hosted acceptance also lives in Site and is never run by ordinary CI or Pages builds.
 

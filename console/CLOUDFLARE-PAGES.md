@@ -10,15 +10,15 @@ Paired API/source-ownership change: [respire-server PR #6](https://github.com/ri
 
 | Pages project | Production branch in Cloudflare | Trigger | API origin |
 | --- | --- | --- | --- |
-| `respire-dev-site` | `main` | Push to `main` | `https://dev.rsrs.rs` |
-| `respire-site` | `prod/pages` | Successful `vX.Y.Z` tag release | `https://api.rsrs.rs` |
+| `respire-dev-site` | `develop` | Push to `develop` | `https://dev.rsrs.rs` |
+| `respire-site` | `main` | Merge the verified `develop` changes into `main` | `https://api.rsrs.rs` |
 
 Both projects keep automatic production-branch deployments enabled. Disable
 branch preview deployments on both projects: their custom domains are the
-fixed, separately allowlisted DEV and production origins. The release workflow
-runs the existing Site CI before fast-forwarding `prod/pages` to the tag's exact
-commit; it never merges newer `main` changes into that release. Do not manually
-push `prod/pages`, and do not bind the production project to `main`.
+fixed, separately allowlisted DEV and production origins. The existing Site CI
+runs for pushes and pull requests on both branches. Verify the `develop`
+deployment and CI before merging it into `main`. Tags do not trigger deployment;
+there is no separate tag workflow or intermediate production branch.
 
 Each project's public build variables remain environment-specific. Cloudflare
 uses its own Production environment for either project's configured production
