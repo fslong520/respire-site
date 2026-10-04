@@ -18,6 +18,6 @@ The existing GitHub Site CI runs the production and development browser checks. 
 
 Before attaching the custom domain, verify the Pages preview at `/` and `/zh/`, the dashboard/admin redirects, mobile navigation and all asset requests. Attach `rsrs.rs` through the project's **Custom domains** settings so Pages provisions its certificate and DNS. Leave `dash.rsrs.rs`, `admin.rsrs.rs`, `api.rsrs.rs` and `dev.rsrs.rs` unchanged.
 
-Retain the old website files for rollback. Stop only the old static website service after the custom domain passes verification; the API, account dashboard, administration and legacy API routing remain on their existing services.
+After Pages and the custom domain pass verification, remove only the old homepage's OVH proxy route. The homepage, account dashboard and administration currently share one web container: keep that container running, and preserve the dashboard, administration, API and legacy API routes. Retain the old homepage files for rollback.
 
 See [Cloudflare Git integration](https://developers.cloudflare.com/pages/configuration/git-integration/), [build configuration](https://developers.cloudflare.com/pages/configuration/build-configuration/) and [custom domains](https://developers.cloudflare.com/pages/configuration/custom-domains/).
