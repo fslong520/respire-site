@@ -351,8 +351,8 @@ page.setDefaultTimeout(30000);
       await navigate(id);
       await page.locator('.page-heading h1').waitFor();
       if (id === 'admins') {
-        await page.locator('.user-cell strong').getByText(owner, { exact: true }).waitFor();
-        await page.locator('.user-cell strong').getByText(viewer, { exact: true }).waitFor();
+        await page.locator('.user-cell').getByText(owner, { exact: true }).waitFor();
+        await page.locator('.user-cell').getByText(viewer, { exact: true }).waitFor();
       }
       await screenshot(`admin-${id}`);
     }

@@ -38,6 +38,7 @@ async function run(name, body) {
   const before = api.requests.length;
   try {
     await body();
+    await Promise.all(context.pages().map(page => page.waitForLoadState('networkidle')));
     assert.deepEqual(api.unexpected, [], 'Fixture API encountered an unexpected request or payload');
     assert.deepEqual(proxy.blocked, [], 'Browser attempted a request outside the fixture transport allowlist');
     assert.deepEqual(proxy.errors, [], 'Fixture proxy encountered a transport failure');
@@ -326,6 +327,7 @@ try {
     await assertAlert(page, 'fixture invalid email code');
     assert.equal(api.state.emailVerified, false);
     await waitForApi(page, '/api/self/email', 'POST', () => page.getByRole('button', { name: t('resendCode'), exact: true }).click());
+    await page.waitForFunction(() => document.querySelector('input[autocomplete="one-time-code"]')?.value === '');
     assert.equal(await page.getByLabel(t('emailCode'), { exact: true }).inputValue(), '');
     await page.getByLabel(t('emailCode'), { exact: true }).fill(FIXTURE.emailCode);
     await waitForApi(page, '/api/self/email/confirm', 'POST', () => page.getByRole('button', { name: t('verifyAndBind'), exact: true }).click());
