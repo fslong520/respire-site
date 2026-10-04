@@ -22,6 +22,7 @@ Publish **`site/dist/pages`**. Attach the website, Dashboard and Admin domains t
 | `VITE_API_BASE_URL` | `https://api.rsrs.rs` | Exact isolated HTTPS API origin |
 | `VITE_DASHBOARD_URL` | `https://dash.rsrs.rs` | Exact isolated Dashboard HTTPS origin |
 | `VITE_ADMIN_URL` | `https://admin.rsrs.rs` | Exact isolated Admin HTTPS origin |
+| `VITE_HOMEPAGE_URL` | `https://rsrs.rs` | Exact isolated homepage HTTPS origin used by console home links |
 
 No credentials, recovery material, private API token belong in Pages environment variables. Individual component builds remain available for local checks; the combined project publishes the assembled directory, not the parent `console/dist` directory.
 

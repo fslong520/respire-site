@@ -31,7 +31,7 @@ test('source checks accept paths with spaces and still reject real imported-cont
       copyFileSync(join(root, path), target);
     }
     const check = () => execFileSync(process.execPath, [join(temporary, 'scripts/check-source.mjs')], { encoding: 'utf8', stdio: 'pipe' });
-    assert.match(check(), /Verified 25 unchanged imported files/);
+    assert.ok(check().includes(`Verified ${Object.keys(upstream.unchanged_sha256).length} unchanged imported files`));
     const changed = join(temporary, 'src/crypto.js');
     writeFileSync(changed, Buffer.concat([readFileSync(changed), Buffer.from('\n// changed content\n')]));
     assert.throws(check, error => error.status !== 0 && /Unrecorded change to imported source src\/crypto\.js/.test(String(error.stderr)));

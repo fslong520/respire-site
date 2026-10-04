@@ -9,7 +9,6 @@
     "src/Brand.jsx": "c2e84d60a4116b00f3fd5864b93f279534748782298bd63542697d7c7d112612",
     "src/DashboardPages.jsx": "423ca6a987dc0240dc7631a9ee300dd536b0e02b5bc077e87eca03380596ce98",
     "src/DiaryCalendar.jsx": "426cda6b3fcfaac1fbe13cbb0863532dda85da250705f9f07274580b4057d62d",
-    "src/Gate.jsx": "dccb27a692dfb26e0bd7433db02dd03f666d0502ad331ea4f4e6a29dba2e65c1",
     "src/Security.jsx": "3e2c92280535b4c301ec896bd3166679642bb8b5e687fa525cb8c22ad46a6364",
     "src/Shell.jsx": "cb3466c2151b3263ee4fd526d34883d91cf8ec0264737cbddbbc4b17af27fa40",
     "src/admin.css": "1380b67b58bf343bda84a7a77e7f069e340972a8579dfa6eae7a0db9b0404940",
@@ -35,6 +34,7 @@
     "package.json",
     "package-lock.json",
     "src/App.jsx",
+    "src/Gate.jsx",
     "src/api.js",
     "tests/browser-render.mjs",
     "vite.config.js"

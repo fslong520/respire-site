@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
   if (!['dashboard', 'admin'].includes(mode)) throw new Error('Use an explicit dashboard or admin mode');
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   const apiBase = normalizeApiBase(env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL);
+  const homepageUrl = normalizeApiBase(env.VITE_HOMEPAGE_URL || 'https://rsrs.rs');
   const apiOrigin = new URL(apiBase);
   const apiHostname = apiOrigin.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '');
   if (process.env.CF_PAGES && (apiOrigin.protocol !== 'https:' || isIP(apiHostname) || apiHostname === 'localhost' || apiHostname.endsWith('.localhost'))) {
@@ -34,7 +35,7 @@ export default defineConfig(({ mode }) => {
       }
       copyFileSync(resolve('upstream.json'), resolve(outDir, 'source-notice.json'));
       writeFileSync(resolve(outDir, 'build-info.json'), `${JSON.stringify({
-        ...checkout, target: mode, api_base_url: apiBase,
+        ...checkout, target: mode, api_base_url: apiBase, homepage_url: homepageUrl,
         imported_from: source.repository, imported_revision: source.commit,
       }, null, 2)}\n`);
     },
@@ -46,6 +47,7 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_CONSOLE_TARGET': JSON.stringify(mode),
       'import.meta.env.VITE_API_BASE_URL': JSON.stringify(apiBase),
+      'import.meta.env.VITE_HOMEPAGE_URL': JSON.stringify(homepageUrl),
     },
     esbuild: { jsx: 'automatic' },
     build: { outDir, emptyOutDir: true, assetsInlineLimit: 100000, cssCodeSplit: false },
