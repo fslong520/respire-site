@@ -79,8 +79,12 @@ export async function startFixtureProxy(destinations) {
     socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
   });
   server.on('clientError', (error, socket) => {
+    // Chromium closes idle/preconnected sockets when a context is disposed.
+    // A connection reset is not an HTTP parser rejection; parsed requests still
+    // pass the origin/method checks above before any upstream connection.
+    if (error.code === 'ECONNRESET') { socket.destroy(); return; }
     blocked.push({ method: null, target: null, reason: `malformed HTTP: ${error.code}` });
-    socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
+    if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
   });
   server.on('connection', socket => {
     sockets.add(socket);
