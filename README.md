@@ -44,7 +44,7 @@ rsrs --help
 rsrs recall "query" --titles --json
 ```
 
-The website workflow builds and verifies both distributions, records the source revision and uploads checksummed archives. A stable tag publishes release assets; deployment is separate.
+The website workflow builds and verifies both distributions, records the source revision and uploads checksummed archives. A stable tag publishes release assets. Configure [Cloudflare Pages](homepage/CLOUDFLARE-PAGES.md) with the native GitHub integration to deploy production automatically on pushes to `main`.
 
 ## License
 

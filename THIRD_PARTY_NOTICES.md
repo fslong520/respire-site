@@ -18,3 +18,7 @@ The supplied GLSL is retained in `homepage/src/respire/WlcfRn-user-supplied.glsl
 Third-party packages remain under their respective licenses. Exact dependency versions are recorded in `package-lock.json`.
 
 The retained Shadcn Tailwind stylesheet license is in `homepage/vendor/shadcn-tailwind-4.13.0.LICENSE.md`.
+
+## Self-hosted fonts
+
+Fraunces (Copyright 2020 The Fraunces Project Authors), Work Sans (Copyright 2019 The Work Sans Project Authors), and Noto Serif SC (Google Inc.) are distributed under the SIL Open Font License 1.1. Their complete upstream notices are retained in `homepage/assets/licenses/` and copied into the deployed website. The first-party noncommercial license does not replace these font licenses.

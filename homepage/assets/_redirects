@@ -1,0 +1,4 @@
+/dashboard https://dash.rsrs.rs/dashboard 302
+/dashboard/* https://dash.rsrs.rs/dashboard/:splat 302
+/admin https://admin.rsrs.rs/admin 302
+/admin/* https://admin.rsrs.rs/admin/:splat 302

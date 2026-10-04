@@ -4,3 +4,4 @@ node_modules/
 target/
 *.db
 site/dist/preview/
+site/dist
