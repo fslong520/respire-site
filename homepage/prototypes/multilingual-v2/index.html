@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f1f2f4">
+  <meta name="description" content="respire is your personal memory layer, independent of any agent.">
+  <title>respire — Switch AI. Keep Memory.</title>
+  <link rel="icon" type="image/svg+xml" href="assets/mark.svg">
+  <link rel="stylesheet" href="assets/official.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+  <symbol id="i-copy" viewbox="0 0 24 24"><rect x="8" y="3" width="12" height="14" rx="2"/><path d="M16 17v4H4V7h4"/></symbol>
+  <symbol id="i-arrow" viewbox="0 0 24 24"><path d="M5 19 19 5M5 5h14v14"/></symbol>
+  <symbol id="i-down" viewbox="0 0 24 24"><path d="M12 3v18m-7-7 7 7 7-7"/></symbol>
+  <symbol id="i-tree" viewbox="0 0 24 24"><rect x="3" y="9" width="5" height="6" rx="1"/><rect x="16" y="3" width="5" height="6" rx="1"/><rect x="16" y="15" width="5" height="6" rx="1"/><path d="M8 12h4m4-6h-4v12h4"/></symbol>
+  <symbol id="i-sync" viewbox="0 0 24 24"><path d="M20 8a8.5 8.5 0 0 0-14-3L3 8m0-5v5h5M4 16a8.5 8.5 0 0 0 14 3l3-3m-5 0h5v5"/></symbol>
+  <symbol id="i-plug" viewbox="0 0 24 24"><path d="m15 3 6 6m-4-4 4-4M10 8l6 6m-8-4-3 3a4 4 0 0 0 6 6l3-3M3 21l3-3M9 9l2-2a4 4 0 0 1 6 6l-2 2"/></symbol>
+  <symbol id="i-expand" viewbox="0 0 24 24"><path d="M3 9V3h6m6 0h6v6M3 15v6h6m6 0h6v-6"/></symbol>
+  <symbol id="i-close" viewbox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+  <symbol id="i-menu" viewbox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-github" viewbox="0 0 24 24"><path d="M9 20c-4 1-4-2-6-2m12 4v-4c0-1-.4-2-1-2 4-.5 6-2 6-6 0-1.5-.5-2.5-1.5-3.5.5-1.5.5-3 0-4.5-1.5 0-3 1-4 2a14 14 0 0 0-5 0c-1-1-2.5-2-4-2-.5 1.5-.5 3 0 4.5C4.5 7.5 4 8.5 4 10c0 4 2 5.5 6 6-.6.5-1 1.5-1 2v4"/></symbol>
+  <symbol id="i-device" viewbox="0 0 24 24"><rect x="4" y="3" width="16" height="13" rx="2"/><path d="M2 19h20l-1 2H3l-1-2Zm6-7h8"/></symbol>
+  <symbol id="i-cloud" viewbox="0 0 24 24"><path d="M6 18a4.5 4.5 0 0 1-.5-9A6.5 6.5 0 0 1 18 7a5.5 5.5 0 1 1 .5 11Z"/></symbol>
+  <symbol id="i-chevron" viewbox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-check" viewbox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-lock" viewbox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/></symbol>
+</defs></svg>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <nav class="nav-container" aria-label="Main navigation">
+    <a class="brand" href="#top" aria-label="respire home"><img src="assets/logo.svg" alt="Respire" width="178" height="31"></a>
+    <div class="nav-links"><a href="#product">Product</a><a href="#how">How it works</a><a href="#security">Privacy &amp; security</a><a href="#control">FAQ</a></div>
+    <div class="nav-actions">
+      <a class="github-link" data-resource="github" href="#resource-dialog" aria-label="GitHub"><svg class="icon"><use href="#i-github"/></svg></a>
+      <select id="language-select" class="language-select" aria-label="Site language" data-language-names><option value="en" lang="en">English</option><option value="zh" lang="zh-CN">中文</option><option value="es" lang="es">Español</option><option value="fr" lang="fr">Français</option><option value="ko" lang="ko">한국어</option><option value="ja" lang="ja">日本語</option></select>
+      <a class="login-link" href="https://github.com/risense-ai/respire-docs">Sign in</a>
+      <a class="button primary small" href="#download">Install with AI <svg class="icon"><use href="#i-down"/></svg></a>
+      <button class="mobile-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-navigation"><svg class="icon"><use href="#i-menu"/></svg></button>
+    </div>
+  </nav>
+  <nav class="mobile-navigation" id="mobile-navigation" aria-label="Mobile navigation" hidden><a href="#product">Product <span>↗</span></a><a href="#how">How it works <span>↗</span></a><a href="#security">Privacy &amp; security <span>↗</span></a><a href="#control">FAQ <span>↗</span></a><a href="#download">Install with AI <span>↓</span></a></nav>
+</header>
+<main id="main">
+  <section class="hero container" id="top" data-screen="01" aria-labelledby="hero-title">
+    <a class="announcement" href="#continuity"><span class="status-dot"></span> One Memory. Any Agent. <svg class="icon"><use href="#i-arrow"/></svg></a>
+    <h1 id="hero-title">Switch AI.<br> <span>Keep Memory.</span></h1>
+    <p class="agent-line">Claude, Codex, and the next AI.</p>
+    <p class="hero-description">Your preferences, project context, key decisions, and long-term context<br class="desktop-break">do not have to start over every time.</p>
+    <p class="hero-definition"><strong>respire is your personal memory layer, independent of any agent.</strong></p>
+    <div class="hero-actions"><button class="button primary" data-copy="prompt"><svg class="icon"><use href="#i-copy"/></svg><span>Copy prompt. Let AI install.</span></button><a class="button ghost" href="#manual">Manual Linux / Mac download <svg class="icon"><use href="#i-arrow"/></svg></a></div>
+    <div class="hero-principles"><span><b class="signal sage">◉</b> Local first</span><span><b class="signal sage">⛨</b> Encrypted sync</span><span><b class="signal violet">⑂</b> Private access</span></div>
+  </section>
+
+  <section class="product-section container" id="product" aria-label="Client product preview">
+    <div class="preview-heading"><div class="preview-breadcrumb"><span class="status-dot"></span><span>respire client</span><span class="muted">/</span><strong id="preview-mode-label">Memory Tree</strong></div><button class="expand-control" id="expand-preview"><svg class="icon"><use href="#i-expand"/></svg>Expand preview</button></div>
+    <div class="client-frame"><div class="client-viewport" id="client-viewport" role="tabpanel" aria-labelledby="mode-tree"><iframe id="client-preview" title="Interactive respire client preview" src="preview/client.en.html"></iframe></div></div>
+    <div class="preview-controls"><div class="mode-tabs" role="tablist" aria-label="Try client features">
+      <button role="tab" id="mode-tree" data-mode="Tree" aria-selected="true" aria-controls="client-viewport"><svg class="icon"><use href="#i-tree"/></svg><span>Memory Tree</span><small>Organize memories</small></button>
+      <button role="tab" id="mode-sync" data-mode="Sync" aria-selected="false" aria-controls="client-viewport" tabindex="-1"><svg class="icon"><use href="#i-sync"/></svg><span>Sync</span><small>Stay in sync</small></button>
+      <button role="tab" id="mode-install" data-mode="Install" aria-selected="false" aria-controls="client-viewport" tabindex="-1"><svg class="icon"><use href="#i-plug"/></svg><span>Connect AI</span><small>Choose a scope</small></button>
+    </div><p id="preview-mode-description">From the whole tree to one memory, context, decisions, and lessons all have a source.</p></div>
+    <p class="preview-note">Interactive client design preview with sample memories.</p>
+  </section>
+
+  <section class="intro-section container" id="continuity" data-screen="02" aria-labelledby="continuity-title">
+    <p class="section-index"><span>02</span> MEMORY CONTINUITY <b class="signal violet">⇄</b></p>
+    <div class="intro-grid"><h2 id="continuity-title">AI keeps changing.<br> <span class="subtle">Your memory does not have to.</span></h2><div><p>Claude today.<br> Codex tomorrow.<br> More agents will follow.</p></div></div>
+    <div class="continuity-grid">
+      <div class="repeat-list"><p>Explaining it all over again:</p><ul><li><span>01</span><strong>Who I am.</strong></li><li><span>02</span><strong>Where the project stands.</strong></li><li><span>03</span><strong>What we already decided.</strong></li><li><span>04</span><strong>What not to repeat.</strong></li></ul></div>
+      <div class="memory-network" role="img" aria-label="Claude, Codex, Next Agent and You connect to one respire">
+        <svg class="network-lines" viewbox="0 0 500 320" aria-hidden="true"><path d="M250 78V243M125 160H375"/><circle cx="250" cy="104" r="3"/><circle cx="165" cy="160" r="3"/><circle cx="337" cy="160" r="3"/><circle cx="250" cy="217" r="3"/></svg>
+        <span class="network-node claude"><span class="small-signal sand">✳</span>Claude</span><span class="network-node codex"><span class="small-signal violet">⌘</span>Codex</span>
+        <span class="network-core"><img src="assets/mark.svg" alt="" width="39" height="39"><strong>respire</strong></span>
+        <span class="network-node next"><span class="small-signal violet">↗</span>Next Agent</span><span class="network-node you"><span class="small-signal sage">◉</span>You</span>
+      </div>
+    </div>
+    <p class="section-conclusion">Agents can change.<span>Memory stays continuous.</span></p>
+  </section>
+
+  <section class="workflow-section container" id="how" data-screen="03" aria-labelledby="how-title">
+    <p class="section-index"><span>03</span> ONE MEMORY <b class="signal violet">●</b></p>
+    <div class="section-heading"><h2 id="how-title">One memory.<br> <span class="subtle">Keep building on it.</span></h2><p class="habit-line">Remember <span>·</span> Recall <span>·</span> Handoff <span>·</span> Edit</p></div>
+    <div class="workflow-list">
+      <article><span class="step-number">01</span><div class="step-title"><b class="signal violet">●</b><h3>Remember</h3><span>REMEMBER ●</span></div><p>Save preferences, context, decisions, constraints, and lessons.</p><button data-preview="Tree" aria-label="Try Remember in the preview"><svg class="icon"><use href="#i-arrow"/></svg></button></article>
+      <article><span class="step-number">02</span><div class="step-title"><b class="signal sage">◎</b><h3>Recall</h3><span>RECALL ◎</span></div><p>Find the memories your current task needs.</p><button data-preview="Tree" aria-label="Try Recall in the preview"><svg class="icon"><use href="#i-arrow"/></svg></button></article>
+      <article><span class="step-number">03</span><div class="step-title"><b class="signal violet">⇄</b><h3>Handoff</h3><span>HANDOFF ⇄</span></div><p>Switch agents, sessions, or devices. Continue your work.</p><button data-preview="Install" aria-label="Try Handoff in the preview"><svg class="icon"><use href="#i-arrow"/></svg></button></article>
+      <article><span class="step-number">04</span><div class="step-title"><b class="signal sand">✎</b><h3>Edit</h3><span>CONTROL ✎</span></div><p>Correct mistakes, update what is outdated, delete what you no longer need.</p><button data-preview="Tree" aria-label="Try Edit in the preview"><svg class="icon"><use href="#i-arrow"/></svg></button></article>
+    </div>
+  <details class="benchmark-disclosure" id="benchmark" data-screen="08"><summary><span class="proof-disclosure-label">PROOF <b class="signal sage">✓</b></span><span>Useful memory lets you pick up where you left off.</span><svg class="icon"><use href="#i-chevron"/></svg></summary><div class="benchmark-body"><p class="benchmark-intro">respire Benchmark continuously tests:</p><div class="benchmark-layout"><div class="test-areas"><strong><span>01</span>Cross-agent handoff</strong><strong><span>02</span>Updating old information</strong><strong><span>03</span>Project isolation</strong><strong><span>04</span>Cross-device sync</strong><strong><span>05</span>Memory portability</strong><strong><span>06</span>Permissions and boundaries</strong></div><div class="comparison"><p>Compared with:</p><strong>No memory</strong><strong>Manual Markdown</strong><strong>Agent-native memory</strong><p>Using real tasks.</p></div></div>
+    <div class="proof-flow" aria-label="Remember → Switch → Recall → Continue"><span>Remember <b>●</b></span><i>→</i><span>Switch <b>⇄</b></span><i>→</i><span>Recall <b>◎</b></span><i>→</i><span class="last">Continue <b>↗</b></span></div>
+    <div class="section-action"><p class="proof-conclusion">Not how much you stored.<strong>Whether you can keep going.</strong></p><a class="button" data-resource="benchmark" href="#resource-dialog">View Benchmark <svg class="icon"><use href="#i-arrow"/></svg></a></div>
+  </div></details></section>
+
+
+
+  <section class="security-section container compact-security" id="security" aria-label="Privacy &amp; security"><div class="trust-card"><div class="mode-tabs trust-tabs" role="tablist" aria-label="Privacy and security topics"><button id="trust-local" data-trust="local" role="tab" aria-selected="true" aria-controls="local"><b class="signal sage">◉</b>Local first</button><button id="trust-encrypted" data-trust="encrypted" role="tab" aria-selected="false" aria-controls="encrypted" tabindex="-1"><b class="signal sage">⛨</b>Encrypted sync</button><button id="trust-open" data-trust="open-source" role="tab" aria-selected="false" aria-controls="open-source" tabindex="-1"><b class="signal violet">⑂</b>Private repositories</button></div><div class="trust-panel" id="local" data-screen="04" role="tabpanel" aria-labelledby="trust-local">
+    <p class="section-index"><span>04</span> LOCAL FIRST <b class="signal sage">◉</b></p>
+    <div class="local-layout"><div class="local-copy"><h2 id="local-title">Memory starts<br> <span class="subtle">on your computer.</span></h2><p>The local database is the primary workspace.</p><div class="local-statements"><strong><i class="status-dot"></i>Stored locally.</strong><strong><i class="status-dot"></i>Searched locally.</strong><strong><i class="status-dot"></i>Works offline.</strong></div><p>To search your own memories,<br> you do not need to send your entire memory library to the cloud.</p></div>
+      <div class="device-visual" role="img" aria-label="YOUR DEVICE contains Memory, Search, Recall and Agent locally"><div class="device-shell"><div class="visual-toolbar"><span class="window-dots"><i></i><i></i><i></i></span><span>YOUR DEVICE</span><svg class="icon"><use href="#i-lock"/></svg></div><div class="device-content"><div class="device-root"><svg class="icon"><use href="#i-device"/></svg><span>YOUR DEVICE</span><b class="signal sage">◉</b></div><div class="device-tree"><div><span>Memory</span><span class="tree-dot"></span></div><div><span>Search</span><span class="tree-dot"></span></div><div><span>Recall</span><span class="tree-dot"></span></div><div><span>Agent</span><span class="tree-dot"></span></div></div></div><div class="device-status"><span class="status-dot"></span>LOCAL FIRST<span>◉</span></div></div><div class="device-stand"></div></div>
+    </div><p class="section-conclusion">Your computer.<span>Your memory’s first home.</span></p>
+  </div><div class="trust-panel" id="encrypted" data-screen="05" role="tabpanel" aria-labelledby="trust-encrypted" hidden>
+    <div class="trust-encryption-layout"><div class="security-copy"><p class="section-index"><span>05</span> ENCRYPTED SYNC <b class="signal sage">⛨</b></p><h2 id="security-title">Sync can use the cloud.<br> <span class="subtle">Plaintext does not have to.</span></h2><p>When you need multiple devices,<br> rsrs syncs <strong>encrypted data</strong>.</p><p>Content, titles, tags, projects, and related data are included in the encrypted payload.</p><p>Keys are generated and held on the user’s side.</p><div class="security-statements"><strong>The server stores ciphertext.</strong><strong>The server does not need to understand your memories.</strong></div><div class="crypto-tags"><span>AES-256-GCM</span><span>Argon2id</span><span>HKDF</span></div></div>
+      <div class="encryption-visual" role="img" aria-label="Memory is encrypted with AES-256-GCM before ciphertext enters Cloud Sync"><div class="flow-memory"><img src="assets/mark.svg" width="28" height="28" alt=""><span>Memory</span></div><div class="flow-line"><span>AES-256-GCM</span><b>↓</b></div><div class="cipher-block"><div class="cipher-noise" aria-hidden="true">██████████████</div><div><svg class="icon"><use href="#i-lock"/></svg><strong>Ciphertext</strong></div><div class="cipher-noise" aria-hidden="true">██████████████</div></div><div class="flow-line short"><b>↓</b></div><div class="cloud-destination"><svg class="icon"><use href="#i-cloud"/></svg><span>Cloud Sync</span></div></div>
+    </div><p class="section-conclusion">Encryption is not an add-on.<span>It is part of the sync architecture.</span></p>
+  </div><div class="trust-panel" id="open-source" data-screen="06" role="tabpanel" aria-labelledby="trust-open" hidden>
+    <p class="section-index"><span>06</span> PRIVATE SOURCE <b class="signal violet">⑂</b><span class="license-chip">Private access</span></p>
+    <div class="intro-grid"><h2 id="open-title">More than a promise of safety.<br> <span class="subtle">Authorized collaborators can inspect the application layer.</span></h2><div><p><strong>Respire repositories are currently private.</strong></p><p>With access, you can inspect:</p></div></div>
+    <div class="open-layout"><div class="inspection-list"><p><b>01</b><strong>How memories are stored.</strong><span>↗</span></p><p><b>02</b><strong>How data is encrypted.</strong><span>↗</span></p><p><b>03</b><strong>How keys are derived.</strong><span>↗</span></p><p><b>04</b><strong>How devices sync.</strong><span>↗</span></p><p><b>05</b><strong>How agents connect.</strong><span>↗</span></p></div><div class="code-journey" role="img" aria-label="Code, Inspect, Verify, Contribute"><div class="code-origin"><b class="signal violet">⑂</b><span>Code</span></div><i>↓</i><span>Inspect</span><i>↓</i><span>Verify</span><i>↓</i><span class="journey-last">Contribute <b>↗</b></span></div></div>
+    <div class="contribution-row"><p>You can also:</p><strong>Report an issue.</strong><strong>Fix a bug.</strong><strong>Add an agent adapter.</strong><strong>Contribute to the Benchmark.</strong></div>
+    <div class="section-action"><a class="button" data-resource="github" href="#resource-dialog"><svg class="icon"><use href="#i-github"/></svg>View on GitHub <svg class="icon"><use href="#i-arrow"/></svg></a><p>Security promises should be verifiable.</p></div>
+  </div></div></section>
+
+
+
+  <section class="faq-section container" id="control" data-screen="07" aria-labelledby="control-title">
+    <div><p class="section-index"><span>07</span> CONTROL <b class="signal violet">✎</b><span class="label-exit">EXIT <b class="signal sand">↗</b></span></p><h2 id="control-title">Your memory is yours.<br> <span class="subtle">Control should be, too.</span></h2><p>A memory product<br> should not keep people by locking in their memories.</p><div class="control-verbs"><span>View</span><span>Edit</span><span>Delete</span><span>Export <b>↗</b></span></div><p class="ownership-promise"><strong>Your memories can come in.</strong><br> They should be able to leave.</p></div>
+    <div class="faq-list"><details open><summary>Did AI remember it wrong?<svg class="icon"><use href="#i-chevron"/></svg></summary><p><strong>Edit it.</strong></p></details><details open><summary>Information out of date?<svg class="icon"><use href="#i-chevron"/></svg></summary><p><strong>Update it.</strong></p></details><details open><summary>No longer needed?<svg class="icon"><use href="#i-chevron"/></svg></summary><p><strong>Delete it.</strong></p></details><details open><summary>Leaving respire one day?<svg class="icon"><use href="#i-chevron"/></svg></summary><p><strong>Export it and take it with you.</strong></p></details></div>
+  </section>
+
+
+
+  <section class="download-section container" id="download" data-screen="09" aria-labelledby="install-title">
+    <div class="download-copy"><p class="section-index"><span>09</span> INSTALL <b class="signal violet">→</b></p><h2 id="install-title">Start with the first time<br> <span class="subtle">you do not have to introduce yourself again.</span></h2><p>Recommended:</p><p class="install-recommend"><strong>Give the install prompt to an AI with terminal access.</strong></p><button class="button primary" data-copy="prompt"><svg class="icon"><use href="#i-copy"/></svg><span>Copy the install prompt</span></button><p class="after-install">Once installed,<br> <strong>switch to another agent.</strong><br> See if it can pick up where you left off.</p></div>
+    <div class="ai-panel"><div class="ai-panel-head"><svg class="icon"><use href="#i-copy"/></svg><strong>Send to your AI</strong><span class="muted">AI INSTALL</span></div><pre class="ai-prompt-body" id="prompt-preview"></pre><div class="ai-panel-foot"><button class="button small" data-copy="prompt"><svg class="icon"><use href="#i-copy"/></svg><span>Copy prompt</span></button><span>For AI with terminal access</span></div><div class="cli-block"><p>Future approved release only · Package not published.</p><div><strong>Or use the CLI:</strong></div><div class="command-line"><code>npm i -g @rsrsai/cli<br>pnpm add -g @rsrsai/cli</code><button data-copy="command" aria-label="Copy CLI install commands"><svg class="icon"><use href="#i-copy"/></svg></button></div></div></div>
+  </section>
+
+  <section class="download-section manual-section container" id="manual" aria-labelledby="manual-title">
+    <div class="download-copy"><p class="section-index"><span>↓</span> MANUAL INSTALL</p><h2 id="manual-title">Manual download<br> <span class="subtle">Linux / Mac</span></h2><p>Choose your system and processor.</p><div class="download-links"><a data-resource="docs" href="#resource-dialog">Docs <svg class="icon"><use href="#i-arrow"/></svg></a><a href="https://github.com/risense-ai/respire-releases/releases" target="_blank" rel="noopener noreferrer">GitHub Releases <svg class="icon"><use href="#i-arrow"/></svg></a></div></div>
+    <div class="download-panel"><div class="platform-tabs" role="tablist" aria-label="Choose operating system"><button id="platform-mac" data-platform="mac" role="tab" aria-selected="true" aria-controls="platform-content">macOS</button><button id="platform-linux" data-platform="linux" role="tab" aria-selected="false" aria-controls="platform-content" tabindex="-1">Linux</button></div><div id="platform-content" role="tabpanel" aria-labelledby="platform-mac"><div class="platform-heading"><span class="feature-icon"><svg class="icon"><use href="#i-device"/></svg></span><div><h3 id="platform-heading">Mac client</h3><p>Desktop client</p></div></div><p class="platform-help" id="platform-help">For Macs with Apple silicon (arm64).</p><label class="architecture-label" for="architecture">Choose a version</label><select id="architecture"><option value="respire-macos-arm64.dmg">Apple silicon · arm64 · .dmg</option></select><a class="button primary download-button" id="download-link" href="https://github.com/risense-ai/respire-releases/releases/latest/download/respire-macos-arm64.dmg">Download for Mac <svg class="icon"><use href="#i-down"/></svg></a></div><p class="release-note">Installers from official GitHub Releases.</p></div>
+  </section>
+
+
+</main>
+<footer class="footer container"><div class="closing compact-closing" aria-labelledby="closing-title"><img class="closing-mark" src="assets/mark.svg" alt="" width="52" height="52"><h2 id="closing-title">Switch AI.<span class="subtle">Keep Memory.</span></h2><p class="closing-english">One Memory. Any Agent.</p><div class="trust-strip"><span>LOCAL <b class="signal sage">◉</b></span><span>ENCRYPT <b class="signal sage">⛨</b></span><span>SYNC <b class="signal violet">⇄</b></span><span>OPEN <b class="signal violet">⑂</b></span><span>PROOF <b class="signal sage">✓</b></span><span>EXIT <b class="signal sand">↗</b></span></div><p class="closing-attributes">Local-first · Encrypted · Private Preview</p><button class="button primary" data-copy="prompt"><svg class="icon"><use href="#i-copy"/></svg><span>Copy prompt. Let AI install.</span></button></div><div class="footer-top"><a class="brand" href="#top" aria-label="Back to home"><img src="assets/logo.svg" alt="Respire" width="165" height="29"></a><p>One Memory. Any Agent.</p><div><a data-resource="github" href="#resource-dialog">GitHub ↗</a><a data-resource="benchmark" href="#resource-dialog">Benchmark</a><a data-resource="docs" href="#resource-dialog">Docs</a><a href="#manual">Linux / Mac</a></div></div><div class="footer-bottom"><span>© 2026 respire</span><span>Local-first · Encrypted · Private Preview</span><a href="#top">Back to top ↑</a></div></footer>
+
+<dialog class="preview-dialog" id="preview-dialog" aria-labelledby="preview-dialog-title"><div class="dialog-heading"><img src="assets/logo.svg" alt="Respire"><span id="preview-dialog-title">Expanded client preview</span><button data-close="preview-dialog" aria-label="Close expanded preview"><svg class="icon"><use href="#i-close"/></svg></button></div><div id="expanded-slot"></div></dialog>
+<dialog class="resource-dialog" id="resource-dialog" aria-labelledby="resource-title"><div class="resource-top"><span class="feature-icon"><svg class="icon"><use href="#i-arrow"/></svg></span><button data-close="resource-dialog" aria-label="Close link information"><svg class="icon"><use href="#i-close"/></svg></button></div><p class="resource-label" id="resource-name"></p><h2 id="resource-title">Coming soon</h2><p id="resource-description"></p><button class="button primary small" data-close="resource-dialog">Got it</button></dialog>
+<dialog class="resource-dialog copy-dialog" id="copy-dialog" aria-labelledby="copy-title"><div class="resource-top"><span class="feature-icon"><svg class="icon"><use href="#i-copy"/></svg></span><button data-close="copy-dialog" aria-label="Close copy window"><svg class="icon"><use href="#i-close"/></svg></button></div><h2 id="copy-title">Copy manually</h2><p>Automatic copying is unavailable. Select the text below and press ⌘C or Ctrl+C.</p><textarea id="manual-copy" readonly aria-label="Content to copy"></textarea><button class="button small" id="select-copy">Select all</button></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<noscript><p class="noscript-note">Reading and downloads work without JavaScript. Enable it for copying, platform selection and the client preview.</p></noscript>
+<script src="config.js"></script>
+<script src="locales.js"></script>
+<script src="prompts.js"></script>
+<script src="i18n.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

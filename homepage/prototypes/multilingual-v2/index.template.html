@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f1f2f4">
+  <meta name="description" content="换 AI，不换记忆。respire 是独立于 Agent 的个人记忆层。本地优先、加密同步，让偏好、项目背景、重要决定和长期上下文持续接着用。">
+  <title>respire — 换 AI，不换记忆。</title>
+  <link rel="icon" type="image/svg+xml" href="assets/mark.svg">
+  <link rel="stylesheet" href="assets/official.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="14" rx="2"/><path d="M16 17v4H4V7h4"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 19 19 5M5 5h14v14"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 3v18m-7-7 7 7 7-7"/></symbol>
+  <symbol id="i-tree" viewBox="0 0 24 24"><rect x="3" y="9" width="5" height="6" rx="1"/><rect x="16" y="3" width="5" height="6" rx="1"/><rect x="16" y="15" width="5" height="6" rx="1"/><path d="M8 12h4m4-6h-4v12h4"/></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24"><path d="M20 8a8.5 8.5 0 0 0-14-3L3 8m0-5v5h5M4 16a8.5 8.5 0 0 0 14 3l3-3m-5 0h5v5"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="m15 3 6 6m-4-4 4-4M10 8l6 6m-8-4-3 3a4 4 0 0 0 6 6l3-3M3 21l3-3M9 9l2-2a4 4 0 0 1 6 6l-2 2"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M3 9V3h6m6 0h6v6M3 15v6h6m6 0h6v-6"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 20c-4 1-4-2-6-2m12 4v-4c0-1-.4-2-1-2 4-.5 6-2 6-6 0-1.5-.5-2.5-1.5-3.5.5-1.5.5-3 0-4.5-1.5 0-3 1-4 2a14 14 0 0 0-5 0c-1-1-2.5-2-4-2-.5 1.5-.5 3 0 4.5C4.5 7.5 4 8.5 4 10c0 4 2 5.5 6 6-.6.5-1 1.5-1 2v4"/></symbol>
+  <symbol id="i-device" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="13" rx="2"/><path d="M2 19h20l-1 2H3l-1-2Zm6-7h8"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M6 18a4.5 4.5 0 0 1-.5-9A6.5 6.5 0 0 1 18 7a5.5 5.5 0 1 1 .5 11Z"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/></symbol>
+</defs></svg>
+<a class="skip-link" href="#main">跳到正文</a>
+<header class="site-header">
+  <nav class="nav-container" aria-label="主导航">
+    <a class="brand" href="#top" aria-label="respire 首页"><img src="assets/logo.svg" alt="Respire" width="178" height="31"></a>
+    <div class="nav-links"><a href="#product">产品体验</a><a href="#how">如何使用</a><a href="#security">隐私与安全</a><a href="#control">常见问题</a></div>
+    <div class="nav-actions">
+      <a class="github-link" data-resource="github" href="#resource-dialog" aria-label="GitHub 入口"><svg class="icon"><use href="#i-github"/></svg></a>
+      <select id="language-select" class="language-select" aria-label="网站语言" data-language-names><option value="en" lang="en">English</option><option value="zh" lang="zh-CN">中文</option><option value="es" lang="es">Español</option><option value="fr" lang="fr">Français</option><option value="ko" lang="ko">한국어</option><option value="ja" lang="ja">日本語</option></select>
+      <a class="login-link" href="https://github.com/risense-ai/respire-docs">登录</a>
+      <a class="button primary small" href="#download">AI 一键安装 <svg class="icon"><use href="#i-down"/></svg></a>
+      <button class="mobile-toggle" aria-label="打开菜单" aria-expanded="false" aria-controls="mobile-navigation"><svg class="icon"><use href="#i-menu"/></svg></button>
+    </div>
+  </nav>
+  <nav class="mobile-navigation" id="mobile-navigation" aria-label="手机导航" hidden><a href="#product">产品体验 <span>↗</span></a><a href="#how">如何使用 <span>↗</span></a><a href="#security">隐私与安全 <span>↗</span></a><a href="#control">常见问题 <span>↗</span></a><a href="#download">AI 一键安装 <span>↓</span></a></nav>
+</header>
+<main id="main">
+  <section class="hero container" id="top" data-screen="01" aria-labelledby="hero-title">
+    <a class="announcement" href="#continuity"><span class="status-dot"></span> One Memory. Any Agent. <svg class="icon"><use href="#i-arrow"/></svg></a>
+    <h1 id="hero-title">换 AI，<br> <span>不换记忆。</span></h1>
+    <p class="agent-line">Claude、Codex，以及下一个 AI。</p>
+    <p class="hero-description">你的偏好、项目背景、重要决定和长期上下文，<br class="desktop-break">不必每次重新开始。</p>
+    <p class="hero-definition"><strong>respire 是独立于 Agent 的个人记忆层。</strong></p>
+    <div class="hero-actions"><button class="button primary" data-copy="prompt"><svg class="icon"><use href="#i-copy"/></svg><span>复制提示词，让 AI 装好</span></button><a class="button ghost" href="#manual">手动下载 Linux / Mac <svg class="icon"><use href="#i-arrow"/></svg></a></div>
+    <div class="hero-principles"><span><b class="signal sage">◉</b> 本地优先</span><span><b class="signal sage">⛨</b> 加密同步</span><span><b class="signal violet">⑂</b> Private access</span></div>
+  </section>
+
+  <section class="product-section container" id="product" aria-label="客户端产品体验">
+    <div class="preview-heading"><div class="preview-breadcrumb"><span class="status-dot"></span><span>respire 客户端</span><span class="muted">/</span><strong id="preview-mode-label">记忆树</strong></div><button class="expand-control" id="expand-preview"><svg class="icon"><use href="#i-expand"/></svg>展开体验</button></div>
+    <div class="client-frame"><div class="client-viewport" id="client-viewport" role="tabpanel" aria-labelledby="mode-tree"><iframe id="client-preview" title="respire 客户端交互预览" src="preview/client.zh.html"></iframe></div></div>
+    <div class="preview-controls"><div class="mode-tabs" role="tablist" aria-label="体验客户端功能">
+      <button role="tab" id="mode-tree" data-mode="Tree" aria-selected="true" aria-controls="client-viewport"><svg class="icon"><use href="#i-tree"/></svg><span>记忆树</span><small>整理记忆</small></button>
+      <button role="tab" id="mode-sync" data-mode="Sync" aria-selected="false" aria-controls="client-viewport" tabindex="-1"><svg class="icon"><use href="#i-sync"/></svg><span>同步</span><small>保持一致</small></button>
+      <button role="tab" id="mode-install" data-mode="Install" aria-selected="false" aria-controls="client-viewport" tabindex="-1"><svg class="icon"><use href="#i-plug"/></svg><span>接入 AI</span><small>选择范围</small></button>
+    </div><p id="preview-mode-description">从整棵树到一条记忆，背景、决定与经验都有来处。</p></div>
+    <p class="preview-note">可点击体验的客户端设计预览，展示内容为示例记忆。</p>
+  </section>
+
+  <section class="intro-section container" id="continuity" data-screen="02" aria-labelledby="continuity-title">
+    <p class="section-index"><span>02</span> MEMORY CONTINUITY <b class="signal violet">⇄</b></p>
+    <div class="intro-grid"><h2 id="continuity-title">AI 一直在换。<br> <span class="subtle">你的记忆不用重来。</span></h2><div><p>今天用 Claude。<br> 明天换 Codex。<br> 以后还会有新的 Agent。</p></div></div>
+    <div class="continuity-grid">
+      <div class="repeat-list"><p>每次重新解释：</p><ul><li><span>01</span><strong>我是谁。</strong></li><li><span>02</span><strong>项目做到哪里。</strong></li><li><span>03</span><strong>已经决定了什么。</strong></li><li><span>04</span><strong>哪些事情不要再重复。</strong></li></ul></div>
+      <div class="memory-network" role="img" aria-label="Claude、Codex、Next Agent 与 You 连接到同一份 respire">
+        <svg class="network-lines" viewBox="0 0 500 320" aria-hidden="true"><path d="M250 78V243M125 160H375"/><circle cx="250" cy="104" r="3"/><circle cx="165" cy="160" r="3"/><circle cx="337" cy="160" r="3"/><circle cx="250" cy="217" r="3"/></svg>
+        <span class="network-node claude"><span class="small-signal sand">✳</span>Claude</span><span class="network-node codex"><span class="small-signal violet">⌘</span>Codex</span>
+        <span class="network-core"><img src="assets/mark.svg" alt="" width="39" height="39"><strong>respire</strong></span>
+        <span class="network-node next"><span class="small-signal violet">↗</span>Next Agent</span><span class="network-node you"><span class="small-signal sage">◉</span>You</span>
+      </div>
+    </div>
+    <p class="section-conclusion">Agent 可以换。<span>Memory 保持连续。</span></p>
+  </section>
+
+  <section class="workflow-section container" id="how" data-screen="03" aria-labelledby="how-title">
+    <p class="section-index"><span>03</span> ONE MEMORY <b class="signal violet">●</b></p>
+    <div class="section-heading"><h2 id="how-title">一份记忆。<br> <span class="subtle">持续接着用。</span></h2><p class="habit-line">记住 <span>·</span> 想起 <span>·</span> 接续 <span>·</span> 修改</p></div>
+    <div class="workflow-list">
+      <article><span class="step-number">01</span><div class="step-title"><b class="signal violet">●</b><h3>记住</h3><span>REMEMBER ●</span></div><p>保存偏好、背景、决策、约束和经验。</p><button data-preview="Tree" aria-label="在预览中体验记住"><svg class="icon"><use href="#i-arrow"/></svg></button></article>
+      <article><span class="step-number">02</span><div class="step-title"><b class="signal sage">◎</b><h3>想起</h3><span>RECALL ◎</span></div><p>找到当前任务需要的记忆。</p><button data-preview="Tree" aria-label="在预览中体验想起"><svg class="icon"><use href="#i-arrow"/></svg></button></article>
+      <article><span class="step-number">03</span><div class="step-title"><b class="signal violet">⇄</b><h3>接续</h3><span>HANDOFF ⇄</span></div><p>换 Agent、换会话、换设备，继续之前的工作。</p><button data-preview="Install" aria-label="在预览中体验接续"><svg class="icon"><use href="#i-arrow"/></svg></button></article>
+      <article><span class="step-number">04</span><div class="step-title"><b class="signal sand">✎</b><h3>修改</h3><span>CONTROL ✎</span></div><p>记错了就改，过期了就更新，不需要了就删除。</p><button data-preview="Tree" aria-label="在预览中体验修改"><svg class="icon"><use href="#i-arrow"/></svg></button></article>
+    </div>
+  <details class="benchmark-disclosure" id="benchmark" data-screen="08"><summary><span class="proof-disclosure-label">PROOF <b class="signal sage">✓</b></span><span>记忆有没有用，看下一次能不能接得上。</span><svg class="icon"><use href="#i-chevron"/></svg></summary><div class="benchmark-body"><p class="benchmark-intro">respire Benchmark 持续测试：</p><div class="benchmark-layout"><div class="test-areas"><strong><span>01</span>跨 Agent 接续</strong><strong><span>02</span>旧信息更新</strong><strong><span>03</span>多项目隔离</strong><strong><span>04</span>跨设备同步</strong><strong><span>05</span>记忆迁移</strong><strong><span>06</span>权限与边界</strong></div><div class="comparison"><p>并与：</p><strong>无记忆</strong><strong>手工 Markdown</strong><strong>Agent 原生记忆</strong><p>进行真实任务对照。</p></div></div>
+    <div class="proof-flow" aria-label="Remember → Switch → Recall → Continue"><span>Remember <b>●</b></span><i>→</i><span>Switch <b>⇄</b></span><i>→</i><span>Recall <b>◎</b></span><i>→</i><span class="last">Continue <b>↗</b></span></div>
+    <div class="section-action"><p class="proof-conclusion">不看存了多少。<strong>看有没有接着做。</strong></p><a class="button" data-resource="benchmark" href="#resource-dialog">查看 Benchmark <svg class="icon"><use href="#i-arrow"/></svg></a></div>
+  </div></details></section>
+
+
+
+  <section class="security-section container compact-security" id="security" aria-label="隐私与安全"><div class="trust-card"><div class="mode-tabs trust-tabs" role="tablist" aria-label="隐私与安全主题"><button id="trust-local" data-trust="local" role="tab" aria-selected="true" aria-controls="local"><b class="signal sage">◉</b>本地优先</button><button id="trust-encrypted" data-trust="encrypted" role="tab" aria-selected="false" aria-controls="encrypted" tabindex="-1"><b class="signal sage">⛨</b>加密同步</button><button id="trust-open" data-trust="open-source" role="tab" aria-selected="false" aria-controls="open-source" tabindex="-1"><b class="signal violet">⑂</b>私有仓库</button></div><div class="trust-panel" id="local" data-screen="04" role="tabpanel" aria-labelledby="trust-local">
+    <p class="section-index"><span>04</span> LOCAL FIRST <b class="signal sage">◉</b></p>
+    <div class="local-layout"><div class="local-copy"><h2 id="local-title">记忆首先<br> <span class="subtle">在你的电脑里。</span></h2><p>本地数据库是主要工作位置。</p><div class="local-statements"><strong><i class="status-dot"></i>存储在本地。</strong><strong><i class="status-dot"></i>检索在本地。</strong><strong><i class="status-dot"></i>离线也能用。</strong></div><p>不需要为了搜索自己的记忆，<br> 先把整份记忆库交给云端。</p></div>
+      <div class="device-visual" role="img" aria-label="YOUR DEVICE，本地包含 Memory、Search、Recall 和 Agent"><div class="device-shell"><div class="visual-toolbar"><span class="window-dots"><i></i><i></i><i></i></span><span>YOUR DEVICE</span><svg class="icon"><use href="#i-lock"/></svg></div><div class="device-content"><div class="device-root"><svg class="icon"><use href="#i-device"/></svg><span>YOUR DEVICE</span><b class="signal sage">◉</b></div><div class="device-tree"><div><span>Memory</span><span class="tree-dot"></span></div><div><span>Search</span><span class="tree-dot"></span></div><div><span>Recall</span><span class="tree-dot"></span></div><div><span>Agent</span><span class="tree-dot"></span></div></div></div><div class="device-status"><span class="status-dot"></span>LOCAL FIRST<span>◉</span></div></div><div class="device-stand"></div></div>
+    </div><p class="section-conclusion">你的电脑，<span>是记忆的第一落点。</span></p>
+  </div><div class="trust-panel" id="encrypted" data-screen="05" role="tabpanel" aria-labelledby="trust-encrypted" hidden>
+    <div class="trust-encryption-layout"><div class="security-copy"><p class="section-index"><span>05</span> ENCRYPTED SYNC <b class="signal sage">⛨</b></p><h2 id="security-title">同步可以上云。<br> <span class="subtle">明文不用上云。</span></h2><p>需要跨设备时，<br> respire 同步的是 <strong>加密后的数据</strong>。</p><p>内容、标题、标签、项目等数据进入加密载荷。</p><p>密钥由用户侧生成和持有。</p><div class="security-statements"><strong>服务器保存密文。</strong><strong>服务器不需要理解你的记忆。</strong></div><div class="crypto-tags"><span>AES-256-GCM</span><span>Argon2id</span><span>HKDF</span></div></div>
+      <div class="encryption-visual" role="img" aria-label="Memory 经 AES-256-GCM 加密为 Ciphertext 后进入 Cloud Sync"><div class="flow-memory"><img src="assets/mark.svg" width="28" height="28" alt=""><span>Memory</span></div><div class="flow-line"><span>AES-256-GCM</span><b>↓</b></div><div class="cipher-block"><div class="cipher-noise" aria-hidden="true">██████████████</div><div><svg class="icon"><use href="#i-lock"/></svg><strong>Ciphertext</strong></div><div class="cipher-noise" aria-hidden="true">██████████████</div></div><div class="flow-line short"><b>↓</b></div><div class="cloud-destination"><svg class="icon"><use href="#i-cloud"/></svg><span>Cloud Sync</span></div></div>
+    </div><p class="section-conclusion">加密不是附加功能。<span>它是同步架构的一部分。</span></p>
+  </div><div class="trust-panel" id="open-source" data-screen="06" role="tabpanel" aria-labelledby="trust-open" hidden>
+    <p class="section-index"><span>06</span> PRIVATE SOURCE <b class="signal violet">⑂</b><span class="license-chip">Private access</span></p>
+    <div class="intro-grid"><h2 id="open-title">不只告诉你“安全”。<br> <span class="subtle">获授权后查看公开层代码。</span></h2><div><p><strong>Respire 仓库当前为私有。</strong></p><p>获授权后可以检查：</p></div></div>
+    <div class="open-layout"><div class="inspection-list"><p><b>01</b><strong>记忆怎样存储。</strong><span>↗</span></p><p><b>02</b><strong>数据怎样加密。</strong><span>↗</span></p><p><b>03</b><strong>密钥怎样派生。</strong><span>↗</span></p><p><b>04</b><strong>设备怎样同步。</strong><span>↗</span></p><p><b>05</b><strong>Agent 怎样接入。</strong><span>↗</span></p></div><div class="code-journey" role="img" aria-label="Code 到 Inspect 到 Verify 到 Contribute"><div class="code-origin"><b class="signal violet">⑂</b><span>Code</span></div><i>↓</i><span>Inspect</span><i>↓</i><span>Verify</span><i>↓</i><span class="journey-last">Contribute <b>↗</b></span></div></div>
+    <div class="contribution-row"><p>你也可以：</p><strong>提交 Issue。</strong><strong>修 Bug。</strong><strong>增加 Agent Adapter。</strong><strong>参与 Benchmark。</strong></div>
+    <div class="section-action"><a class="button" data-resource="github" href="#resource-dialog"><svg class="icon"><use href="#i-github"/></svg>View on GitHub <svg class="icon"><use href="#i-arrow"/></svg></a><p>安全承诺，应该允许被验证。</p></div>
+  </div></div></section>
+
+
+
+  <section class="faq-section container" id="control" data-screen="07" aria-labelledby="control-title">
+    <div><p class="section-index"><span>07</span> CONTROL <b class="signal violet">✎</b><span class="label-exit">EXIT <b class="signal sand">↗</b></span></p><h2 id="control-title">记忆属于你。<br> <span class="subtle">控制权也应该属于你。</span></h2><p>一款记忆产品，<br> 不应该靠锁住记忆留住用户。</p><div class="control-verbs"><span>View</span><span>Edit</span><span>Delete</span><span>Export <b>↗</b></span></div><p class="ownership-promise"><strong>你的记忆，可以进来。</strong><br> 也应该可以离开。</p></div>
+    <div class="faq-list"><details open><summary>AI 记错了？<svg class="icon"><use href="#i-chevron"/></svg></summary><p><strong>修改。</strong></p></details><details open><summary>信息过期了？<svg class="icon"><use href="#i-chevron"/></svg></summary><p><strong>更新。</strong></p></details><details open><summary>不需要了？<svg class="icon"><use href="#i-chevron"/></svg></summary><p><strong>删除。</strong></p></details><details open><summary>以后不再使用 respire？<svg class="icon"><use href="#i-chevron"/></svg></summary><p><strong>导出并带走。</strong></p></details></div>
+  </section>
+
+
+
+  <section class="download-section container" id="download" data-screen="09" aria-labelledby="install-title">
+    <div class="download-copy"><p class="section-index"><span>09</span> INSTALL <b class="signal violet">→</b></p><h2 id="install-title">从第一次<br> <span class="subtle">不用重新介绍自己开始。</span></h2><p>推荐方式：</p><p class="install-recommend"><strong>把安装提示词交给支持终端操作的 AI。</strong></p><button class="button primary" data-copy="prompt"><svg class="icon"><use href="#i-copy"/></svg><span>复制一键安装提示词</span></button><p class="after-install">安装完成后，<br> <strong>换一个 Agent。</strong><br> 看看它能不能接着做。</p></div>
+    <div class="ai-panel"><div class="ai-panel-head"><svg class="icon"><use href="#i-copy"/></svg><strong>交给你的 AI</strong><span class="muted">AI INSTALL</span></div><pre class="ai-prompt-body" id="prompt-preview"></pre><div class="ai-panel-foot"><button class="button small" data-copy="prompt"><svg class="icon"><use href="#i-copy"/></svg><span>复制提示词</span></button><span>支持终端操作的 AI</span></div><div class="cli-block"><p>Future approved release only · Package not published.</p><div><strong>或使用 CLI：</strong></div><div class="command-line"><code>npm i -g @rsrsai/cli<br>pnpm add -g @rsrsai/cli</code><button data-copy="command" aria-label="复制 CLI 安装命令"><svg class="icon"><use href="#i-copy"/></svg></button></div></div></div>
+  </section>
+
+  <section class="download-section manual-section container" id="manual" aria-labelledby="manual-title">
+    <div class="download-copy"><p class="section-index"><span>↓</span> MANUAL INSTALL</p><h2 id="manual-title">手动下载<br> <span class="subtle">Linux / Mac</span></h2><p>选择系统与处理器架构。</p><div class="download-links"><a data-resource="docs" href="#resource-dialog">Docs <svg class="icon"><use href="#i-arrow"/></svg></a><a href="https://github.com/risense-ai/respire-releases/releases" target="_blank" rel="noopener noreferrer">GitHub Releases <svg class="icon"><use href="#i-arrow"/></svg></a></div></div>
+    <div class="download-panel"><div class="platform-tabs" role="tablist" aria-label="选择操作系统"><button id="platform-mac" data-platform="mac" role="tab" aria-selected="true" aria-controls="platform-content">macOS</button><button id="platform-linux" data-platform="linux" role="tab" aria-selected="false" aria-controls="platform-content" tabindex="-1">Linux</button></div><div id="platform-content" role="tabpanel" aria-labelledby="platform-mac"><div class="platform-heading"><span class="feature-icon"><svg class="icon"><use href="#i-device"/></svg></span><div><h3 id="platform-heading">Mac 客户端</h3><p>Desktop client</p></div></div><p class="platform-help" id="platform-help">适用于 Apple 芯片（arm64）的 Mac。</p><label class="architecture-label" for="architecture">选择版本</label><select id="architecture"><option value="respire-macos-arm64.dmg">Apple 芯片 · arm64 · .dmg</option></select><a class="button primary download-button" id="download-link" href="https://github.com/risense-ai/respire-releases/releases/latest/download/respire-macos-arm64.dmg">下载 Mac 客户端 <svg class="icon"><use href="#i-down"/></svg></a></div><p class="release-note">安装包来自官方 GitHub Releases。</p></div>
+  </section>
+
+
+</main>
+<footer class="footer container"><div class="closing compact-closing" aria-labelledby="closing-title"><img class="closing-mark" src="assets/mark.svg" alt="" width="52" height="52"><h2 id="closing-title">换 AI，<span class="subtle">不换记忆。</span></h2><p class="closing-english">One Memory. Any Agent.</p><div class="trust-strip"><span>LOCAL <b class="signal sage">◉</b></span><span>ENCRYPT <b class="signal sage">⛨</b></span><span>SYNC <b class="signal violet">⇄</b></span><span>OPEN <b class="signal violet">⑂</b></span><span>PROOF <b class="signal sage">✓</b></span><span>EXIT <b class="signal sand">↗</b></span></div><p class="closing-attributes">Local-first · Encrypted · Private Preview</p><button class="button primary" data-copy="prompt"><svg class="icon"><use href="#i-copy"/></svg><span>复制提示词，让 AI 装好</span></button></div><div class="footer-top"><a class="brand" href="#top" aria-label="回到首页"><img src="assets/logo.svg" alt="Respire" width="165" height="29"></a><p>One Memory. Any Agent.</p><div><a data-resource="github" href="#resource-dialog">GitHub ↗</a><a data-resource="benchmark" href="#resource-dialog">Benchmark</a><a data-resource="docs" href="#resource-dialog">Docs</a><a href="#manual">Linux / Mac</a></div></div><div class="footer-bottom"><span>© 2026 respire</span><span>Local-first · Encrypted · Private Preview</span><a href="#top">回到顶部 ↑</a></div></footer>
+
+<dialog class="preview-dialog" id="preview-dialog" aria-labelledby="preview-dialog-title"><div class="dialog-heading"><img src="assets/logo.svg" alt="Respire"><span id="preview-dialog-title">客户端展开体验</span><button data-close="preview-dialog" aria-label="关闭全屏预览"><svg class="icon"><use href="#i-close"/></svg></button></div><div id="expanded-slot"></div></dialog>
+<dialog class="resource-dialog" id="resource-dialog" aria-labelledby="resource-title"><div class="resource-top"><span class="feature-icon"><svg class="icon"><use href="#i-arrow"/></svg></span><button data-close="resource-dialog" aria-label="关闭入口说明"><svg class="icon"><use href="#i-close"/></svg></button></div><p class="resource-label" id="resource-name"></p><h2 id="resource-title">入口即将开放</h2><p id="resource-description"></p><button class="button primary small" data-close="resource-dialog">知道了</button></dialog>
+<dialog class="resource-dialog copy-dialog" id="copy-dialog" aria-labelledby="copy-title"><div class="resource-top"><span class="feature-icon"><svg class="icon"><use href="#i-copy"/></svg></span><button data-close="copy-dialog" aria-label="关闭复制窗口"><svg class="icon"><use href="#i-close"/></svg></button></div><h2 id="copy-title">手动复制</h2><p>浏览器未允许自动复制。选择下方内容，按 ⌘C 或 Ctrl+C 复制。</p><textarea id="manual-copy" readonly aria-label="需要复制的内容"></textarea><button class="button small" id="select-copy">全选内容</button></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<noscript><p class="noscript-note">浏览正文和下载无需 JavaScript。启用 JavaScript 后，可复制提示词、切换系统及体验客户端。</p></noscript>
+<script src="config.js"></script>
+<script src="locales.js"></script>
+<script src="prompts.js"></script>
+<script src="i18n.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

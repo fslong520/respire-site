@@ -1,0 +1,30 @@
+name: Site CI
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  homepage:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: homepage
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: homepage/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run check
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run verify:browser
+      - run: npm run build:dev
+      - run: VITE_SITE_BASE=/preview/ VITE_SITE_OUT_DIR=../site/dist/preview VITE_DASHBOARD_URL=/dashboard VITE_ADMIN_URL=/admin npm run verify:browser
