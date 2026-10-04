@@ -8,6 +8,8 @@
     "build": "vite build && node scripts/copy-html.mjs",
     "test": "node tests/hash-route.test.mjs && node tests/i18n.test.mjs",
     "test:render": "node tests/browser-render.mjs",
+    "test:browser": "node tests/browser-fixtures.mjs",
+    "test:hosted": "node tests/browser-hosted-split-smoke.mjs",
     "test:dev": "node tests/browser-dev-smoke.mjs",
     "check": "node --check vite.config.js && node scripts/check-source.mjs"
   },
