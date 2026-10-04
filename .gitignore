@@ -5,3 +5,5 @@ target/
 *.db
 site/dist/preview/
 site/dist
+.zcodeignore
+.zcode
