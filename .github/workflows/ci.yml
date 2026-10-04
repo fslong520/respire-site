@@ -71,3 +71,12 @@ jobs:
       - run: npm run build
       - name: Check clean build provenance and Pages files
         run: node scripts/verify-build.mjs
+      - name: Build and assemble the combined Pages project
+        working-directory: .
+        run: |
+          npm --prefix homepage ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix homepage run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check scripts/pages-worker.mjs
+          node scripts/assemble-pages.mjs

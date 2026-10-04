@@ -1,6 +1,6 @@
 # Respire Dashboard and Admin
 
-One React console codebase produces two independent Cloudflare Pages distributions. The source is extracted from [`respire-server/admin-ui` at `84ad000ae50758756edb077c63c0a1b31eb9ada2`](https://github.com/risense-ai/respire-server/tree/84ad000ae50758756edb077c63c0a1b31eb9ada2/admin-ui). See `upstream.json` for unchanged-file checksums and the small, explicit integration change list. First-party licensing remains [Respire Noncommercial License 1.0](../LICENSE); preserve the [commercial license notice](../COMMERCIAL-LICENSE.md) and dependency licenses.
+One React console codebase produces Dashboard and Admin bundles, assembled with the homepage into one Cloudflare Pages project with separate domain entry points. The source is extracted from [`respire-server/admin-ui` at `84ad000ae50758756edb077c63c0a1b31eb9ada2`](https://github.com/risense-ai/respire-server/tree/84ad000ae50758756edb077c63c0a1b31eb9ada2/admin-ui). See `upstream.json` for unchanged-file checksums and the small, explicit integration change list. First-party licensing remains [Respire Noncommercial License 1.0](../LICENSE); preserve the [commercial license notice](../COMMERCIAL-LICENSE.md) and dependency licenses.
 
 ## Commands (Node 22)
 

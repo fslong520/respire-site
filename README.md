@@ -12,7 +12,7 @@ Frontend source ownership for the Respire product website, Dashboard and Admin. 
 ```mermaid
 flowchart LR
   Source[Homepage, Dashboard and Admin source] --> Checks[Site CI: builds, unit and browser checks]
-  Source --> Pages[Three native Cloudflare Pages builds]
+  Source --> Pages[One native Cloudflare Pages project with three domains]
   Checks --> Gate[Site-owned acceptance and staged cutover]
   Pages --> Gate
 ```
@@ -34,13 +34,13 @@ See [homepage documentation](homepage/README.md) for browser checks, motion cont
 
 ## Dashboard and Admin
 
-The shared [`console/`](console/README.md) React codebase builds independent Dashboard and Admin Pages artifacts. See [the three-project Pages configuration and staged API-first cutover](console/CLOUDFLARE-PAGES.md).
+The shared [`console/`](console/README.md) React codebase builds Dashboard and Admin artifacts. `scripts/assemble-pages.mjs` combines these with the homepage into one Pages deployment: the project root serves the website, while the configured Dashboard and Admin hostnames serve their respective console. See [the Pages configuration and staged API-first cutover](console/CLOUDFLARE-PAGES.md).
 
 Frontend source moves now; existing runtime routes and containers remain until API deployment, Pages verification and separately authorized traffic migration have finished.
 
 ## Checks and deployment
 
-[Site CI](.github/workflows/ci.yml) owns build, unit and local browser checks for all three frontends, including the homepage production and development distributions. Linux jobs run the full local browser suites; a Windows clean-checkout console job verifies source, units, builds and provenance with line-ending conversion enabled. Native Cloudflare Pages Git integration builds each project's deployment from its Site revision; see [the three-project configuration](console/CLOUDFLARE-PAGES.md). Separately approved, isolated hosted acceptance also lives in Site and is never run by ordinary CI or Pages builds.
+[Site CI](.github/workflows/ci.yml) owns build, unit and local browser checks for all three frontends, including the homepage production and development distributions. Linux jobs run the full local browser suites; a Windows clean-checkout console job verifies source, units, builds and provenance with line-ending conversion enabled. Native Cloudflare Pages Git integration builds one combined deployment from its Site revision; see [the project configuration](console/CLOUDFLARE-PAGES.md). Separately approved, isolated hosted acceptance also lives in Site and is never run by ordinary CI or Pages builds.
 
 Keep the rollout order: deploy and validate the API, verify Pages with exact Server/Site provenance, then migrate traffic only with separate approval. The [downstream CLI transition](console/CLOUDFLARE-PAGES.md#downstream-cli-acceptance-boundary) removes frontend fetching and browser gates from CLI acceptance; CLI retains its API acceptance and mail helper.
 

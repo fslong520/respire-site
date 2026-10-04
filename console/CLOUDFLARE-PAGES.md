@@ -1,4 +1,4 @@
-# Three Pages projects, one frontend repository
+# One Pages project, three frontend domains
 
 This is configuration/runbook documentation. The extraction PR does not create Pages projects, attach domains, change DNS, deploy an API, or remove running legacy web containers.
 
@@ -6,22 +6,30 @@ Paired API/source-ownership change: [respire-server PR #6](https://github.com/ri
 
 ## Project configuration
 
-Use `risense-ai/respire-site`, production branch `main`, Node 22, and **leave the root directory empty** (repository root) for all three projects.
+Use `risense-ai/respire-site`, Node 22, and **leave the root directory empty** (repository root). Use a dedicated DEV branch/project before changing the existing production homepage.
 
-| Project | Build command | Output directory | Domain after validation |
-| --- | --- | --- | --- |
-| Existing homepage | `cd homepage && npm ci && npm run check && npm test && npm run build` | `site/dist/client` | `rsrs.rs` |
-| Dashboard | `cd console && npm ci && npm run check && npm test && npm run build:dashboard` | `console/dist/dashboard` | `dash.rsrs.rs` |
-| Admin | `cd console && npm ci && npm run check && npm test && npm run build:admin` | `console/dist/admin` | `admin.rsrs.rs` |
+Build command:
 
-Console production environment: `NODE_VERSION=22`, `VITE_API_BASE_URL=https://api.rsrs.rs`. No credentials, recovery material, private API token belong in Pages environment variables. Each project serves its own artifact; do not deploy the parent `console/dist` directory.
+```sh
+cd homepage && npm ci && npm run check && npm test && npm run build && cd ../console && npm ci && npm run check && npm test && npm run build && cd .. && node scripts/assemble-pages.mjs
+```
+
+Publish **`site/dist/pages`**. Attach the website, Dashboard and Admin domains to this same project. The default `pages.dev` hostname and website domain serve the homepage. The generated `_worker.js` selects the console by its exact configured hostname and only reads local Pages assets; it never proxies the API.
+
+| Public build variable | Production after separately approved cutover | Isolated deployment |
+| --- | --- | --- |
+| `NODE_VERSION` | `22` | `22` |
+| `VITE_API_BASE_URL` | `https://api.rsrs.rs` | Exact isolated HTTPS API origin |
+| `VITE_DASHBOARD_URL` | `https://dash.rsrs.rs` | Exact isolated Dashboard HTTPS origin |
+| `VITE_ADMIN_URL` | `https://admin.rsrs.rs` | Exact isolated Admin HTTPS origin |
+
+No credentials, recovery material, private API token belong in Pages environment variables. Individual component builds remain available for local checks; the combined project publishes the assembled directory, not the parent `console/dist` directory.
 
 Suggested Pages build watch paths:
 
-- Homepage: `homepage/**`, `site/**`, `scripts/**`, `.github/workflows/**`, `LICENSE`, `COMMERCIAL-LICENSE.md`, `THIRD_PARTY_NOTICES.md`
-- Dashboard and Admin: `console/**`, `scripts/**`, `.github/workflows/**`, `LICENSE`, `COMMERCIAL-LICENSE.md`, `THIRD_PARTY_NOTICES.md`
+- `homepage/**`, `console/**`, `site/**`, `scripts/**`, `.github/workflows/**`, `LICENSE`, `COMMERCIAL-LICENSE.md`, `THIRD_PARTY_NOTICES.md`
 
-The existing homepage layout, language paths and `site/dist/client` output are unchanged. Its `/dashboard` and `/admin` redirects default to the existing custom domains. For isolated DEV Pages projects, use a dedicated DEV branch and set `VITE_DASHBOARD_URL` and `VITE_ADMIN_URL` to the respective DEV HTTPS origins; both links and built path redirects follow these values. Set console `VITE_API_BASE_URL` to the isolated DEV API in both build environments. Keep these projects separate from the existing production homepage.
+The existing homepage layout, language paths and component `site/dist/client` output are unchanged. Its `/dashboard` and `/admin` redirects and links follow the same configured origins as the hostname router. For isolated DEV, use a dedicated DEV branch/project and isolated API, Dashboard and Admin HTTPS origins. Keep this project separate from the existing production homepage until production migration is approved.
 
 ## API and preview map
 
@@ -38,7 +46,7 @@ Public previews must contain no credentials and be used with synthetic accounts 
 
 ## Static routing and headers
 
-Each console distribution includes `_redirects` for the legacy `/dashboard`, `/dashboard/*`, `/admin` and `/admin/*` paths, internally rewriting them to `/index.html`. The compiled target still rejects the other surface. Root loads `index.html`; Pages provides its normal SPA fallback because no `404.html` is emitted. A global `/*` rewrite is deliberately avoided so `/build-info.json` and `/licenses/` remain directly readable. These are internal SPA rewrites only; Cloudflare Pages redirects cannot proxy an external API. The compiled shared client calls the actual configured API origin. There is no same-origin API fallback.
+On console hostnames, root and legacy console paths directly serve the respective bundled entry through `env.ASSETS`, preserving hash navigation. `/build-info.json`, `/source-notice.json` and `/licenses/` map to that console's own files. The compiled target still rejects the other surface. Standalone console outputs use native Pages SPA fallback; explicit `/index.html` rewrites are omitted because Pages canonicalizes them into redirects. The homepage and its local assets remain at the website origin. The shared client calls the configured API origin directly, with no same-origin API fallback.
 
 Each distribution includes no-store, no-referrer, no-sniff and deny-framing headers. The upstream bundle uses inline JS/CSS and React inline styles. No blanket `script-src 'self'` policy is introduced: it would break this retained single-file build. A separately reviewed CSP must use actual build hashes/nonces and accommodate required inline styles and the configured API origin. Do not add `unsafe-eval`, wildcard API access, or speculative weakened CSP to get a preview working.
 
@@ -48,13 +56,13 @@ At the new UI origins, `/admin/*` is an Admin SPA deep link. On the API origin, 
 
 1. **Prepare rollback and deploy API first.** Record the exact API revision and health/readiness evidence. Preserve the running legacy web image/container, config, environment and route snapshots. Source moves in these PRs do not authorize deleting runtime assets. Deploy using the paired API-only procedure; do not rebuild or recreate the old web container from the now API-only Server repository.
 2. **Validate API CORS without moving traffic.** Check allowed and disallowed origins, OPTIONS with Authorization/JSON headers, and 401/403/429/5xx error visibility. Validate native CLI compatibility and existing user/admin authorization. Use fixture data only for writes.
-3. **Build and verify all three Pages projects.** Site owns Homepage, Dashboard and Admin build/browser/hosted acceptance. Use exact tested Site commit/artifact provenance and validate all three `build-info.json` records against the expected Site revision, and independently verify the deployed API revision. Run hosted acceptance only with the explicit operator approvals in [the hosted smoke contract](tests/HOSTED-SPLIT-SMOKE.md); normal Site CI and Pages builds never invoke it. First verify isolated API previews, `/`, matching legacy paths, hash/deep links, mobile rendering, Back/Forward, login failure, TOTP challenge, expiry, email UI and vault round trips. Verify no calls go to the Pages origin or production API during preview tests. Production builds must record `https://api.rsrs.rs`, not a fixture/test URL.
+3. **Build one Pages project and verify all three origins.** Site owns Homepage, Dashboard and Admin build/browser/hosted acceptance. Use exact tested Site commit/artifact provenance and validate all three `build-info.json` records against the expected Site revision, and independently verify the deployed API revision. Attach the isolated console custom domains before this gate so the actual hostname router is exercised. Run hosted acceptance only with the explicit operator approvals in [the hosted smoke contract](tests/HOSTED-SPLIT-SMOKE.md); normal Site CI and Pages builds never invoke it. Verify `/`, matching legacy paths, hash/deep links, mobile rendering, Back/Forward, login failure, TOTP challenge, expiry, email UI and vault round trips. Verify no API calls go to the Pages origin or production API during preview tests. Production builds must record `https://api.rsrs.rs`, not a fixture/test URL.
 4. **Migrate traffic only after both pass.** Attach `dash.rsrs.rs` and `admin.rsrs.rs` through Pages custom domains and verify certificate/DNS/origin behavior before removing corresponding legacy routes. Preserve these exact origins so origin-local tokens/recovery storage stay available. Use a fresh synthetic session for release checks; never move tokens through URLs. Test cached existing sessions and recovery-expiry behavior on the final origins with explicit operator authorization.
 5. **Clean up old runtime last.** Once final-origin checks pass and rollback is accepted, remove only obsolete frontend routes/containers/assets. Preserve API/legacy API routes and native client compatibility. This phase requires a separate deployment/change approval. Roll back a failed frontend cutover by restoring the recorded old routes and preserved image, not by reconstructing it from the API-only Server source.
 
 CI fixture/browser tests are not evidence that Cloudflare DNS, certificates, provider settings, actual production CORS, email delivery or live authentication have been verified. Record these separately at rollout time with API revision, Site revision, target/API origin from `build-info.json`, Pages deployment URLs and artifact checksums.
 
-Reference: [Pages build configuration](https://developers.cloudflare.com/pages/configuration/build-configuration/), [redirects](https://developers.cloudflare.com/pages/configuration/redirects/), [headers](https://developers.cloudflare.com/pages/configuration/headers/), [monorepos](https://developers.cloudflare.com/pages/configuration/monorepos/), [SPA serving behavior](https://developers.cloudflare.com/pages/configuration/serving-pages/).
+Reference: [Pages build configuration](https://developers.cloudflare.com/pages/configuration/build-configuration/), [advanced mode and ASSETS](https://developers.cloudflare.com/pages/functions/advanced-mode/), [ASSETS pretty paths](https://developers.cloudflare.com/pages/functions/api-reference/), [headers](https://developers.cloudflare.com/pages/configuration/headers/), [SPA serving behavior](https://developers.cloudflare.com/pages/configuration/serving-pages/).
 
 ## Downstream CLI acceptance boundary
 
