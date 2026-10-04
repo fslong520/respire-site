@@ -21,7 +21,7 @@ Suggested Pages build watch paths:
 - Homepage: `homepage/**`, `site/**`, `scripts/**`, `.github/workflows/**`, `LICENSE`, `COMMERCIAL-LICENSE.md`, `THIRD_PARTY_NOTICES.md`
 - Dashboard and Admin: `console/**`, `scripts/**`, `.github/workflows/**`, `LICENSE`, `COMMERCIAL-LICENSE.md`, `THIRD_PARTY_NOTICES.md`
 
-The existing homepage layout, language paths and `site/dist/client` output are unchanged. Its `/dashboard` and `/admin` redirects continue to the existing custom domains.
+The existing homepage layout, language paths and `site/dist/client` output are unchanged. Its `/dashboard` and `/admin` redirects default to the existing custom domains. For isolated DEV Pages projects, use a dedicated DEV branch and set `VITE_DASHBOARD_URL` and `VITE_ADMIN_URL` to the respective DEV HTTPS origins; both links and built path redirects follow these values. Set console `VITE_API_BASE_URL` to the isolated DEV API in both build environments. Keep these projects separate from the existing production homepage.
 
 ## API and preview map
 

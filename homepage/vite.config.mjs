@@ -61,6 +61,19 @@ function multiLocale() {
     name: "respire-multilocale",
     apply: "build",
     closeBundle() {
+      // Pages path redirects must follow the same explicit console destinations
+      // as homepage links. Relative local-preview links retain the static defaults.
+      const consoleOrigin = (value, fallback) => {
+        if (!value || value.startsWith('/')) return fallback;
+        const url = new URL(value);
+        if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') {
+          throw new Error('Homepage console redirects require an HTTPS origin');
+        }
+        return url.origin;
+      };
+      const dashboard = consoleOrigin(process.env.VITE_DASHBOARD_URL, 'https://dash.rsrs.rs');
+      const admin = consoleOrigin(process.env.VITE_ADMIN_URL, 'https://admin.rsrs.rs');
+      writeFileSync(resolve(OUT, '_redirects'), `/dashboard ${dashboard}/dashboard 302\n/dashboard/* ${dashboard}/dashboard/:splat 302\n/admin ${admin}/admin 302\n/admin/* ${admin}/admin/:splat 302\n`);
       writeFileSync(resolve(OUT, "build-info.json"), JSON.stringify({ ...buildProvenance(ROOT), target: "homepage", base: BASE }, null, 2) + "\n");
       const root = resolve(OUT, "index.html");
       const built = readFileSync(root, "utf8");
