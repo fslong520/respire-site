@@ -345,9 +345,15 @@ page.setDefaultTimeout(30000);
     await page.locator('.console-main').waitFor();
     ownerToken = await page.evaluate(() => localStorage.getItem('onememory.adminToken'));
     assert.ok(ownerToken);
+    await page.reload();
+    await page.locator('.console-main').waitFor();
     for (const id of ['users', 'admins', 'audit', 'mail', 'security']) {
       await navigate(id);
       await page.locator('.page-heading h1').waitFor();
+      if (id === 'admins') {
+        await page.locator('.user-cell strong').getByText(owner, { exact: true }).waitFor();
+        await page.locator('.user-cell strong').getByText(viewer, { exact: true }).waitFor();
+      }
       await screenshot(`admin-${id}`);
     }
     await navigate('users');

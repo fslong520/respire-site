@@ -4,7 +4,6 @@
   "directory": "admin-ui",
   "license": "Respire Noncommercial License 1.0; see ../LICENSE and ../COMMERCIAL-LICENSE.md",
   "unchanged_sha256": {
-    "src/AdminPages.jsx": "99b5caedc093fb1cbc9d3993bb6491b078f78871880495b975ab18b58a058687",
     "src/Brand.jsx": "c2e84d60a4116b00f3fd5864b93f279534748782298bd63542697d7c7d112612",
     "src/DashboardPages.jsx": "423ca6a987dc0240dc7631a9ee300dd536b0e02b5bc077e87eca03380596ce98",
     "src/DiaryCalendar.jsx": "426cda6b3fcfaac1fbe13cbb0863532dda85da250705f9f07274580b4057d62d",
@@ -34,6 +33,7 @@
     "package.json",
     "package-lock.json",
     "src/App.jsx",
+    "src/AdminPages.jsx",
     "src/Gate.jsx",
     "src/api.js",
     "tests/browser-render.mjs",
