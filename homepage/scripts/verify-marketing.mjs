@@ -3,11 +3,17 @@ import {createServer} from 'node:http';
 import {readFileSync,existsSync,mkdirSync} from 'node:fs';
 import {resolve,extname,sep} from 'node:path';
 import {chromium} from 'playwright';
+import {buildProvenance} from '../../scripts/build-provenance.mjs';
 
 const dist=resolve(process.env.VITE_SITE_OUT_DIR || '../site/dist/client');
 const base=process.env.VITE_SITE_BASE || '/';
 const screenshots=process.env.SITE_SCREENSHOTS;
-const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png'};
+const metadata=JSON.parse(readFileSync(resolve(dist,'build-info.json'),'utf8'));
+assert.equal(metadata.site_revision,buildProvenance(process.cwd()).site_revision);
+assert.equal(metadata.target,'homepage');
+assert.equal(metadata.base,base);
+if(process.env.CI)assert.equal(metadata.source_tree_dirty,false,'CI homepage artifacts must come from clean source');
+const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.json':'application/json'};
 const server=createServer((req,res)=>{
   const url=new URL(req.url,'http://localhost');
   if(!url.pathname.startsWith(base)){res.writeHead(404).end();return;}
@@ -23,6 +29,9 @@ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || u
 const errors=[];
 try{
   const context=await browser.newContext({viewport:{width:1440,height:1000}});
+  const provenance=await context.request.get(origin+base+'build-info.json');
+  assert.equal(provenance.status(),200);
+  assert.deepEqual(await provenance.json(),metadata);
   const page=await context.newPage();
   page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin+base);
@@ -59,5 +68,5 @@ try{
   await page.locator('.narrative-strand-ink').waitFor({state:'attached'});
   await page.waitForFunction(()=>document.querySelector('.narrative-strand-ink')?.style.strokeDashoffset==='0');
   assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:true,base,gpu_status:gpuStatus,checks:['English rendering','production links','installation','no demo notices','animation pause/resume','FAQ','Chinese URL and reload','mobile overflow/menu','reduced motion','no page errors']}));
+  console.log(JSON.stringify({passed:true,base,gpu_status:gpuStatus,checks:['exact public build provenance','English rendering','production links','installation','no demo notices','animation pause/resume','FAQ','Chinese URL and reload','mobile overflow/menu','reduced motion','no page errors']}));
 }finally{await browser.close();await new Promise(r=>server.close(r));}

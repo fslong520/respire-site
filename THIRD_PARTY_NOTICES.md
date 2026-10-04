@@ -22,3 +22,7 @@ The retained Shadcn Tailwind stylesheet license is in `homepage/vendor/shadcn-ta
 ## Self-hosted fonts
 
 Fraunces (Copyright 2020 The Fraunces Project Authors), Work Sans (Copyright 2019 The Work Sans Project Authors), and Noto Serif SC (Google Inc.) are distributed under the SIL Open Font License 1.1. Their complete upstream notices are retained in `homepage/assets/licenses/` and copied into the deployed website. The first-party noncommercial license does not replace these font licenses.
+
+## Extracted Respire console source
+
+`console/` originates from `risense-ai/respire-server/admin-ui` at commit `84ad000ae50758756edb077c63c0a1b31eb9ada2`. Its first-party source remains covered by the same Respire Noncommercial License 1.0 and commercial-license notice in this repository. The import manifest (`console/upstream.json`) records unchanged source checksums and intentional integration changes. `console/package-lock.json` retains exact dependency versions; React, Phosphor Icons, Vite and other dependencies retain their own upstream licenses. No upstream license is replaced by the first-party license.

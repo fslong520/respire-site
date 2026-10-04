@@ -1,6 +1,6 @@
-# Respire Website
+# Respire Frontends
 
-The Respire product website: local memory, useful context and continuity across AI tools.
+Frontend source ownership for the Respire product website, Dashboard and Admin. API services live in `risense-ai/respire-server`.
 
 | Destination | URL |
 | --- | --- |
@@ -32,6 +32,12 @@ npm run build:dev
 Production files are written to `site/dist/client/`; preview files to `site/dist/preview/`. English is the default language, with Chinese at `/zh/`. The preview uses `/preview/` and links to the development dashboard and administration routes.
 
 See [homepage documentation](homepage/README.md) for browser checks, motion controls and configuration. Preserve [third-party notices](THIRD_PARTY_NOTICES.md) and the vendored CSS license with the source.
+
+## Dashboard and Admin
+
+The shared [`console/`](console/README.md) React codebase builds independent Dashboard and Admin Pages artifacts. See [the three-project Pages configuration and staged API-first cutover](console/CLOUDFLARE-PAGES.md).
+
+Frontend source moves now; existing runtime routes and containers remain until API deployment, Pages verification and separately authorized traffic migration have finished.
 
 ## CLI
 

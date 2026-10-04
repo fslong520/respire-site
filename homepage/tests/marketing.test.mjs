@@ -22,3 +22,10 @@ test('installation and product guidance describe the supported CLI',()=>{
 test('production output copies the current website assets',()=>{
   assert.ok(read('../vite.config.mjs').includes('publicDir: "assets"'));
 });
+
+test('public build metadata is generated from the checkout, not a hard-coded revision',()=>{
+  const config=read('../vite.config.mjs');
+  assert.ok(config.includes('buildProvenance(ROOT)'));
+  assert.ok(config.includes('"build-info.json"'));
+  assert.ok(config.includes('target: "homepage"'));
+});

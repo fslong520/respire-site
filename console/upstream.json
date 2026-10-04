@@ -1,0 +1,49 @@
+{
+  "repository": "https://github.com/risense-ai/respire-server",
+  "commit": "84ad000ae50758756edb077c63c0a1b31eb9ada2",
+  "directory": "admin-ui",
+  "license": "Respire Noncommercial License 1.0; see ../LICENSE and ../COMMERCIAL-LICENSE.md",
+  "unchanged_sha256": {
+    "index.html": "16db5c0bfe147d9f0742db25bae6765e3f1948265790c392eb097610ced98cef",
+    "src/AdminPages.jsx": "99b5caedc093fb1cbc9d3993bb6491b078f78871880495b975ab18b58a058687",
+    "src/Brand.jsx": "c2e84d60a4116b00f3fd5864b93f279534748782298bd63542697d7c7d112612",
+    "src/DashboardPages.jsx": "423ca6a987dc0240dc7631a9ee300dd536b0e02b5bc077e87eca03380596ce98",
+    "src/DiaryCalendar.jsx": "426cda6b3fcfaac1fbe13cbb0863532dda85da250705f9f07274580b4057d62d",
+    "src/Gate.jsx": "dccb27a692dfb26e0bd7433db02dd03f666d0502ad331ea4f4e6a29dba2e65c1",
+    "src/Security.jsx": "3e2c92280535b4c301ec896bd3166679642bb8b5e687fa525cb8c22ad46a6364",
+    "src/Shell.jsx": "cb3466c2151b3263ee4fd526d34883d91cf8ec0264737cbddbbc4b17af27fa40",
+    "src/admin.css": "1380b67b58bf343bda84a7a77e7f069e340972a8579dfa6eae7a0db9b0404940",
+    "src/brand.js": "cb3290ff967155c0788b31dcb92045cb228deb2d85c9a99f7085d031c9cccbbc",
+    "src/brand/logo-reverse.svg": "7725b4d84ecb9f9c4274f4b4a17840b4fcb9429cf781d530172ca6b42d29d080",
+    "src/brand/logo.svg": "ac4baf05821101bba2bd274a9b355c2685d2d40712423d0d15faaf70658eed7c",
+    "src/console.css": "d34fe37bbef772e970020dd1b7dfa376e5ac5511628799586dd27d0ff422ed11",
+    "src/crypto.js": "c1169c513ecdd8b5560ce12849640f139ef3ea16be1f056d5e6fcd0aa164121b",
+    "src/hashRoute.js": "56792e91a58debdd968179e42a6c2f3d78cee3f1a7d093bf9f77bb9512fe74b2",
+    "src/i18n.js": "073c2d414e4ddd60abf603f594adf9cfbe096a6118aab7c29ba4b4e9d2731e1b",
+    "src/main.jsx": "afb8eb2ca4284116fd0175a6602b0636b91923318c547d914c4251e33ab69770",
+    "src/styles.css": "ec631937ebf2f5121f77543a85f2402d27dc375889a459d6e0fc6252395ac757",
+    "src/treeModel.js": "e7ac1e530862ea2d3561ad433e8121771d2297ddfdef499a700740c33201baa8",
+    "src/ui.jsx": "a56abe3cfca55c62fc490c16c77e753569f348e83fb4920e64018cb2a6f9026e",
+    "tests/browser-dev-smoke.mjs": "c5a14cbf868bd2f9b4a175f6e1666d2b0e01d1df4b1d97bf4192bf9da7c66da6",
+    "tests/hash-route-harness.html": "728cf34b2cfc4acc82d35ac0316061b8043ff2ef8b5b6db94338fe1f2cdf1bf8",
+    "tests/hash-route.test.mjs": "67e9e092a1d04f353a964f17493f17782d79246d865a00ce577029814722597c",
+    "tests/i18n.test.mjs": "5422d4ce407d36604fe0a1d834237eccb9978535e4d3de7f6c46e3f374f3a764",
+    "scripts/read-dev-mail.py": "d018080335c5b01d10b9e97abd19e6bf2d29b3364ae379f760dd265779e8ba5b"
+  },
+  "intentionally_adapted": [
+    "README.md",
+    "package.json",
+    "package-lock.json",
+    "src/App.jsx",
+    "src/api.js",
+    "tests/browser-render.mjs",
+    "vite.config.js"
+  ],
+  "not_imported": [
+    "dist/index.html",
+    "scripts/copy-html.mjs"
+  ],
+  "additional_sources": {
+    "scripts/read-dev-mail.py": "scripts/read-dev-mail.py"
+  }
+}

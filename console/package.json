@@ -1,0 +1,30 @@
+{
+  "name": "respire-console",
+  "version": "0.2.24",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --mode dashboard --host 127.0.0.1",
+    "dev:dashboard": "vite --mode dashboard --host 127.0.0.1",
+    "dev:admin": "vite --mode admin --host 127.0.0.1",
+    "build": "npm run build:dashboard && npm run build:admin",
+    "build:dashboard": "vite build --mode dashboard",
+    "build:admin": "vite build --mode admin",
+    "check": "node --check vite.config.js && node scripts/check-source.mjs",
+    "test": "node tests/hash-route.test.mjs && node tests/i18n.test.mjs && node --test tests/config.test.mjs tests/api.test.mjs tests/console-route.test.mjs tests/vite-config.test.mjs tests/provenance.test.mjs tests/hosted-split-contract.test.mjs",
+    "test:render": "node tests/browser-render.mjs",
+    "test:browser": "node tests/browser-fixtures.mjs",
+    "test:hosted": "node tests/browser-hosted-split-smoke.mjs"
+  },
+  "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0",
+    "vite": "^7.0.0",
+    "vite-plugin-singlefile": "^2.3.0"
+  },
+  "license": "SEE LICENSE IN ../LICENSE"
+}

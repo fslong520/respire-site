@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { buildProvenance } from "../scripts/build-provenance.mjs";
 
 const ROOT = import.meta.dirname;
 const OUT = resolve(ROOT, process.env.VITE_SITE_OUT_DIR || "../site/dist/client");
@@ -60,6 +61,7 @@ function multiLocale() {
     name: "respire-multilocale",
     apply: "build",
     closeBundle() {
+      writeFileSync(resolve(OUT, "build-info.json"), JSON.stringify({ ...buildProvenance(ROOT), target: "homepage", base: BASE }, null, 2) + "\n");
       const root = resolve(OUT, "index.html");
       const built = readFileSync(root, "utf8");
       writeFileSync(root, localize(built, "en"), "utf8");

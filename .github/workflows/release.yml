@@ -1,4 +1,4 @@
-name: Website artifact and release
+name: Frontend artifact and release
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Website git ref to build; the artifact records the resolved commit
+        description: Frontend git ref to build; the artifact records the resolved commit
         default: main
         type: string
 
@@ -26,7 +26,9 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: homepage/package-lock.json
+          cache-dependency-path: |
+            homepage/package-lock.json
+            console/package-lock.json
       - name: Build and check the website
         working-directory: homepage
         run: |
@@ -38,7 +40,17 @@ jobs:
           npm run verify:browser
           npm run build:dev
           VITE_SITE_BASE=/preview/ VITE_SITE_OUT_DIR=../site/dist/preview VITE_DASHBOARD_URL=/dashboard VITE_ADMIN_URL=/admin npm run verify:browser
-      - name: Package the exact website revision
+      - name: Build and check both cloud consoles
+        working-directory: console
+        run: |
+          npm ci
+          npm run check
+          npm test
+          npm run build
+          npm run test:render
+          npm run test:browser
+          node scripts/verify-build.mjs
+      - name: Package the exact frontend revision
         id: package
         run: |
           set -euo pipefail
@@ -47,11 +59,16 @@ jobs:
           test -s site/dist/client/zh/index.html
           test -s site/dist/preview/index.html
           test -s site/dist/preview/zh/index.html
+          test -s console/dist/dashboard/build-info.json
+          test -s console/dist/admin/build-info.json
           mkdir artifact
           printf '%s\n' "$SHA" > artifact/site-sha.txt
           tar -czf "artifact/respire-site-${SHA}.tar.gz" -C site/dist/client .
           tar -czf "artifact/respire-site-preview-${SHA}.tar.gz" -C site/dist/preview .
-          (cd artifact && sha256sum *.tar.gz site-sha.txt > SHA256SUMS)
+          tar -czf "artifact/respire-dashboard-${SHA}.tar.gz" -C console/dist/dashboard .
+          tar -czf "artifact/respire-admin-${SHA}.tar.gz" -C console/dist/admin .
+          cp console/upstream.json artifact/console-upstream.json
+          (cd artifact && sha256sum *.tar.gz site-sha.txt console-upstream.json > SHA256SUMS)
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
@@ -71,7 +88,7 @@ jobs:
         with:
           path: release-assets
           merge-multiple: true
-      - name: Publish the built website without deploying production
+      - name: Publish built frontend artifacts without deploying production
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
@@ -80,4 +97,4 @@ jobs:
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::expected a stable version tag"; exit 1; }
           (cd release-assets && sha256sum --check SHA256SUMS)
           gh release create "$RELEASE_TAG" release-assets/* --repo "$GITHUB_REPOSITORY" \
-            --verify-tag --title "$RELEASE_TAG" --notes "Static website assets; deployment is a separate manual SSH operation."
+            --verify-tag --title "$RELEASE_TAG" --notes "Checksummed website, Dashboard and Admin assets from the recorded Site revision. Deployment and traffic migration are separate, ordered API-first operations; no production deployment is performed by this release."

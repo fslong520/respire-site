@@ -47,3 +47,6 @@ VITE_SITE_BASE=/preview/ VITE_SITE_OUT_DIR=../site/dist/preview VITE_DASHBOARD_U
 The build copies static files from `assets/`. The sibling `site/` directory contains build output and deployment configuration only.
 
 The renderer honors reduced motion and pauses while offscreen. Focus the artwork and press **P** or **Space** to pause or resume. The original artwork is retained as a fallback when WebGL is unavailable. See [third-party notices](../THIRD_PARTY_NOTICES.md) for attribution.
+
+
+The build also emits public `build-info.json` with `site_revision`, `source_tree_dirty`, `target: "homepage"`, and the configured base path. This metadata contains no credentials and does not change visual assets. The revision comes from the actual checkout; if `CF_PAGES_COMMIT_SHA` is present it must be a valid full SHA matching that checkout. The separate hosted migration smoke uses this endpoint to prove the live homepage revision alongside both consoles and the API.
