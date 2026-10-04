@@ -4,6 +4,7 @@ export default {
     const url = new URL(request.url);
     const target = consoleHosts[url.hostname];
     if (!target) return env.ASSETS.fetch(request);
+    if (url.pathname === '/favicon.svg') return env.ASSETS.fetch(request);
     if (!['GET', 'HEAD'].includes(request.method)) {
       return new Response('Frontend requests must use the configured API origin', { status: 405, headers: { Allow: 'GET, HEAD' } });
     }
