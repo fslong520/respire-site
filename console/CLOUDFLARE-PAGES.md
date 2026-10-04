@@ -6,7 +6,27 @@ Paired API/source-ownership change: [respire-server PR #6](https://github.com/ri
 
 ## Project configuration
 
-Use `risense-ai/respire-site`, Node 22, and **leave the root directory empty** (repository root). Use a dedicated DEV branch/project before changing the existing production homepage.
+### Deployment triggers
+
+| Pages project | Production branch in Cloudflare | Trigger | API origin |
+| --- | --- | --- | --- |
+| `respire-dev-site` | `main` | Push to `main` | `https://dev.rsrs.rs` |
+| `respire-site` | `prod/pages` | Successful `vX.Y.Z` tag release | `https://api.rsrs.rs` |
+
+Both projects keep automatic production-branch deployments enabled. Disable
+branch preview deployments on both projects: their custom domains are the
+fixed, separately allowlisted DEV and production origins. The release workflow
+runs the existing Site CI before fast-forwarding `prod/pages` to the tag's exact
+commit; it never merges newer `main` changes into that release. Do not manually
+push `prod/pages`, and do not bind the production project to `main`.
+
+Each project's public build variables remain environment-specific. Cloudflare
+uses its own Production environment for either project's configured production
+branch; the DEV project must explicitly keep its DEV API and three frontend
+origins. Backend/database deployment remains operator-local SSH, independent
+of this frontend release workflow.
+
+Use `risense-ai/respire-site`, Node 22, and **leave the root directory empty** (repository root). Keep the DEV and production Pages projects separate, with the branch bindings above.
 
 Build command:
 
@@ -30,7 +50,7 @@ Suggested Pages build watch paths:
 
 - `homepage/**`, `console/**`, `site/**`, `scripts/**`, `.github/workflows/**`, `LICENSE`, `COMMERCIAL-LICENSE.md`, `THIRD_PARTY_NOTICES.md`
 
-The existing homepage layout, language paths and component `site/dist/client` output are unchanged. Its `/dashboard` and `/admin` redirects and links follow the same configured origins as the hostname router. For isolated DEV, use a dedicated DEV branch/project and isolated API, Dashboard and Admin HTTPS origins. Keep this project separate from the existing production homepage until production migration is approved.
+The existing homepage layout, language paths and component `site/dist/client` output are unchanged. Its `/dashboard` and `/admin` redirects and links follow the same configured origins as the hostname router. DEV uses its own Pages project and isolated API, Dashboard and Admin HTTPS origins.
 
 ## API and preview map
 
@@ -41,7 +61,7 @@ The existing homepage layout, language paths and component `site/dist/client` ou
 | Automated fixtures | Two different loopback UI origins created by the test | A third loopback origin created by the test |
 | Legacy runtime (until cutover passes) | Existing Dashboard/Admin web container/proxy | Existing API paths |
 
-No new preview/test domain is reserved or presumed by this PR. Before enabling console branch previews, choose an isolated test API/database/mail fixture and configure preview `VITE_API_BASE_URL` to its exact HTTPS origin. Add each exact Pages deployment/branch-alias origin to that test API's `RESPIRE_CORS_ALLOWED_ORIGINS`; never allow `*.pages.dev`, `null`, or an arbitrary reflected origin. A preview build on Cloudflare refuses the production API default, and every Cloudflare Pages build requires a remote HTTPS hostname and refuses HTTP, literal-IP and localhost API targets. Keep console previews disabled until the isolated API and origin allowlist are ready. Homepage previews retain their existing configuration.
+No new preview/test domain is reserved or presumed by this PR. Before enabling console branch previews, choose an isolated test API/database/mail fixture and configure preview `VITE_API_BASE_URL` to its exact HTTPS origin. Add each exact Pages deployment/branch-alias origin to that test API's `RESPIRE_CORS_ALLOWED_ORIGINS`; never allow `*.pages.dev`, `null`, or an arbitrary reflected origin. A preview build on Cloudflare refuses the production API default, and every Cloudflare Pages build requires a remote HTTPS hostname and refuses HTTP, literal-IP and localhost API targets. Keep combined-project previews disabled until the isolated API and origin allowlist are ready.
 
 Public previews must contain no credentials and be used with synthetic accounts only. If desired, separately configure restricted preview access before sharing; access setup is outside this PR. Never add preview origins to the production API just to make testing convenient. Dynamic deployment URLs require explicit allowlist updates or a fixed test branch alias; do not silently broaden CORS.
 
