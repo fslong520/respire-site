@@ -28,8 +28,7 @@ export async function closeServer(server) {
   await new Promise(resolve => server.close(resolve));
 }
 
-export async function startFixtureApi() {
-  const origins = new Set();
+export async function startFixtureApi({ frontend } = {}) {
   const requests = [];
   const unexpected = [];
   const userAuth = await authPayload(FIXTURE.user, FIXTURE.password);
@@ -53,33 +52,35 @@ export async function startFixtureApi() {
   }
   reset();
   const server = createServer(async (request, response) => {
-    const url = new URL(request.url, 'http://fixture.invalid');
-    const path = url.pathname;
-    const method = request.method;
-    const origin = request.headers.origin;
-    const record = { method, path, search: url.search, origin, headers: request.headers, body: undefined };
-    requests.push(record);
-    const json = (status, body) => response.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
     try {
-      if (!origins.has(origin)) {
-        unexpected.push(`Unapproved fixture API origin: ${origin || '(none)'}`);
-        return json(403, { error: 'fixture origin not allowed' });
-      }
-      assert.equal(request.headers.cookie, undefined, 'API transport must omit browser cookies');
-      response.setHeader('Access-Control-Allow-Origin', origin);
-      response.setHeader('Vary', 'Origin');
-      response.setHeader('Cache-Control', 'no-store');
-      if (method === 'OPTIONS') {
-        // Use real browser preflights. Do not satisfy them through Playwright mocks.
-        const requestedMethod = request.headers['access-control-request-method'];
-        assert.ok(['GET', 'POST'].includes(requestedMethod));
-        const headers = (request.headers['access-control-request-headers'] || '').split(',').map(h => h.trim()).filter(Boolean);
-        assert.ok(headers.every(h => ['authorization', 'content-type'].includes(h)));
-        response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-        response.setHeader('Access-Control-Max-Age', '0');
-        return response.writeHead(204).end();
-      }
+      // The embedded console is served from the API origin and calls it with
+      // same-origin relative paths; the optional frontend handler answers UI
+      // paths (SPA HTML, fonts) without recording them as API traffic.
+      if (frontend && await frontend(request, response, new URL(request.url, 'http://fixture.invalid'))) return;
+      const url = new URL(request.url, 'http://fixture.invalid');
+      const path = url.pathname;
+      const method = request.method;
+      const origin = request.headers.origin;
+      const record = { method, path, search: url.search, origin, headers: request.headers, body: undefined };
+      requests.push(record);
+      const json = (status, body) => response.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
+      try {
+        // Same-origin transport: requests carry either no Origin header (GET) or
+        // this server's own origin. Anything else must fail loudly.
+        if (origin !== undefined && origin !== `http://${request.headers.host}`) {
+          unexpected.push(`Cross-origin fixture API request from ${origin}: ${method} ${path}`);
+          return json(403, { error: 'fixture origin not allowed' });
+        }
+        assert.equal(request.headers.cookie, undefined, 'API transport must omit browser cookies');
+        response.setHeader('Cache-Control', 'no-store');
+        if (method === 'OPTIONS') {
+          // Same-origin fetch never preflights; a stray preflight is a transport regression.
+          const requestedMethod = request.headers['access-control-request-method'];
+          assert.ok(['GET', 'POST'].includes(requestedMethod));
+          const headers = (request.headers['access-control-request-headers'] || '').split(',').map(h => h.trim()).filter(Boolean);
+          assert.ok(headers.every(h => ['authorization', 'content-type'].includes(h)));
+          return response.writeHead(204).end();
+        }
       const chunks = [];
       for await (const chunk of request) chunks.push(chunk);
       const raw = Buffer.concat(chunks).toString();
@@ -165,12 +166,17 @@ export async function startFixtureApi() {
       if (method === 'GET' && ['/admin/outbox', '/admin/audit'].includes(path)) return json(200, { items: [] });
       unexpected.push(`Unexpected API request: ${method} ${path}`);
       return json(404, { error: 'fixture route not implemented' });
+      } catch (error) {
+        unexpected.push(error.message);
+        if (!response.headersSent) json(500, { error: 'fixture assertion failed' });
+        else response.end();
+      }
     } catch (error) {
-      unexpected.push(error.message);
-      if (!response.headersSent) json(500, { error: 'fixture assertion failed' });
+      unexpected.push(`Fixture frontend failed: ${error.message}`);
+      if (!response.headersSent) response.writeHead(500).end();
       else response.end();
     }
   });
   const origin = await listen(server);
-  return { origin, origins, requests, unexpected, state, reset, close: () => closeServer(server) };
+  return { origin, requests, unexpected, state, reset, close: () => closeServer(server) };
 }

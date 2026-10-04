@@ -1,19 +1,21 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
-import { normalizeApiBase } from '../src/config.js';
-const revision = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-for (const target of ['dashboard', 'admin']) {
-  const base = new URL(`../dist/${target}/`, import.meta.url);
-  const metadata = JSON.parse(readFileSync(new URL('build-info.json', base), 'utf8'));
-  assert.equal(metadata.site_revision, revision);
-  assert.equal(metadata.target, target);
-  assert.equal(typeof metadata.source_tree_dirty, 'boolean');
-  if (process.env.CI) assert.equal(metadata.source_tree_dirty, false, 'Release/CI artifacts must come from clean source');
-  assert.equal(metadata.api_base_url, normalizeApiBase(process.env.VITE_API_BASE_URL));
-  assert.match(readFileSync(new URL('index.html', base), 'utf8'), /<script type="module"[^>]*>/);
-  assert.equal(readFileSync(new URL('_redirects', base), 'utf8'), readFileSync(new URL('../public/_redirects', import.meta.url), 'utf8'));
-  assert.ok(!readFileSync(new URL('_redirects', base), 'utf8').startsWith('/* '), 'Do not shadow provenance/license files with a catch-all rewrite');
-  assert.match(readFileSync(new URL('_headers', base), 'utf8'), /Cache-Control: no-store/);
-}
-console.log('Both Pages outputs have expected configuration, metadata and routing.');
+import { readdirSync, readFileSync } from 'node:fs';
+
+// The console ships as one embedded single-file bundle: inline module script and
+// styles, fonts kept as separate hashed files, plus the Pages routing files.
+const dist = new URL('../dist/', import.meta.url);
+const html = readFileSync(new URL('index.html', dist), 'utf8');
+assert.match(html, /<script type="module"[^>]*>/, 'dist/index.html must inline its module script');
+assert.ok(!/<script[^>]*\ssrc=/.test(html), 'The bundle must not reference external scripts');
+assert.ok(!/<link[^>]*rel="stylesheet"/.test(html), 'Styles must be inlined by the single-file build');
+assert.match(html, /\/[A-Za-z0-9_-]+\.woff2/, 'Fonts must stay separate files referenced with origin-absolute URLs');
+const fonts = readdirSync(dist).filter(name => name.endsWith('.woff2'));
+assert.ok(fonts.length > 0, 'No woff2 slices were emitted');
+
+const redirects = readFileSync(new URL('_redirects', dist), 'utf8');
+assert.equal(redirects, readFileSync(new URL('../public/_redirects', import.meta.url), 'utf8'));
+assert.ok(!redirects.startsWith('/* '), 'Do not shadow bundle assets with a catch-all rewrite');
+const headers = readFileSync(new URL('_headers', dist), 'utf8');
+assert.equal(headers, readFileSync(new URL('../public/_headers', import.meta.url), 'utf8'));
+assert.match(headers, /Cache-Control: no-store/);
+console.log(`Single console bundle verified: inline script and styles, ${fonts.length} font slices, Pages routing files intact.`);

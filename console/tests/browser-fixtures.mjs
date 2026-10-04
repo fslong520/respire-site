@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { createServer } from 'node:http';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,28 +8,29 @@ import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { decryptItem, deriveDataKey, unwrapUrk } from '../src/crypto.js';
 import { t } from '../src/i18n.js';
-import { FIXTURE, startFixtureApi, listen, closeServer } from './fixture-api.mjs';
+import { FIXTURE, startFixtureApi, closeServer } from './fixture-api.mjs';
 import { startFixtureProxy } from './fixture-proxy.mjs';
 
-// Exercise compiled mode-specific artifacts against a real, separate-origin
-// loopback API. All network destinations except these ephemeral servers are
+// Exercise the compiled single-file bundle against a real loopback service that
+// serves the UI and the API on one origin, mirroring the embedded deployment:
+// bare /admin and /dashboard paths serve the SPA, /admin/<noun>... and the other
+// documented routes answer JSON, and the app calls the API with same-origin
+// relative paths. All network destinations except this ephemeral server are
 // blocked, and production dist is neither read nor overwritten by this suite.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const temporary = await mkdtemp(resolve(tmpdir(), 'respire-console-fixtures-'));
 const exec = promisify(execFile);
-const api = await startFixtureApi();
-const servers = [];
-const origins = {};
-const rows = [];
-const wrongOriginApi = [];
-const runtimeErrors = [];
 const USER_KEY = 'onememory.userToken';
 const ADMIN_KEY = 'onememory.adminToken';
 const bothTokens = { [USER_KEY]: FIXTURE.userToken, [ADMIN_KEY]: FIXTURE.adminToken };
+const uiPath = (mode) => (mode === 'admin' ? '/admin' : '/dashboard');
+const runtimeErrors = [];
+const rows = [];
 let browser;
 let proxy;
 let context;
 let current = 'build';
+let origin;
 
 async function run(name, body) {
   current = name;
@@ -42,7 +42,6 @@ async function run(name, body) {
     assert.deepEqual(api.unexpected, [], 'Fixture API encountered an unexpected request or payload');
     assert.deepEqual(proxy.blocked, [], 'Browser attempted a request outside the fixture transport allowlist');
     assert.deepEqual(proxy.errors, [], 'Fixture proxy encountered a transport failure');
-    assert.deepEqual(wrongOriginApi, [], 'API calls must use the configured separate origin');
     assert.deepEqual(runtimeErrors, [], 'Browser had an uncaught runtime error');
     rows.push({ name, requests: api.requests.length - before });
     console.log(`PASS ${name}`);
@@ -52,12 +51,14 @@ async function run(name, body) {
   }
 }
 
-async function open(mode, path = '/', storage = {}) {
+let api;
+
+async function open(path, storage = {}) {
   context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce', serviceWorkers: 'block' });
   // This suite uses neither page/context routes nor direct CDP interception.
-  // Playwright's route handler synthesizes OPTIONS for routed requests, hiding
-  // native CORS regressions; direct CDP has a separate hosted-only test suite.
-  await context.addCookies([{ name: 'fixture-session-cookie', value: 'must-not-be-sent-to-api', url: api.origin }]);
+  // Playwright's route handler synthesizes responses for routed requests, hiding
+  // native transport regressions; direct CDP has a separate hosted-only test suite.
+  await context.addCookies([{ name: 'fixture-session-cookie', value: 'must-not-be-sent-to-api', url: origin }]);
   await context.addInitScript(({ storage }) => {
     // Do not restore values after reload, logout, or a deliberate auth failure.
     if (!sessionStorage.getItem('fixture-seeded')) {
@@ -69,7 +70,7 @@ async function open(mode, path = '/', storage = {}) {
   const page = await context.newPage();
   page.setDefaultTimeout(10000);
   page.on('pageerror', error => runtimeErrors.push(error.message));
-  await page.goto(`${origins[mode]}${path}`);
+  await page.goto(`${origin}${path}`);
   return page;
 }
 
@@ -87,7 +88,7 @@ async function enterCredentials(page, admin = false, password = FIXTURE.password
 }
 
 async function waitForApi(page, path, method, action, status = 200) {
-  const pending = page.waitForResponse(response => response.url().startsWith(api.origin) && new URL(response.url()).pathname === path && response.request().method() === method);
+  const pending = page.waitForResponse(response => response.url().startsWith(origin) && new URL(response.url()).pathname === path && response.request().method() === method);
   await action();
   assert.equal((await pending).status(), status, `${method} ${path}`);
 }
@@ -115,62 +116,54 @@ try {
   const proxyTests = await exec(process.execPath, ['--test', resolve(root, 'tests/fixture-proxy.test.mjs')], { cwd: root });
   console.log(proxyTests.stdout.trim());
   current = 'build';
-  for (const mode of ['dashboard', 'admin']) {
-    const outDir = resolve(temporary, mode);
-    await exec(process.execPath, [resolve(root, 'node_modules/vite/bin/vite.js'), 'build', '--mode', mode, '--outDir', outDir, '--emptyOutDir'], {
-      cwd: root,
-      env: { ...process.env, VITE_API_BASE_URL: api.origin },
-      maxBuffer: 4 * 1024 * 1024,
-    });
-    const html = await readFile(resolve(outDir, 'index.html'));
-    assert.ok(html.length > 10000, `${mode} artifact is unexpectedly empty`);
-    const server = createServer((request, response) => {
-      const path = new URL(request.url, 'http://fixture.invalid').pathname;
-      if (path === '/favicon.ico') return response.writeHead(204).end();
-      if (request.method !== 'GET' || path.startsWith('/api/') || ['/login', '/register', '/pull', '/push', '/admin/me', '/admin/users'].includes(path)) {
-        wrongOriginApi.push(`${request.method} ${path}`);
-        return response.writeHead(500).end('API must be called on its configured origin');
-      }
-      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(html);
-    });
-    servers.push(server);
-    origins[mode] = await listen(server);
-    api.origins.add(origins[mode]);
+  const outDir = resolve(temporary, 'bundle');
+  await exec(process.execPath, [resolve(root, 'node_modules/vite/bin/vite.js'), 'build', '--outDir', outDir, '--emptyOutDir'], {
+    cwd: root,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  const html = await readFile(resolve(outDir, 'index.html'));
+  assert.ok(html.length > 10000, 'The compiled bundle is unexpectedly empty');
+  const assets = new Map();
+  for (const name of (await readdir(outDir)).filter(name => name.endsWith('.woff2'))) {
+    assets.set(`/${name}`, await readFile(resolve(outDir, name)));
   }
-  assert.equal(new Set([api.origin, origins.dashboard, origins.admin]).size, 3);
-  proxy = await startFixtureProxy([
-    { origin: api.origin, methods: ['GET', 'POST', 'OPTIONS'] },
-    ...Object.values(origins).map(origin => ({ origin, methods: ['GET'] })),
-  ]);
+  api = await startFixtureApi({
+    async frontend(request, response, url) {
+      if (request.method !== 'GET') return false;
+      const path = url.pathname;
+      if (path === '/favicon.ico') { response.writeHead(204).end(); return true; }
+      const spa = path === '/' || path === '/admin' || path === '/admin/' || path === '/dashboard' || path === '/dashboard/' || path.startsWith('/dashboard/');
+      if (spa) {
+        response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(html);
+        return true;
+      }
+      const font = assets.get(path);
+      if (font) { response.writeHead(200, { 'Content-Type': 'font/woff2', 'Cache-Control': 'no-store' }).end(font); return true; }
+      return false;
+    },
+  });
+  origin = api.origin;
+  proxy = await startFixtureProxy([{ origin: api.origin, methods: ['GET', 'POST', 'OPTIONS'] }]);
   current = 'launch browser';
   browser = await chromium.launch({
     headless: true,
     // Chromium otherwise bypasses proxies for loopback hosts. This only changes
-    // proxy routing; browser web security and native CORS remain enabled.
+    // proxy routing; browser web security remains enabled.
     proxy: { server: proxy.origin, bypass: '<-loopback>' },
     ...(process.env.RESPIRE_BROWSER_EXECUTABLE ? { executablePath: process.env.RESPIRE_BROWSER_EXECUTABLE } : {}),
   });
 
   for (const mode of ['dashboard', 'admin']) {
-    await run(`${mode}: root selects compiled mode without credentials`, async () => {
-      const page = await open(mode);
+    await run(`${mode}: bare path selects its surface without credentials`, async () => {
+      const page = await open(uiPath(mode));
       await page.locator(`.gate-page.${mode === 'admin' ? 'admin' : 'user'}-login`).waitFor();
       assert.equal(await page.locator('.gate-form h2').textContent(), t(mode === 'admin' ? 'gateAdminTitle' : 'gateWelcome'));
       assert.equal(await page.locator('.console-main').count(), 0);
     });
 
-    await run(`${mode}: opposite legacy path cannot switch compiled surface`, async () => {
+    await run(`${mode}: own token only, shell, and sign-out separation`, async () => {
       const start = api.requests.length;
-      const opposite = mode === 'admin' ? 'dashboard' : 'admin';
-      const page = await open(mode, `/${opposite}/security`, bothTokens);
-      await page.getByText(t('fallbackHint'), { exact: true }).waitFor();
-      assert.equal(await page.locator('.gate-form, .console-main').count(), 0);
-      assert.equal(api.requests.length, start, 'Unsupported path must not start an authenticated console');
-    });
-
-    await run(`${mode}: own token only, root shell, and sign-out separation`, async () => {
-      const start = api.requests.length;
-      const page = await open(mode, '/', bothTokens);
+      const page = await open(uiPath(mode), bothTokens);
       await page.locator(`.console-main.surface-${mode === 'admin' ? 'users' : 'memories'}`).waitFor();
       // Let the shell's profile load finish before inspecting outgoing headers.
       await page.locator('.workspace-switch strong').filter({ hasText: mode === 'admin' ? FIXTURE.admin : FIXTURE.user }).waitFor();
@@ -188,31 +181,15 @@ try {
 
     await run(`${mode}: opposite token cannot authenticate`, async () => {
       const start = api.requests.length;
-      const page = await open(mode, '/', mode === 'admin' ? { [USER_KEY]: FIXTURE.userToken } : { [ADMIN_KEY]: FIXTURE.adminToken });
+      const page = await open(uiPath(mode), mode === 'admin' ? { [USER_KEY]: FIXTURE.userToken } : { [ADMIN_KEY]: FIXTURE.adminToken });
       await page.locator('.gate-form').waitFor();
       assert.equal(api.requests.length, start, 'Opposite console token must not be probed');
-    });
-
-    await run(`${mode}: legacy path and prefixed hash deep links`, async () => {
-      const id = mode === 'admin' ? 'audit' : 'sessions';
-      const page = await open(mode, `/${mode}/${id}`, bothTokens);
-      await page.locator(`.console-main.surface-${id}`).waitFor();
-      assert.equal(new URL(page.url()).hash, `#/${id}`);
-      for (const path of [`/${mode}#/${mode}/${id}`, `/${mode}/#/${mode}/${id}`, `/#/${mode}/${id}`, `/#/${id}`]) {
-        await page.goto(`${origins[mode]}${path}`);
-        await page.locator(`.console-main.surface-${id}`).waitFor();
-      }
-      await navigate(page, 'security');
-      await page.goBack();
-      await page.locator(`.console-main.surface-${id}`).waitFor();
-      await page.goForward();
-      await page.locator('.console-main.surface-security').waitFor();
     });
 
     await run(`${mode}: 401 probe removes only the current token`, async () => {
       const probe = mode === 'admin' ? '/admin/me' : '/api/self';
       api.state.failures.set(`GET ${probe}`, { status: 401, error: 'fixture expired session' });
-      const page = await open(mode, '/', bothTokens);
+      const page = await open(uiPath(mode), bothTokens);
       await page.locator('.gate-form').waitFor();
       assert.equal(await stored(page, mode === 'admin' ? ADMIN_KEY : USER_KEY), null);
       assert.equal(await stored(page, mode === 'admin' ? USER_KEY : ADMIN_KEY), mode === 'admin' ? FIXTURE.userToken : FIXTURE.adminToken);
@@ -220,7 +197,7 @@ try {
 
     await run(`${mode}: password rejection and successful retry`, async () => {
       const other = mode === 'admin' ? { [USER_KEY]: FIXTURE.userToken } : { [ADMIN_KEY]: FIXTURE.adminToken };
-      const page = await open(mode, '/', other);
+      const page = await open(uiPath(mode), other);
       await enterCredentials(page, mode === 'admin', 'incorrect-fixture-password');
       await submit(page);
       await assertAlert(page, 'fixture invalid credentials');
@@ -233,7 +210,7 @@ try {
 
     await run(`${mode}: TOTP challenge, failed code, and retry`, async () => {
       api.state[mode === 'admin' ? 'adminTotp' : 'userTotp'] = true;
-      const page = await open(mode);
+      const page = await open(uiPath(mode));
       await enterCredentials(page, mode === 'admin');
       await submit(page);
       const code = page.getByLabel(t('totpCode'), { exact: true });
@@ -256,8 +233,48 @@ try {
     });
   }
 
+  await run('root path without a console prefix shows the fallback surface', async () => {
+    const start = api.requests.length;
+    const page = await open('/');
+    await page.getByText(t('fallbackHint'), { exact: true }).waitFor();
+    assert.equal(await page.locator('.gate-form, .console-main').count(), 0);
+    assert.equal(api.requests.length, start, 'The fallback surface must not probe any API route');
+    await page.goto(`${origin}/#/memories`);
+    await page.getByText(t('fallbackHint'), { exact: true }).waitFor();
+    assert.equal(await page.locator('.gate-form, .console-main').count(), 0);
+  });
+
+  await run('dashboard: path rest normalizes to hash deep links', async () => {
+    const page = await open('/dashboard/sessions', bothTokens);
+    await page.locator('.console-main.surface-sessions').waitFor();
+    assert.equal(new URL(page.url()).hash, '#/sessions');
+    for (const path of ['/dashboard#/dashboard/sessions', '/dashboard/#/dashboard/sessions', '/dashboard#/sessions']) {
+      await page.goto(`${origin}${path}`);
+      await page.locator('.console-main.surface-sessions').waitFor();
+    }
+    await navigate(page, 'security');
+    await page.goBack();
+    await page.locator('.console-main.surface-sessions').waitFor();
+    await page.goForward();
+    await page.locator('.console-main.surface-security').waitFor();
+  });
+
+  await run('admin: prefixed hash deep links', async () => {
+    const page = await open('/admin#/audit', bothTokens);
+    await page.locator('.console-main.surface-audit').waitFor();
+    for (const path of ['/admin#/admin/audit', '/admin/#/admin/audit']) {
+      await page.goto(`${origin}${path}`);
+      await page.locator('.console-main.surface-audit').waitFor();
+    }
+    await navigate(page, 'security');
+    await page.goBack();
+    await page.locator('.console-main.surface-audit').waitFor();
+    await page.goForward();
+    await page.locator('.console-main.surface-security').waitFor();
+  });
+
   await run('admin: direct token login uses only admin credential slot', async () => {
-    const page = await open('admin', '/', { [USER_KEY]: FIXTURE.userToken });
+    const page = await open('/admin', { [USER_KEY]: FIXTURE.userToken });
     await page.getByRole('button', { name: t('useAdminToken'), exact: true }).click();
     await page.getByLabel(t('adminToken'), { exact: true }).fill(FIXTURE.adminToken);
     await submit(page);
@@ -269,7 +286,7 @@ try {
   for (const mode of ['dashboard', 'admin']) {
     await run(`${mode}: forbidden probe returns to its gate`, async () => {
       api.state.failures.set(`GET ${mode === 'admin' ? '/admin/me' : '/api/self'}`, { status: 403, error: 'fixture forbidden probe' });
-      const page = await open(mode, '/', bothTokens);
+      const page = await open(uiPath(mode), bothTokens);
       await page.locator('.gate-form').waitFor();
       assert.equal(await stored(page, mode === 'admin' ? ADMIN_KEY : USER_KEY), null);
       assert.equal(await stored(page, mode === 'admin' ? USER_KEY : ADMIN_KEY), mode === 'admin' ? FIXTURE.userToken : FIXTURE.adminToken);
@@ -278,7 +295,7 @@ try {
 
   await run('admin: ordinary forbidden data response preserves session', async () => {
     api.state.failures.set('GET /admin/users', { status: 403, error: 'fixture role cannot list users' });
-    const page = await open('admin', '/', bothTokens);
+    const page = await open('/admin', bothTokens);
     await page.getByRole('status').filter({ hasText: 'fixture role cannot list users' }).waitFor();
     assert.equal(await stored(page, ADMIN_KEY), FIXTURE.adminToken);
     await page.locator('.admin-console').waitFor();
@@ -286,14 +303,14 @@ try {
 
   await run('admin: admin-token-required response clears only admin session', async () => {
     api.state.failures.set('GET /admin/users', { status: 403, error: 'admin token required' });
-    const page = await open('admin', '/', bothTokens);
+    const page = await open('/admin', bothTokens);
     await page.locator('.gate-form').waitFor();
     assert.equal(await stored(page, ADMIN_KEY), null);
     assert.equal(await stored(page, USER_KEY), FIXTURE.userToken);
   });
 
   await run('dashboard: forbidden and non-JSON errors remain retryable', async () => {
-    const page = await open('dashboard', '/#/security', bothTokens);
+    const page = await open('/dashboard#/security', bothTokens);
     await emailTab(page);
     for (const failure of [{ status: 403, error: 'fixture email operation forbidden' }, { status: 502, raw: 'fixture upstream unavailable' }]) {
       api.state.failures.set('POST /api/self/email', failure);
@@ -309,7 +326,7 @@ try {
   });
 
   await run('dashboard: runtime 401 clears user session without touching admin', async () => {
-    const page = await open('dashboard', '/#/security', bothTokens);
+    const page = await open('/dashboard#/security', bothTokens);
     await emailTab(page);
     api.state.failures.set('POST /api/self/email', { status: 401, error: 'fixture revoked session' });
     await page.getByRole('button', { name: t('sendCode'), exact: true }).click();
@@ -319,7 +336,7 @@ try {
   });
 
   await run('dashboard: email verification, invalid code, resend, and persisted UI', async () => {
-    const page = await open('dashboard', '/#/security', bothTokens);
+    const page = await open('/dashboard#/security', bothTokens);
     await emailTab(page);
     await waitForApi(page, '/api/self/email', 'POST', () => page.getByRole('button', { name: t('sendCode'), exact: true }).click());
     await page.getByLabel(t('emailCode'), { exact: true }).fill('000000');
@@ -341,7 +358,7 @@ try {
 
   await run('dashboard: registration vault and encrypted save/read/edit/deep link', async () => {
     const start = api.requests.length;
-    const page = await open('dashboard', '/', { [ADMIN_KEY]: FIXTURE.adminToken });
+    const page = await open('/dashboard', { [ADMIN_KEY]: FIXTURE.adminToken });
     await page.locator('.gate-form .tabs').getByRole('button', { name: t('register'), exact: true }).click();
     await enterCredentials(page);
     await page.getByLabel(t('confirmLoginPassword'), { exact: true }).fill('fixture-mismatch');
@@ -393,7 +410,7 @@ try {
     const saved = api.state.blobs.get(blob.id);
     assert.equal(JSON.parse(await decryptItem(key, saved.ciphertext, saved.nonce)).content, edited);
     assert.ok(api.requests.some(r => r.path === '/pull' && r.search.includes('since=')), 'Saving should use incremental sync');
-    await page.goto(`${origins.dashboard}/dashboard/memories/${blob.id}`);
+    await page.goto(`${origin}/dashboard/memories/${blob.id}`);
     await page.locator('.reading-main').getByText(edited, { exact: true }).waitFor();
     assert.equal(new URL(page.url()).hash, `#/memories/${blob.id}`);
     await page.getByRole('button', { name: t('backMemory'), exact: true }).click();
@@ -418,35 +435,29 @@ try {
     await page.locator('.reading-main').getByText(edited, { exact: true }).waitFor();
   });
 
-  current = 'CORS proof';
-  for (const [path, method, header] of [['/api/self', 'GET', 'authorization'], ['/admin/me', 'GET', 'authorization'], ['/login', 'POST', 'content-type'], ['/admin/login', 'POST', 'content-type'], ['/api/self/vault', 'POST', 'authorization'], ['/push', 'POST', 'content-type']]) {
-    assert.ok(api.requests.some(r => r.method === 'OPTIONS' && r.path === path && r.headers['access-control-request-method'] === method && (r.headers['access-control-request-headers'] || '').includes(header)), `Missing real CORS preflight for ${method} ${path} (${header})`);
+  current = 'same-origin transport proof';
+  assert.ok(api.requests.length > 0, 'No API request was recorded');
+  for (const record of api.requests) {
+    assert.ok(record.origin === undefined || record.origin === api.origin, `API call left the fixture origin: ${record.method} ${record.path} (${record.origin})`);
   }
-  for (const origin of Object.values(origins)) assert.ok(api.requests.some(r => r.method === 'OPTIONS' && r.origin === origin), 'Each built console must perform a cross-origin preflight');
+  assert.ok(api.requests.every(r => proxy.requests.some(p => p.method === r.method && p.path === r.path)), 'Every API request must traverse the restricted proxy');
   assert.deepEqual(api.unexpected, []);
   assert.deepEqual(proxy.blocked, []);
   assert.deepEqual(proxy.errors, []);
-  for (const origin of [api.origin, ...Object.values(origins)]) {
-    assert.ok(proxy.requests.some(request => request.origin === origin), `Fixture origin bypassed the network proxy: ${origin}`);
-  }
-  assert.equal(proxy.requests.filter(request => request.origin === api.origin).length, api.requests.length,
-    'Every API request, including native preflights, must traverse the restricted proxy');
-  assert.deepEqual(wrongOriginApi, []);
-  assert.deepEqual(runtimeErrors, []);
-  console.log(`PASS real HTTP CORS preflights (${api.requests.filter(r => r.method === 'OPTIONS').length} OPTIONS requests)`);
-  console.log(`Fixture browser regression passed: ${rows.length} scenarios, both compiled modes, no live services.`);
+  console.log(`PASS same-origin API transport (${api.requests.length} requests through the restricted proxy)`);
+  console.log(`Fixture browser regression passed: ${rows.length} scenarios, single embedded bundle, no live services.`);
 } catch (error) {
   console.error(`FAIL ${current}`);
-  if (api.unexpected.length) console.error('Fixture errors:', api.unexpected);
+  if (api?.unexpected.length) console.error('Fixture errors:', api.unexpected);
+  const withCookies = api?.requests.filter(r => r.headers.cookie !== undefined) || [];
+  if (withCookies.length) console.error('Cookie-bearing API requests:', withCookies.map(r => `${r.method} ${r.path}`));
   if (proxy?.blocked.length) console.error('Blocked proxy requests:', proxy.blocked);
   if (proxy?.errors.length) console.error('Proxy errors:', proxy.errors);
-  if (wrongOriginApi.length) console.error('Wrong-origin API requests:', wrongOriginApi);
   throw error;
 } finally {
   await context?.close();
   await browser?.close();
   await proxy?.close();
-  await Promise.all(servers.map(closeServer));
-  await api.close();
+  await api?.close();
   await rm(temporary, { recursive: true, force: true });
 }

@@ -23,7 +23,7 @@ export async function api(path, { method = 'GET', body, token } = {}) {
     headers['Content-Type'] = 'application/json';
     payload = JSON.stringify(body);
   }
-  const response = await fetch(path, { method, headers, body: payload, cache: 'no-store' });
+  const response = await fetch(path, { method, headers, body: payload, cache: 'no-store', credentials: 'omit' });
   const text = await response.text();
   let json = {};
   try {

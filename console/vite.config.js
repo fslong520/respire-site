@@ -5,7 +5,10 @@ export default defineConfig({
   // useRecommendedBuildConfig would force assetsInlineLimit=inline-everything;
   // we manage the build config ourselves so woff2 slices stay separate files.
   plugins: [viteSingleFile({ useRecommendedBuildConfig: false })],
-  base: './',
+  // Absolute asset URLs: the bundle is served at /admin and /dashboard, and
+  // document URLs like /dashboard/memories/<id> would otherwise resolve the
+  // relative font references against the wrong directory.
+  base: '/',
   esbuild: { jsx: 'automatic' },
   build: {
     // Fonts stay as separate hashed files: the browser fetches only the

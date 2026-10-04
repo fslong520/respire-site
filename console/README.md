@@ -9,3 +9,6 @@ The web image serves the bundle independently of the API binary. JSON calls such
 | `npm ci` | Install the locked dependencies |
 | `npm test` | Run existing routing and translation checks |
 | `npm run build` | Produce `dist/index.html` and copy the embedded console artifact |
+| `npm run check` | Verify sources against the upstream manifest |
+| `npm run test:render` | Render the built sign-in surfaces at desktop/mobile sizes |
+| `npm run test:browser` | Exercise the full console flows against a loopback same-origin fixture |

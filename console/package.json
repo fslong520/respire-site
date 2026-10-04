@@ -10,6 +10,7 @@
     "test:render": "node tests/browser-render.mjs",
     "test:browser": "node tests/browser-fixtures.mjs",
     "test:hosted": "node tests/browser-hosted-split-smoke.mjs",
+    "test:hosted-cors": "node tests/browser-hosted-cors.mjs",
     "test:dev": "node tests/browser-dev-smoke.mjs",
     "check": "node --check vite.config.js && node scripts/check-source.mjs"
   },
