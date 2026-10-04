@@ -46,7 +46,7 @@ Browser tokens and recovery material stay in their existing origin-local storage
 
 ## Deployment and provenance
 
-See [Cloudflare Pages and staged cutover](CLOUDFLARE-PAGES.md). Each build emits `build-info.json` with the Site commit, dirty-tree flag, fixed target, public API origin and imported Server commit. CI packages Dashboard and Admin separately with checksums.
+See [Cloudflare Pages and staged cutover](CLOUDFLARE-PAGES.md). Each build emits `build-info.json` with the Site commit, dirty-tree flag, fixed target, public API origin and imported Server commit. Native Pages builds serve the separate Dashboard and Admin outputs. Site CI owns all three frontend builds and local browser gates. Linux runs the full local browser suites; Windows checks a clean console checkout, source, unit tests, both builds and provenance with line-ending conversion enabled. Retain deployment/artifact records and checksums as rollout evidence. The [downstream CLI boundary](CLOUDFLARE-PAGES.md#downstream-cli-acceptance-boundary) retains CLI API acceptance and its mail helper without fetching either Server or Site UI.
 
 The upstream `tests/browser-dev-smoke.mjs` is retained for source history. It assumes the old combined `https://dev.rsrs.rs` deployment and performs real fixture-account/mail operations behind its explicit approval gates. It is deliberately not a package script or CI step for this extraction. Do not run it against production or treat it as verification of the new split-origin rollout.
 

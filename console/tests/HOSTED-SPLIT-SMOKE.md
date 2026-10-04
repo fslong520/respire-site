@@ -219,6 +219,14 @@ review before sharing, and do not publish artifacts automatically.
 A pass authorizes no deployment, traffic migration, production run, or legacy
 runtime cleanup. Record a separately authorized hosted run's evidence alongside
 Pages deployment URLs, artifact checksums, and the independent API revision.
-The downstream CLI release acceptance adapter must be changed in a separate PR
-to check out the Site commit, enter `console/`, supply these variables, and invoke
-`test:hosted`. The old Server `admin-ui` checkout cannot run this contract.
+This contract is owned and run from Site for all three frontends. The separate
+[CLI PR #19](https://github.com/risense-ai/respire-cli/pull/19), reviewed at
+[`912898e31953fc0eada2ee198de0170eaae64f04`](https://github.com/risense-ai/respire-cli/commit/912898e31953fc0eada2ee198de0170eaae64f04),
+removes CLI web-smoke, frontend-revision requirements and browser gates; the
+updated CLI workflow fetches neither Server nor Site UI. CLI retains its API
+acceptance and CLI-owned mail helper. Do not add a CLI adapter that checks out
+Site or invokes `test:hosted`; it belongs to Site's separately approved rollout
+acceptance. Verify the actual merged CLI revision when recording this boundary.
+Neither CLI API acceptance nor the old Server `admin-ui` same-origin smoke is
+evidence that this contract passed. Preserve the API → Pages → traffic order in
+[the staged cutover runbook](../CLOUDFLARE-PAGES.md#ordered-release-gates).

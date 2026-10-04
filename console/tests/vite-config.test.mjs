@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import config from '../vite.config.js';
 
 function withEnv(values, run) {
@@ -18,7 +19,7 @@ test('mode is explicit and each build has a separate output', () => {
       const resolved = config({ mode });
       assert.equal(resolved.define['import.meta.env.VITE_CONSOLE_TARGET'], JSON.stringify(mode));
       assert.equal(resolved.define['import.meta.env.VITE_API_BASE_URL'], '"https://api.rsrs.rs"');
-      assert.ok(resolved.build.outDir.endsWith(`/dist/${mode}`));
+      assert.equal(resolved.build.outDir, fileURLToPath(new URL(`../dist/${mode}`, import.meta.url)));
     }
     assert.throws(() => config({ mode: 'production' }), /explicit dashboard or admin/);
   });

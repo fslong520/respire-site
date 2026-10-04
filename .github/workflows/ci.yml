@@ -50,3 +50,24 @@ jobs:
       - run: npm run test:hosted-cors
       - name: Check built provenance and Pages files
         run: node scripts/verify-build.mjs
+  windows-consoles:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: console
+    steps:
+      - name: Exercise a clean checkout with Windows line-ending conversion
+        working-directory: ${{ runner.temp }}
+        run: git config --global core.autocrlf true
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - name: Check clean build provenance and Pages files
+        run: node scripts/verify-build.mjs

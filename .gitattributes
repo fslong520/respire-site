@@ -1,2 +1,5 @@
 * text=auto
 *.sh text eol=lf
+# Imported source checksums use exact upstream bytes, including line endings.
+# Preserve binary detection while keeping console text stable with autocrlf=true.
+console/** text=auto eol=lf

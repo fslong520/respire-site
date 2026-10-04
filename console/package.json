@@ -11,7 +11,7 @@
     "build:dashboard": "vite build --mode dashboard",
     "build:admin": "vite build --mode admin",
     "check": "node --check vite.config.js && node scripts/check-source.mjs",
-    "test": "node tests/hash-route.test.mjs && node tests/i18n.test.mjs && node --test tests/config.test.mjs tests/api.test.mjs tests/console-route.test.mjs tests/vite-config.test.mjs tests/provenance.test.mjs tests/hosted-split-contract.test.mjs tests/fixture-proxy.test.mjs",
+    "test": "node tests/hash-route.test.mjs && node tests/i18n.test.mjs && node --test tests/config.test.mjs tests/api.test.mjs tests/console-route.test.mjs tests/vite-config.test.mjs tests/provenance.test.mjs tests/source-checkout.test.mjs tests/hosted-split-contract.test.mjs tests/fixture-proxy.test.mjs",
     "test:render": "node tests/browser-render.mjs",
     "test:browser": "node tests/browser-fixtures.mjs",
     "test:hosted": "node tests/browser-hosted-split-smoke.mjs",

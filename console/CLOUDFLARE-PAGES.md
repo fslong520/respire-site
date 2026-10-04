@@ -48,7 +48,7 @@ At the new UI origins, `/admin/*` is an Admin SPA deep link. On the API origin, 
 
 1. **Prepare rollback and deploy API first.** Record the exact API revision and health/readiness evidence. Preserve the running legacy web image/container, config, environment and route snapshots. Source moves in these PRs do not authorize deleting runtime assets. Deploy using the paired API-only procedure; do not rebuild or recreate the old web container from the now API-only Server repository.
 2. **Validate API CORS without moving traffic.** Check allowed and disallowed origins, OPTIONS with Authorization/JSON headers, and 401/403/429/5xx error visibility. Validate native CLI compatibility and existing user/admin authorization. Use fixture data only for writes.
-3. **Build and verify Dashboard/Admin Pages.** Use exact tested Site commit/artifact provenance. First verify isolated API previews, `/`, matching legacy paths, hash/deep links, mobile rendering, Back/Forward, login failure, TOTP challenge, expiry, email UI and vault round trips. Verify no calls go to the Pages origin or production API during preview tests. Production builds must record `https://api.rsrs.rs`, not a fixture/test URL.
+3. **Build and verify all three Pages projects.** Site owns Homepage, Dashboard and Admin build/browser/hosted acceptance. Use exact tested Site commit/artifact provenance and validate all three `build-info.json` records against the expected Site revision, and independently verify the deployed API revision. Run hosted acceptance only with the explicit operator approvals in [the hosted smoke contract](tests/HOSTED-SPLIT-SMOKE.md); normal Site CI and Pages builds never invoke it. First verify isolated API previews, `/`, matching legacy paths, hash/deep links, mobile rendering, Back/Forward, login failure, TOTP challenge, expiry, email UI and vault round trips. Verify no calls go to the Pages origin or production API during preview tests. Production builds must record `https://api.rsrs.rs`, not a fixture/test URL.
 4. **Migrate traffic only after both pass.** Attach `dash.rsrs.rs` and `admin.rsrs.rs` through Pages custom domains and verify certificate/DNS/origin behavior before removing corresponding legacy routes. Preserve these exact origins so origin-local tokens/recovery storage stay available. Use a fresh synthetic session for release checks; never move tokens through URLs. Test cached existing sessions and recovery-expiry behavior on the final origins with explicit operator authorization.
 5. **Clean up old runtime last.** Once final-origin checks pass and rollback is accepted, remove only obsolete frontend routes/containers/assets. Preserve API/legacy API routes and native client compatibility. This phase requires a separate deployment/change approval. Roll back a failed frontend cutover by restoring the recorded old routes and preserved image, not by reconstructing it from the API-only Server source.
 
@@ -56,21 +56,30 @@ CI fixture/browser tests are not evidence that Cloudflare DNS, certificates, pro
 
 Reference: [Pages build configuration](https://developers.cloudflare.com/pages/configuration/build-configuration/), [redirects](https://developers.cloudflare.com/pages/configuration/redirects/), [headers](https://developers.cloudflare.com/pages/configuration/headers/), [monorepos](https://developers.cloudflare.com/pages/configuration/monorepos/), [SPA serving behavior](https://developers.cloudflare.com/pages/configuration/serving-pages/).
 
-## Downstream CLI acceptance transition (separate change required)
+## Downstream CLI acceptance boundary
 
-The existing `respire-cli` release acceptance workflow still checks out
-`risense-ai/respire-server` at `RESPIRE_DEV_CONSOLE_SHA`, enters `admin-ui`, and
-runs `npm run test:dev` against the old combined development origin. This PR does
-not update that separate repository. During the API-first phase, retain the
-explicit legacy Server console revision and its runtime artifact; never point
-that legacy checkout variable at the new API-only Server `main`.
+The separate [respire-cli PR #19](https://github.com/risense-ai/respire-cli/pull/19),
+reviewed at [`912898e31953fc0eada2ee198de0170eaae64f04`](https://github.com/risense-ai/respire-cli/commit/912898e31953fc0eada2ee198de0170eaae64f04),
+removes the CLI release workflow's web-smoke job, frontend-revision requirements
+and browser acceptance gates. The updated CLI workflow fetches neither Server
+nor Site UI source. It does not replace the old Server `admin-ui` checkout with
+a Site `console/` checkout. CLI API acceptance and its CLI-owned mail helper
+remain in that repository.
 
-Before Dashboard/Admin Pages traffic migration, coordinate a separate CLI
-acceptance update to check out `risense-ai/respire-site`, use `console/`, use `npm run test:hosted`, and pass the explicit isolated
-Dashboard/Admin/homepage/API origins plus independent Server and Site revisions
-defined in [the hosted smoke contract](tests/HOSTED-SPLIT-SMOKE.md). It must validate the
-frontend `build-info.json` fields and API revision rather than expecting the old
-nginx console-SHA headers. Update any external `RESPIRE_DEV_MAIL_READER` command
-path explicitly. Do not imply the old `admin-ui` or same-origin smoke can prove
-the split-origin release. Record that downstream gate alongside actual Pages
-preview/custom-domain/CORS checks before cutover.
+Site owns build and browser checks for Homepage, Dashboard and Admin, plus the
+separately operator-approved hosted acceptance in
+[the hosted smoke contract](tests/HOSTED-SPLIT-SMOKE.md). Run that contract from
+the exact clean Site checkout with explicit isolated homepage, Dashboard, Admin
+and API origins, independent Server/Site revisions, and an explicitly selected
+trusted mail reader. Removing CLI's frontend gate neither runs this Site gate
+nor makes hosted tests part of ordinary CI.
+
+Before traffic migration, verify the actual merged CLI workflow has this
+boundary and record its exact revision; the reviewed PR head is not proof of
+merge or deployment. Keep CLI API acceptance evidence separate from Site
+frontend evidence. Record the exact Site/API revisions, all three frontend
+`build-info.json` records, Pages deployment URLs, artifact checksums, explicit
+operator approvals, hosted results and actual preview/custom-domain/CORS checks
+before cutover. A CLI pass or the old same-origin smoke cannot prove the
+split-origin frontend release. Preserve the API → Pages → traffic sequence and
+all separate deployment/change approvals above.
