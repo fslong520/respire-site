@@ -1,3 +1,1 @@
 node_modules/
-# Temporary output from preview-i18n.mjs --extract.
-.tmp-*

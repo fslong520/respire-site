@@ -44,6 +44,6 @@ The browser check exercises English and Chinese rendering, portal links, CLI ins
 VITE_SITE_BASE=/preview/ VITE_SITE_OUT_DIR=../site/dist/preview VITE_DASHBOARD_URL=/dashboard VITE_ADMIN_URL=/admin npm run verify:browser
 ```
 
-The build copies only `assets/`, so the legacy design demonstrations in `public/preview/` are not part of the website distribution. The separate `site/` starter is not a build dependency.
+The build copies static files from `assets/`. The sibling `site/` directory contains build output and deployment configuration only.
 
 The renderer honors reduced motion and pauses while offscreen. Focus the artwork and press **P** or **Space** to pause or resume. The original artwork is retained as a fallback when WebGL is unavailable. See [third-party notices](../THIRD_PARTY_NOTICES.md) for attribution.

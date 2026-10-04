@@ -19,6 +19,6 @@ test('installation and product guidance describe the supported CLI',()=>{
   assert.ok(details.includes('rsrs doctor'));
   assert.doesNotMatch(details,/proprietary|open source|product brief|hospital deployment/i);
 });
-test('production output excludes the legacy prototype distribution',()=>{
+test('production output copies the current website assets',()=>{
   assert.ok(read('../vite.config.mjs').includes('publicDir: "assets"'));
 });

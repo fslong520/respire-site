@@ -16,9 +16,6 @@ if (!/^\/(?:[a-zA-Z0-9_-]+\/)*$/.test(BASE)) throw new Error("Invalid website ba
 /// Localized pages differ in language, title, and description.
 /// All language entries share the same hashed assets.
 ///
-/// public/preview/client.<locale>.html is a standalone client preview.
-/// It is copied unchanged; preview-i18n.mjs generates its English translation.
-/// The translation dictionary is stored in i18n/preview.en.json.
 const LOCALES = ["en", "zh"];
 
 const HEAD = {
