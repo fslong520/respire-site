@@ -201,6 +201,10 @@ test('hosted adaptation retains every strict legacy user/admin acceptance step',
   assert.deepEqual(names(hosted).slice(3), names(legacy).slice(2));
   assert.ok(hosted.includes('verifyCheckoutSource(checkoutSha, checkoutStatus, config)'));
   assert.ok(hosted.includes('await verifyHostedProvenance(context.request, config, upstream.commit)'));
-  assert.ok(hosted.includes('interceptResponse: true'));
-  assert.ok(hosted.includes("'redirect-blocked'"));
+  const guard = await readFile(new URL('./hosted-browser-guard.mjs', import.meta.url), 'utf8');
+  assert.ok(hosted.includes('installHostedBrowserGuard({ context, page, config, failures: networkFailures })'));
+  assert.ok(guard.includes('interceptResponse: true'));
+  assert.ok(guard.includes("'redirect-blocked'"));
+  assert.ok(!guard.includes('context.route('));
+  assert.ok(!guard.includes('page.route('));
 });

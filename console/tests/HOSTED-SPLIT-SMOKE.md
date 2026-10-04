@@ -20,7 +20,24 @@ The safe, offline contract tests are separate:
 node --test tests/hosted-split-contract.test.mjs
 ```
 
-Those tests use in-memory response objects with `.invalid` origins. They do not
+A separate local-only browser regression verifies the hosted network guard:
+
+```sh
+node tests/browser-hosted-cors.mjs
+```
+
+It starts only ephemeral `127.0.0.1` fixtures, consumes no hosted origin or
+credential variables, and tests native Chromium plus the exact shared hosted
+raw-CDP guard. Both Dashboard and Admin fixtures must produce server-recorded
+Authorization/JSON OPTIONS requests and readable 401 responses. The denied
+homepage fixture must also reach the real OPTIONS handler, reject JavaScript
+access, and never send the actual request. A local blocked destination proves
+that the protected path prevents redirects and unapproved origins before contact.
+Run this in browser-capable CI after any guard or Playwright change; syntax/unit
+checks alone cannot establish native CORS behavior. This local regression does
+not run the hosted acceptance entry point.
+
+Those unit tests use in-memory response objects with `.invalid` origins. They do not
 launch a browser, use credentials, execute a mail reader, open sockets, or contact
 hosted services. They are suitable for the normal unit-test command. Passing them
 is not evidence that a deployment or the hosted browser flow has passed.
@@ -164,8 +181,12 @@ the independently compiled frontend origins.
 Browser API responses must come from the actual API origin. Chromium interception
 rejects unconfigured origins, frontend-origin fetch/XHR/API activity, redirects,
 WebSockets and unexpected new pages. Service workers are blocked. Accepted
-responses are passed through unchanged; the browser still applies actual CORS,
-and API responses are never mocked. Direct API probes and fixture operations
+responses are passed through unchanged and API responses are never mocked.
+The raw CDP guard is intentionally separate from Playwright's `context.route` /
+`page.route` APIs: Playwright 1.63 request routing may synthesize successful
+OPTIONS responses. The separate local browser regression must pass before
+claiming this guard preserves native preflights and denied-origin enforcement;
+the hosted flow's functional success alone is not sufficient CORS evidence. Direct API probes and fixture operations
 also disable redirects. Do not remove origin checks or redirect interception to
 turn a failed deployment into a passing test.
 

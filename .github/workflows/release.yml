@@ -49,6 +49,7 @@ jobs:
           npm run build
           npm run test:render
           npm run test:browser
+          npm run test:hosted-cors
           node scripts/verify-build.mjs
       - name: Package the exact frontend revision
         id: package

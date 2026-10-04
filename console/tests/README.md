@@ -29,10 +29,24 @@ The suite checks:
 All accounts, tokens, codes, email addresses, and memory content are synthetic.
 The API fixture is an in-memory HTTP server, not a production-contract simulator.
 It records real browser requests and rejects unexpected endpoints or payloads.
-Playwright intercepts requests only to block non-fixture origins; it never mocks
-API responses. The suite asserts that no API requests target the UI origin and
-that no live-service request was attempted. It does not invoke the retained
+A fail-closed HTTP proxy permits only the three exact loopback fixture origins
+and their explicit HTTP methods. It rejects all other destinations, CONNECT
+requests, and WebSocket upgrades before making any upstream connection. Chromium
+is configured to proxy loopback traffic, and the suite checks that all fixture
+API requests (including OPTIONS) reached the proxy. This suite uses neither
+Playwright routing nor direct CDP interception. Playwright's route handler can
+synthesize successful preflight responses and hide real CORS failures; the
+separate hosted guard uses direct CDP and has its own CORS proof below. No browser
+security controls are disabled.
+
+The suite asserts that no API requests target the UI origin and that no request
+outside the fixture allowlist was attempted. It does not invoke the retained
 upstream `browser-dev-smoke.mjs`, which is a separate, live-development workflow.
+
+`node --test tests/fixture-proxy.test.mjs` exercises the proxy's allowlist, blocked
+ports/origins/methods, CONNECT/upgrade denial, redirect handling, and HTTP/CORS
+forwarding using only local Node HTTP servers. These unit tests also run first
+as part of `npm run test:browser`.
 
 The existing source unit tests remain under `npm test`. `npm run test:render`
 separately checks the normal built `dist` artifacts at desktop/mobile sizes.
@@ -49,3 +63,10 @@ cleanup contract. Missing exact homepage provenance fails the hosted gate.
 `node --test tests/hosted-split-contract.test.mjs` safely checks configuration,
 source-proof and network contracts with in-memory mocked responses and no hosted
 activity. It does not execute the hosted entry point or the retained legacy smoke.
+
+`node tests/browser-hosted-cors.mjs` separately checks the exact hosted raw-CDP
+guard against ephemeral loopback fixtures: actual OPTIONS reach the server,
+allowed origins can read 401 responses, denied origins cannot, and redirects /
+unapproved destinations remain blocked. It uses no hosted configuration or
+credentials. Run it in browser-capable CI; mocked contracts alone do not establish
+native CORS behavior.

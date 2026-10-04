@@ -47,5 +47,6 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:render
       - run: npm run test:browser
+      - run: npm run test:hosted-cors
       - name: Check built provenance and Pages files
         run: node scripts/verify-build.mjs

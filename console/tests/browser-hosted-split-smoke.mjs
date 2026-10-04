@@ -8,7 +8,8 @@ import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { authPayload, decryptItem, deriveDataKey, unwrapUrk } from '../src/crypto.js';
 import { t } from '../src/i18n.js';
-import { readHostedConfig, requestViolation, verifyCheckoutSource, verifyHostedProvenance } from './hosted-split-contract.mjs';
+import { installHostedBrowserGuard } from './hosted-browser-guard.mjs';
+import { readHostedConfig, verifyCheckoutSource, verifyHostedProvenance } from './hosted-split-contract.mjs';
 
 // Opt-in only. Keep browser-dev-smoke.mjs unchanged as imported provenance.
 async function main() {
@@ -40,7 +41,7 @@ let current = 'launch';
 let browser;
 let context;
 let page;
-let closingBrowser = false;
+let browserGuard;
 let userToken;
 let ownerToken;
 let viewerToken;
@@ -50,43 +51,10 @@ let fatal = false;
 const networkFailures = [];
 let runtimeErrors = 0;
 
-// Chromium's response-stage interception stops redirects before the browser
-// forwards tokens or request bodies. Responses otherwise pass through unchanged,
-// so the browser still enforces real cross-origin CORS. APIRequestContext calls
-// separately set maxRedirects:0. Never weaken either guard to make a test pass.
+// The shared raw-CDP guard is exercised by the local-only CORS regression.
+// APIRequestContext calls separately disable redirects with maxRedirects:0.
 async function protectBrowser() {
-const cdp = await context.newCDPSession(page);
-cdp.on('Fetch.requestPaused', async event => {
-  const { requestId, request, resourceType, responseStatusCode, responseErrorReason } = event;
-  const violation = requestViolation(config, request, resourceType)
-    || (responseStatusCode >= 300 && responseStatusCode < 400 ? 'redirect-blocked' : null);
-  try {
-    if (violation) {
-      networkFailures.push(violation); // Categories only; no URLs, bodies, or headers.
-      await cdp.send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' });
-    } else if (responseStatusCode !== undefined || responseErrorReason !== undefined) {
-      await cdp.send('Fetch.continueResponse', { requestId });
-    } else {
-      await cdp.send('Fetch.continueRequest', { requestId, interceptResponse: true });
-    }
-  } catch {
-    if (!closingBrowser) networkFailures.push('interception-failed');
-    try { await cdp.send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' }); } catch {}
-  }
-});
-await cdp.send('Network.enable');
-await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
-await cdp.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
-await context.routeWebSocket('**/*', socket => {
-  networkFailures.push('websocket-blocked');
-  socket.close();
-});
-context.on('page', extra => {
-  if (extra !== page) {
-    networkFailures.push('unexpected-page');
-    void extra.close().catch(() => {});
-  }
-});
+  browserGuard = await installHostedBrowserGuard({ context, page, config, failures: networkFailures });
 await context.addInitScript(() => localStorage.setItem('respire.uiLocale', 'en'));
 // Own the fixture as soon as registration is acknowledged, even if the next
 // vault write or recovery-code rendering fails. Never adopt pre-existing users.
@@ -453,7 +421,7 @@ page.setDefaultTimeout(30000);
       rows.push({ name: `cleanup-${path}-fixture`, status: 'fail' });
     }
   }
-  closingBrowser = true;
+  browserGuard?.beginClosing();
   try { await context?.close(); } catch { fatal = true; }
   try { await browser?.close(); } catch { fatal = true; }
   if (networkFailures.length || runtimeErrors) fatal = true;

@@ -10,6 +10,7 @@ import { chromium } from 'playwright';
 import { decryptItem, deriveDataKey, unwrapUrk } from '../src/crypto.js';
 import { t } from '../src/i18n.js';
 import { FIXTURE, startFixtureApi, listen, closeServer } from './fixture-api.mjs';
+import { startFixtureProxy } from './fixture-proxy.mjs';
 
 // Exercise compiled mode-specific artifacts against a real, separate-origin
 // loopback API. All network destinations except these ephemeral servers are
@@ -21,13 +22,13 @@ const api = await startFixtureApi();
 const servers = [];
 const origins = {};
 const rows = [];
-const outbound = [];
 const wrongOriginApi = [];
 const runtimeErrors = [];
 const USER_KEY = 'onememory.userToken';
 const ADMIN_KEY = 'onememory.adminToken';
 const bothTokens = { [USER_KEY]: FIXTURE.userToken, [ADMIN_KEY]: FIXTURE.adminToken };
 let browser;
+let proxy;
 let context;
 let current = 'build';
 
@@ -38,7 +39,8 @@ async function run(name, body) {
   try {
     await body();
     assert.deepEqual(api.unexpected, [], 'Fixture API encountered an unexpected request or payload');
-    assert.deepEqual(outbound, [], 'Browser attempted to contact a non-fixture origin');
+    assert.deepEqual(proxy.blocked, [], 'Browser attempted a request outside the fixture transport allowlist');
+    assert.deepEqual(proxy.errors, [], 'Fixture proxy encountered a transport failure');
     assert.deepEqual(wrongOriginApi, [], 'API calls must use the configured separate origin');
     assert.deepEqual(runtimeErrors, [], 'Browser had an uncaught runtime error');
     rows.push({ name, requests: api.requests.length - before });
@@ -51,13 +53,9 @@ async function run(name, body) {
 
 async function open(mode, path = '/', storage = {}) {
   context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce', serviceWorkers: 'block' });
-  const allowed = new Set([api.origin, ...Object.values(origins)]);
-  await context.route('**/*', async route => {
-    const url = new URL(route.request().url());
-    if (allowed.has(url.origin)) return route.continue();
-    outbound.push(`${route.request().method()} ${url.origin}${url.pathname}`);
-    await route.abort('blockedbyclient');
-  });
+  // This suite uses neither page/context routes nor direct CDP interception.
+  // Playwright's route handler synthesizes OPTIONS for routed requests, hiding
+  // native CORS regressions; direct CDP has a separate hosted-only test suite.
   await context.addCookies([{ name: 'fixture-session-cookie', value: 'must-not-be-sent-to-api', url: api.origin }]);
   await context.addInitScript(({ storage }) => {
     // Do not restore values after reload, logout, or a deliberate auth failure.
@@ -112,6 +110,10 @@ async function emailTab(page) {
 }
 
 try {
+  current = 'fixture proxy unit tests';
+  const proxyTests = await exec(process.execPath, ['--test', resolve(root, 'tests/fixture-proxy.test.mjs')], { cwd: root });
+  console.log(proxyTests.stdout.trim());
+  current = 'build';
   for (const mode of ['dashboard', 'admin']) {
     const outDir = resolve(temporary, mode);
     await exec(process.execPath, [resolve(root, 'node_modules/vite/bin/vite.js'), 'build', '--mode', mode, '--outDir', outDir, '--emptyOutDir'], {
@@ -135,8 +137,18 @@ try {
     api.origins.add(origins[mode]);
   }
   assert.equal(new Set([api.origin, origins.dashboard, origins.admin]).size, 3);
+  proxy = await startFixtureProxy([
+    { origin: api.origin, methods: ['GET', 'POST', 'OPTIONS'] },
+    ...Object.values(origins).map(origin => ({ origin, methods: ['GET'] })),
+  ]);
   current = 'launch browser';
-  browser = await chromium.launch({ headless: true, ...(process.env.RESPIRE_BROWSER_EXECUTABLE ? { executablePath: process.env.RESPIRE_BROWSER_EXECUTABLE } : {}) });
+  browser = await chromium.launch({
+    headless: true,
+    // Chromium otherwise bypasses proxies for loopback hosts. This only changes
+    // proxy routing; browser web security and native CORS remain enabled.
+    proxy: { server: proxy.origin, bypass: '<-loopback>' },
+    ...(process.env.RESPIRE_BROWSER_EXECUTABLE ? { executablePath: process.env.RESPIRE_BROWSER_EXECUTABLE } : {}),
+  });
 
   for (const mode of ['dashboard', 'admin']) {
     await run(`${mode}: root selects compiled mode without credentials`, async () => {
@@ -410,7 +422,13 @@ try {
   }
   for (const origin of Object.values(origins)) assert.ok(api.requests.some(r => r.method === 'OPTIONS' && r.origin === origin), 'Each built console must perform a cross-origin preflight');
   assert.deepEqual(api.unexpected, []);
-  assert.deepEqual(outbound, []);
+  assert.deepEqual(proxy.blocked, []);
+  assert.deepEqual(proxy.errors, []);
+  for (const origin of [api.origin, ...Object.values(origins)]) {
+    assert.ok(proxy.requests.some(request => request.origin === origin), `Fixture origin bypassed the network proxy: ${origin}`);
+  }
+  assert.equal(proxy.requests.filter(request => request.origin === api.origin).length, api.requests.length,
+    'Every API request, including native preflights, must traverse the restricted proxy');
   assert.deepEqual(wrongOriginApi, []);
   assert.deepEqual(runtimeErrors, []);
   console.log(`PASS real HTTP CORS preflights (${api.requests.filter(r => r.method === 'OPTIONS').length} OPTIONS requests)`);
@@ -418,12 +436,14 @@ try {
 } catch (error) {
   console.error(`FAIL ${current}`);
   if (api.unexpected.length) console.error('Fixture errors:', api.unexpected);
-  if (outbound.length) console.error('Blocked outbound requests:', outbound);
+  if (proxy?.blocked.length) console.error('Blocked proxy requests:', proxy.blocked);
+  if (proxy?.errors.length) console.error('Proxy errors:', proxy.errors);
   if (wrongOriginApi.length) console.error('Wrong-origin API requests:', wrongOriginApi);
   throw error;
 } finally {
   await context?.close();
   await browser?.close();
+  await proxy?.close();
   await Promise.all(servers.map(closeServer));
   await api.close();
   await rm(temporary, { recursive: true, force: true });
