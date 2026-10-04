@@ -132,6 +132,8 @@ const EN = {
   saveMemory: 'Save a memory',
   listView: 'List view',
   treeView: 'Tree view',
+  cardView: 'Card view',
+  viewSwitcher: 'Switch view',
   pullLatest: 'Pull latest',
   pulled: 'Latest ciphertext pulled',
   lock: 'Lock',
@@ -165,6 +167,7 @@ const EN = {
   searchResults: 'Search results',
   memoryTree: 'Memory tree',
   allMemories: 'All memories',
+  memoryCards: 'Memory cards',
   nItems: '{n} items',
   hitMore: 'Showing first 200 of {n} hits',
   expandFold: 'Expand or collapse',
@@ -173,6 +176,8 @@ const EN = {
   saveOne: 'Save a memory',
   saveOneDesc: 'Encrypted in this browser, then uploaded. The server sees ciphertext only. Embeddings are filled by the CLI after sync.',
   fieldTitle: 'Title',
+  fieldParent: 'Parent memory',
+  parentRoot: '— Top level (no parent) —',
   titlePh: 'e.g. project background decision',
   fieldContent: 'Content',
   contentPh: 'cause → action → effect — readable three months later on its own',
@@ -634,6 +639,8 @@ const ZH = {
   saveMemory: '存一条记忆',
   listView: '列表视图',
   treeView: '树形视图',
+  cardView: '卡片视图',
+  viewSwitcher: '切换视图',
   pullLatest: '拉取最新',
   pulled: '已拉取最新密文',
   lock: '锁定',
@@ -667,6 +674,7 @@ const ZH = {
   searchResults: '搜索结果',
   memoryTree: '记忆树',
   allMemories: '全部记忆',
+  memoryCards: '记忆卡片',
   nItems: '{n} 项',
   hitMore: '仅显示前 200 条，共 {n} 条命中',
   expandFold: '展开或折叠',
@@ -675,6 +683,8 @@ const ZH = {
   saveOne: '存一条记忆',
   saveOneDesc: '在本浏览器加密后上云，服务器只见密文。向量由 CLI 客户端 sync 后自动补齐。',
   fieldTitle: '标题',
+  fieldParent: '父条目',
+  parentRoot: '— 顶层（无父） —',
   titlePh: '例：项目背景决定',
   fieldContent: '内容',
   contentPh: '前因 → 行为 → 后果，写清楚三个月后单看能懂',
@@ -1026,6 +1036,13 @@ function applyDoc(next) {
 
 export function getLocale() {
   return locale;
+}
+
+/** Localized memory-kind label; unknown kinds fall back to the raw value. */
+export function kindLabel(kind) {
+  if (!kind) return '';
+  const key = `kind${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
+  return DICTS[locale]?.[key] ?? EN[key] ?? kind;
 }
 
 export function t(key, vars) {

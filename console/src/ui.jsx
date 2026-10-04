@@ -45,7 +45,9 @@ export function Heading({
   description,
   children
 }) {
-  return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p>{description}</p></div>{children && <div className="heading-actions">{children}</div>}</div>;
+  // eyebrow dropped: the console header breadcrumb already shows surface context.
+  void eyebrow;
+  return <div className="page-heading"><div><h1>{title}</h1>{description && <p>{description}</p>}</div>{children && <div className="heading-actions">{children}</div>}</div>;
 }
 export function Empty({
   title,

@@ -55,7 +55,7 @@ export function AdminPages({ page, token, me, notify, open, onReloadMe }) {
   const [outbox, setOutbox] = useState([]);
   const [mail, setMail] = useState(null);
   const drawerRef = useRef(null);
-  const canWrite = me?.role === 'owner' || me?.role === 'admin';
+  const canWrite = me && (me.role === 'owner' || me.role === 'admin');
   const isOwner = me?.role === 'owner';
 
   const loadUsers = async (p = pn, q = query, status = filter) => {
@@ -82,7 +82,7 @@ export function AdminPages({ page, token, me, notify, open, onReloadMe }) {
     loadAll().catch((e) => {
       notify(e.message);
     });
-  }, [token, canWrite]);
+  }, [token]);
 
   const pick = async (user) => {
     setSelected(user);

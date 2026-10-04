@@ -1,7 +1,4 @@
 import { t } from './i18n.js';
-import { apiUrl } from './config.js';
-
-const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL;
 
 export const USER_KEY = 'onememory.userToken';
 export const ADMIN_KEY = 'onememory.adminToken';
@@ -26,7 +23,7 @@ export async function api(path, { method = 'GET', body, token } = {}) {
     headers['Content-Type'] = 'application/json';
     payload = JSON.stringify(body);
   }
-  const response = await fetch(apiUrl(path, API_BASE_URL), { method, headers, body: payload, cache: 'no-store', credentials: 'omit' });
+  const response = await fetch(path, { method, headers, body: payload, cache: 'no-store' });
   const text = await response.text();
   let json = {};
   try {

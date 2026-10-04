@@ -4,7 +4,7 @@ import { Shell } from './Shell.jsx';
 import {
   ADMIN_KEY, USER_KEY, api, onUnauthorized, readToken, writeSecret, writeSuper, writeToken,
 } from './api.js';
-import { consoleRoute } from './consoleRoute.js';
+import { pathRestToHash } from './hashRoute.js';
 import { t } from './i18n.js';
 import { useI18n } from './ui.jsx';
 
@@ -14,9 +14,9 @@ function pagePath() {
 
 export default function App() {
   useI18n();
-  const target = import.meta.env.VITE_CONSOLE_TARGET;
-  const route = consoleRoute(pagePath(), target, window.location.hash);
-  if (route.supported) return <Console admin={target === 'admin'} />;
+  const path = pagePath();
+  if (path === '/admin' || path.startsWith('/admin/')) return <Console admin />;
+  if (path === '/dashboard' || path.startsWith('/dashboard/')) return <Console admin={false} />;
   return (
     <div className="gate-page" style={{ padding: 48 }}>
       <h1>respire</h1>
@@ -38,9 +38,13 @@ function Console({ admin }) {
     setTokenState(value);
   };
   useEffect(() => {
-    const target = admin ? 'admin' : 'dashboard';
-    const { canonical } = consoleRoute(pagePath(), target, window.location.hash);
-    if (canonical) window.history.replaceState(null, '', canonical);
+    const path = pagePath();
+    if (admin && path.startsWith('/admin/')) {
+      window.history.replaceState(null, '', `/admin${pathRestToHash(path.slice('/admin/'.length))}`);
+    }
+    if (!admin && path.startsWith('/dashboard/')) {
+      window.history.replaceState(null, '', `/dashboard${pathRestToHash(path.slice('/dashboard/'.length))}`);
+    }
   }, [admin]);
   useEffect(() => {
     onUnauthorized((apiPath, requestToken) => {

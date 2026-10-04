@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 
 // This gate renders actual compiled sign-in surfaces with no credentials or API mocks.
-const html = Object.fromEntries(await Promise.all(['dashboard', 'admin'].map(async target => [target, await readFile(new URL(`../dist/${target}/index.html`, import.meta.url))])));
+const html = await readFile(new URL('../dist/index.html', import.meta.url));
 const output = resolve(process.env.RESPIRE_RENDER_OUTPUT || 'render-output');
 await mkdir(output, { recursive: true });
 const server = createServer((request, response) => {
@@ -14,7 +14,7 @@ const server = createServer((request, response) => {
     return;
   }
   if (request.url === '/favicon.ico') { response.writeHead(204).end(); return; }
-  response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(html[request.url.slice(1)]);
+  response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(html);
 });
 await new Promise(resolveListen => server.listen(0, '127.0.0.1', resolveListen));
 const origin = `http://127.0.0.1:${server.address().port}`;

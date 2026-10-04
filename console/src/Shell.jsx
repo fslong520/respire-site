@@ -6,7 +6,7 @@ import {
 } from '@phosphor-icons/react';
 import { AdminPages } from './AdminPages.jsx';
 import { DashboardPages } from './DashboardPages.jsx';
-import { Modal, Badge, Avatar, LangSwitch, useI18n } from './ui.jsx';
+import { Modal, Avatar, LangSwitch, useI18n } from './ui.jsx';
 import { Brand } from './Brand.jsx';
 import { ADMIN_KEY, USER_KEY, api, readToken } from './api.js';
 import { parseRoute } from './hashRoute.js';
@@ -134,7 +134,6 @@ export function Shell({ admin, token, onLogout, onToken }) {
           <div className="workspace-switch">
             <Avatar name={me?.user || '?'} color="sand" />
             <div><strong>{me?.user || t('account')}</strong><span>{admin ? t('adminRoleSide', { role: me?.role || '' }) : t('personalAccount')}</span></div>
-            <Badge>{admin ? t('adminSide') : t('personal')}</Badge>
           </div>
           <div className="nav-label">{admin ? t('navLabelAdmin') : t('navLabelUser')}</div>
           <nav aria-label={t('mainNav')}>

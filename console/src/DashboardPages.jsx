@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   TreeStructure, Clock, MagnifyingGlass, CaretRight, LockKey, ShieldCheck,
   CloudCheck, Desktop, Terminal, Plus, Key, Copy, Check, Eye, EyeSlash, DownloadSimple,
   SignOut, ArrowClockwise, Article, ArrowLeft, X, WarningCircle, PencilSimple, Trash,
-  ListBullets, CaretDown, BookOpen,
+  ListBullets, CaretDown, BookOpen, SquaresFour, Compass, ListChecks, Heart, Wrench, Smiley, Tag,
 } from '@phosphor-icons/react';
 import { Button, Badge, Heading, Empty, Note, SecretResult, copy, download, useI18n } from './ui.jsx';
 import { decryptItem, deriveDataKey, encryptItem, generateSecretKey, unwrapUrk, wrapVaultV4 } from './crypto.js';
 import { api, readSecret, readSuper, superFresh, superFreshText, writeSecret, writeSuper } from './api.js';
 import { Security } from './Security.jsx';
 import { buildIndex, childrenOf, subtreeCount, diaryDays, visibleRows, ROOT_ID, DIARY_ID } from './treeModel.js';
-import { t, getLocale } from './i18n.js';
+import { t, getLocale, kindLabel } from './i18n.js';
 
 /** Normalize tags: CLI payloads may use CSV, while browser editing uses arrays. */
 function toTagList(tags) {
@@ -18,6 +18,28 @@ function toTagList(tags) {
   if (typeof tags === 'string') return tags.split(',').map((t) => t.trim()).filter(Boolean);
   return [];
 }
+
+/** One icon per memory kind, falling back to Article for unknown kinds. */
+const KIND_ICONS = {
+  context: Article,
+  decision: Compass,
+  task: ListChecks,
+  preference: Heart,
+  skill: Wrench,
+  emotion: Smiley,
+  time: Clock,
+};
+
+/** Badge tone per memory kind for the card view; undefined keeps the neutral badge. */
+const KIND_TONES = {
+  context: 'purple',
+  decision: 'purple',
+  task: 'green',
+  preference: 'amber',
+  skill: 'green',
+  emotion: 'red',
+  time: undefined,
+};
 import DiaryCalendar from './DiaryCalendar.jsx';
 
 function maskKey(s) {
@@ -92,6 +114,10 @@ export function DashboardPages({
   }, [treeSource, forceIds]);
   // Compute visible rows once, descending only into expanded levels.
   const treeRows = useMemo(() => visibleRows(treeIndex, expanded), [treeIndex, expanded]);
+  // Parent candidates for the new/edit forms: folders and category-like roots, not trivial diary rows.
+  const parentOptions = useMemo(() => (items || [])
+    .filter((m) => m.importance !== 'trivial')
+    .map((m) => ({ value: m.id, label: m.title || String(m.id).slice(0, 8) })), [items]);
   const dataKeyRef = useRef(null);
   // Keep the incremental /pull cursor and active content key in refs.
   const cursorRef = useRef(null);
@@ -294,12 +320,16 @@ export function DashboardPages({
       ] },
       { name: 'importance', label: t('fieldImportance'), options: [['important', 'important'], ['trivial', 'trivial']] },
       { name: 'project', label: t('fieldProject'), required: false },
+      { name: 'parent', label: t('fieldParent'), type: 'select', required: false, options: [
+        { value: '', label: t('parentRoot') },
+        ...parentOptions.filter((o) => o.value !== ''),
+      ] },
       { name: 'tags', label: t('fieldTags'), required: false },
     ],
     onSubmit: async (v) => {
       await saveMemory({
         kind: v.kind, title: v.title, content: v.content, importance: v.importance,
-        tags: v.tags, project: v.project, parent_id: '',
+        tags: v.tags, project: v.project, parent_id: v.parent || '',
         user: me?.user || '', computer: 'dashboard', device: 'dashboard', modified_by: 'dashboard',
         emotion: -1, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       });
@@ -324,6 +354,10 @@ export function DashboardPages({
       ], value: m.kind || 'context' },
       { name: 'importance', label: t('fieldImportance'), options: [['important', 'important'], ['trivial', 'trivial']], value: m.importance === 'trivial' ? 'trivial' : 'important' },
       { name: 'project', label: t('fieldProject'), required: false, value: m.project || '' },
+      { name: 'parent', label: t('fieldParent'), type: 'select', required: false, value: m.parent_id || '', options: [
+        { value: '', label: t('parentRoot') },
+        ...parentOptions.filter((o) => o.value !== m.id),
+      ] },
       { name: 'tags', label: t('fieldTags'), required: false, value: toTagList(m.tags).join(',') },
     ],
     onSubmit: async (v) => {
@@ -332,6 +366,7 @@ export function DashboardPages({
         kind: v.kind, title: v.title, content: v.content, importance: v.importance,
         tags: v.tags ? v.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
         project: v.project,
+        parent_id: v.parent || '',
         updated_at: new Date().toISOString(), modified_by: 'dashboard',
       }, m.id);
       openMemory(null);
@@ -439,11 +474,10 @@ export function DashboardPages({
     const emptyVault = Array.isArray(items) && items.length === 0;
     return (
       <>
-        <Heading eyebrow="YOUR MEMORY / YOUR CONTEXT" title={mem ? (mem.title || t('untitled')) : t('myMemory')} description={mem ? t('alongMemory') : t('myMemoryDesc')}>
+        <Heading eyebrow="YOUR MEMORY / YOUR CONTEXT" title={mem ? (mem.title || t('untitled')) : t('myMemory')} description={mem ? undefined : t('myMemoryDesc')}>
           {mem ? <Button icon={ArrowLeft} onClick={() => openMemory(null)}>{t('backMemory')}</Button> : (
             <>
               <Button primary icon={Plus} onClick={openNewMemory}>{t('saveMemory')}</Button>
-              <Button icon={viewMode === 'tree' ? ListBullets : TreeStructure} onClick={() => setViewMode(viewMode === 'tree' ? 'list' : 'tree')}>{viewMode === 'tree' ? t('listView') : t('treeView')}</Button>
               <Button icon={ArrowClockwise} onClick={() => unlockMemories(readSuper(), readSecret()).then(() => notify(t('pulled'))).catch((e) => notify(e.message))}>{t('pullLatest')}</Button>
               <Button icon={LockKey} onClick={() => { lockMemories(); openMemory(null); notify(t('locked')); }}>{t('lock')}</Button>
             </>
@@ -452,7 +486,7 @@ export function DashboardPages({
         {mem ? (
           <div className="memory-reading">
             <article className="reading-main">
-              <div className="reading-meta"><Badge tone="purple">{mem.kind || t('memoryKind')}</Badge><span>{mem.project || '—'} · {mem.updated_at || mem.created_at}</span></div>
+              <div className="reading-meta"><Badge tone="purple">{kindLabel(mem.kind) || t('memoryKind')}</Badge><span>{mem.project || '—'} · {mem.updated_at || mem.created_at}</span></div>
               <h2>{t('memoryBody')}</h2>
               {renderContent(mem.content)}
               <div className="reading-footer"><LockKey size={17} />{t('onlyHere')}</div>
@@ -460,10 +494,10 @@ export function DashboardPages({
             <aside className="inspector panel">
               <div className="section-top"><h2>{t('memoryInfo')}</h2></div>
               <dl className="details">
-                <div><dt>{t('memoryType')}</dt><dd>{mem.kind || '—'}</dd></div>
+                <div><dt>{t('memoryType')}</dt><dd>{kindLabel(mem.kind) || '—'}</dd></div>
                 <div><dt>{t('project')}</dt><dd>{mem.project || '—'}</dd></div>
                 <div><dt>{t('updatedAt')}</dt><dd>{mem.updated_at || mem.created_at || '—'}</dd></div>
-                <div><dt>{t('memoryId')}</dt><dd><button className="copy-id" onClick={() => copy(mem.id, notify)}>{mem.id}<Copy size={15} /></button></dd></div>
+                <div><dt>{t('memoryId')}</dt><dd><button className="copy-id" title={mem.id} onClick={() => copy(mem.id, notify)}>{mem.id.slice(0, 8)}…<Copy size={15} /></button></dd></div>
               </dl>
               <Note>{t('inspectNote')}</Note>
               <div className="key-actions">
@@ -498,7 +532,19 @@ export function DashboardPages({
                 <input aria-label={t('searchMemory')} placeholder={t('searchPh')} value={query} onChange={(e) => setQuery(e.target.value)} />
                 {query && <button className="icon-button" aria-label={t('clear')} onClick={() => setQuery('')}><X size={17} /></button>}
               </label>
-              <div className="collection-title"><h2>{query ? t('searchResults') : (viewMode === 'tree' ? t('memoryTree') : t('allMemories'))}</h2><span>{t('nItems', { n: viewMode === 'tree' ? treeSource.length : list.length })}</span></div>
+              <div className="collection-title">
+                <h2>{query ? t('searchResults') : (viewMode === 'tree' ? t('memoryTree') : viewMode === 'card' ? t('memoryCards') : t('allMemories'))}</h2>
+                <div className="collection-tools">
+                  <div className="tabs view-tabs" role="tablist" aria-label={t('viewSwitcher')}>
+                    {[['tree', TreeStructure, t('treeView')], ['list', ListBullets, t('listView')], ['card', SquaresFour, t('cardView')]].map(([mode, Icon, label]) => (
+                      <button key={mode} role="tab" aria-selected={viewMode === mode} className={viewMode === mode ? 'active' : ''} onClick={() => setViewMode(mode)} title={label}>
+                        <Icon size={15} />
+                        <span className="view-tab-label">{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
               {query && list.length ? (
                 <div className="search-results">
                   {list.slice(0, 200).map((m) => {
@@ -525,10 +571,33 @@ export function DashboardPages({
                   })}
                   {list.length > 200 ? <p className="hit-more">{t('hitMore', { n: list.length })}</p> : null}
                 </div>
+              ) : viewMode === 'card' && list.length ? (
+                <div className="memory-cards">
+                  {list.slice(0, 200).map((m) => {
+                    const tags = toTagList(m.tags);
+                    const when = m.updated_at || m.created_at || '';
+                    const whenText = when ? new Date(when).toLocaleString(getLocale() === 'zh' ? 'zh-CN' : 'en-US', { hour12: false }) : '—';
+                    const KindIcon = KIND_ICONS[m.kind] || Article;
+                    const tone = KIND_TONES[m.kind];
+                    return (
+                      <button key={m.id} data-kind={m.kind} className={`memory-card${memoryId === m.id ? ' active' : ''}`} onClick={() => openMemory(m.id)}>
+                        <span className={`badge${tone ? ` ${tone}` : ''}`}><KindIcon size={11} />{kindLabel(m.kind) || t('memoryKind')}</span>
+                        <strong>{m.title || t('untitled')}</strong>
+                        <p>{(m.content || '').replace(/\s+/g, ' ').slice(0, 140)}</p>
+                        <small>
+                          <span>{m.project || '—'}</span>
+                          <span>{whenText}</span>
+                          {tags.length ? <span className="hit-tags"><Tag size={10} />{tags.join(', ')}</span> : null}
+                        </small>
+                      </button>
+                    );
+                  })}
+                  {list.length > 200 ? <p className="hit-more">{t('hitMore', { n: list.length })}</p> : null}
+                </div>
               ) : viewMode === 'tree' && treeSource.length ? (
                 <div className="tree-view">
                   {treeRows.map(({ row, depth, open, hasKids }) => (
-                    <div key={row.id} className={`tree-row${memoryId === row.memoryId ? ' active' : ''}`} style={{ paddingLeft: 8 + depth * 18 }}>
+                    <div key={row.id} className={`tree-row${memoryId === row.memoryId ? ' active' : ''}`} style={{ paddingLeft: 4 + depth * 16 }}>
                       {hasKids ? (
                         <button className="tree-toggle" aria-label={t('expandFold')} onClick={() => setExpanded((prev) => {
                           const next = new Set(prev);
@@ -538,9 +607,9 @@ export function DashboardPages({
                           <CaretDown size={14} style={{ transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }} />
                         </button>
                       ) : <span className="tree-toggle-placeholder" />}
-                      {row.kind === 'memory' && !hasKids ? (
+                      {!hasKids ? (
                         <button className="tree-leaf" onClick={() => openMemory(row.memoryId)}>
-                          <Article size={15} />
+                          {React.createElement(KIND_ICONS[row.kind] || Article, { size: 15 })}
                           <span>{row.title}</span>
                         </button>
                       ) : (
@@ -557,20 +626,28 @@ export function DashboardPages({
                   ))}
                 </div>
               ) : (
-              <div className="memory-list">
-                {list.map((m) => (
-                  <div className="memory-row" key={m.id}>
-                    <button className="memory-item" onClick={() => openMemory(m.id)}>
-                      <span className="memory-icon purple"><Article size={23} /></span>
-                      <span>
-                        <strong>{m.title || t('untitled')}</strong>
-                        <p>{(m.content || '').slice(0, 80)}</p>
-                        <small>{m.kind || t('memoryKind')} · {m.project || '—'}</small>
-                      </span>
-                      <CaretRight size={20} />
-                    </button>
-                  </div>
-                ))}
+              <div className="memory-list" role="table" aria-label={t('allMemories')}>
+                <div className="memory-row memory-row-head" role="row" aria-hidden="true">
+                  <span>{t('memoryType')}</span><span>{t('fieldTitle').replace(/\s*\(.*\)$/, '')}</span><span>{t('project')}</span><span>{t('updatedAt')}</span><span>{t('fieldTags').replace(/\s*\(.*\)$/, '')}</span><span />
+                </div>
+                {list.map((m) => {
+                  const tags = toTagList(m.tags);
+                  const when = m.updated_at || m.created_at || '';
+                  const whenText = when ? new Date(when).toLocaleString(getLocale() === 'zh' ? 'zh-CN' : 'en-US', { hour12: false }) : '—';
+                  const KindIcon = KIND_ICONS[m.kind] || Article;
+                  return (
+                    <div className="memory-row" key={m.id} role="row">
+                      <button className="memory-item" onClick={() => openMemory(m.id)}>
+                        <span className="memory-cell cell-kind"><span className={`badge${m.importance === 'trivial' ? '' : ' purple'}`}>{kindLabel(m.kind) || t('memoryKind')}</span></span>
+                        <span className="memory-cell cell-title"><KindIcon size={16} /><strong>{m.title || t('untitled')}</strong></span>
+                        <span className="memory-cell cell-project">{m.project || '—'}</span>
+                        <span className="memory-cell cell-updated">{whenText}</span>
+                        <span className="memory-cell cell-tags">{tags.length ? tags.join(', ') : '—'}</span>
+                        <CaretRight size={18} className="cell-arrow" />
+                      </button>
+                    </div>
+                  );
+                })}
                 {!list.length && !emptyVault && <Empty title={t('noMemoryFound')} text={t('noMemoryHint')} />}
               </div>
               )}
@@ -823,15 +900,15 @@ function TreeRows({ index, parentId, depth, expanded, onToggle, onSelect, select
     const open = expanded.has(row.id);
     return (
       <div key={row.id}>
-        <div className={`tree-row${selected === row.memoryId ? ' active' : ''}`} style={{ paddingLeft: 8 + depth * 18 }}>
+        <div className={`tree-row${selected === row.memoryId ? ' active' : ''}`} style={{ paddingLeft: 4 + depth * 16 }}>
           {isFolder ? (
             <button className="tree-toggle" aria-label={t('expandFold')} onClick={() => onToggle(row.id)}>
               <CaretDown size={14} style={{ transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }} />
             </button>
           ) : <span className="tree-toggle-placeholder" />}
-          {row.kind === 'memory' && !isFolder ? (
+          {!isFolder ? (
             <button className="tree-leaf" onClick={() => onSelect(row.memoryId)}>
-              <Article size={15} />
+              {React.createElement(KIND_ICONS[row.kind] || Article, { size: 15 })}
               <span>{row.title}</span>
             </button>
           ) : (

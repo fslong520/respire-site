@@ -1,21 +1,14 @@
 {
-  "name": "respire-console",
+  "name": "respire-admin-ui",
   "version": "0.2.24",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --mode dashboard --host 127.0.0.1",
-    "dev:dashboard": "vite --mode dashboard --host 127.0.0.1",
-    "dev:admin": "vite --mode admin --host 127.0.0.1",
-    "build": "npm run build:dashboard && npm run build:admin",
-    "build:dashboard": "vite build --mode dashboard",
-    "build:admin": "vite build --mode admin",
-    "check": "node --check vite.config.js && node scripts/check-source.mjs",
-    "test": "node tests/hash-route.test.mjs && node tests/i18n.test.mjs && node --test tests/config.test.mjs tests/api.test.mjs tests/console-route.test.mjs tests/vite-config.test.mjs tests/provenance.test.mjs tests/source-checkout.test.mjs tests/hosted-split-contract.test.mjs tests/fixture-proxy.test.mjs",
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build && node scripts/copy-html.mjs",
+    "test": "node tests/hash-route.test.mjs && node tests/i18n.test.mjs",
     "test:render": "node tests/browser-render.mjs",
-    "test:browser": "node tests/browser-fixtures.mjs",
-    "test:hosted": "node tests/browser-hosted-split-smoke.mjs",
-    "test:hosted-cors": "node tests/browser-hosted-cors.mjs"
+    "test:dev": "node tests/browser-dev-smoke.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

@@ -36,6 +36,7 @@ export function buildIndex(memories = []) {
       id: m.id,
       memoryId: m.id,
       title: m.title || String(m.id || '').slice(0, 8),
+      kind: m.kind || 'context',
     };
     const hasBody = Boolean((m.title || '').trim() || (m.content || '').trim());
     if (!hasBody) contentless.add(m.id);
@@ -76,7 +77,7 @@ export function childrenOf(index, nodeId) {
   if (!nodeId || nodeId === ROOT_ID) {
     const rows = (byParent.get('') || [])
       .filter(visible)
-      .map((r) => ({ ...r, kind: 'memory', kids: (byParent.get(r.id) || []).length }));
+      .map((r) => ({ ...r, kids: (byParent.get(r.id) || []).length }));
     // The diary uses its own #/diary page rather than a tree placeholder.
     return rows;
   }
@@ -90,11 +91,11 @@ export function childrenOf(index, nodeId) {
   }
   if (nodeId.startsWith(DAY_PREFIX)) {
     const day = nodeId.slice(DAY_PREFIX.length);
-    return (diaryByDay.get(day) || []).map((r) => ({ ...r, kind: 'memory', kids: 0 }));
+    return (diaryByDay.get(day) || []).map((r) => ({ ...r, kids: 0 }));
   }
   return (byParent.get(nodeId) || [])
     .filter(visible)
-    .map((r) => ({ ...r, kind: 'memory', kids: (byParent.get(r.id) || []).length }));
+    .map((r) => ({ ...r, kids: (byParent.get(r.id) || []).length }));
 }
 
 /**
