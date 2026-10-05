@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { createServer } from 'node:http';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
@@ -8,14 +9,13 @@ import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { decryptItem, deriveDataKey, unwrapUrk } from '../src/crypto.js';
 import { t } from '../src/i18n.js';
-import { FIXTURE, startFixtureApi, closeServer } from './fixture-api.mjs';
+import { FIXTURE, startFixtureApi, closeServer, listen } from './fixture-api.mjs';
 import { startFixtureProxy } from './fixture-proxy.mjs';
 
 // Exercise the compiled single-file bundle against a real loopback service that
-// serves the UI and the API on one origin, mirroring the embedded deployment:
-// bare /admin and /dashboard paths serve the SPA, /admin/<noun>... and the other
-// documented routes answer JSON, and the app calls the API with same-origin
-// relative paths. All network destinations except this ephemeral server are
+// serves the UI separately from the API, mirroring the Pages deployment.
+// Both console paths serve the same bundle; JSON requests use the explicit API
+// origin and native CORS. All network destinations except these ephemeral servers are
 // blocked, and production dist is neither read nor overwritten by this suite.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const temporary = await mkdtemp(resolve(tmpdir(), 'respire-console-fixtures-'));
@@ -31,6 +31,7 @@ let proxy;
 let context;
 let current = 'build';
 let origin;
+let frontend;
 
 async function run(name, body) {
   current = name;
@@ -58,7 +59,7 @@ async function open(path, storage = {}) {
   // This suite uses neither page/context routes nor direct CDP interception.
   // Playwright's route handler synthesizes responses for routed requests, hiding
   // native transport regressions; direct CDP has a separate hosted-only test suite.
-  await context.addCookies([{ name: 'fixture-session-cookie', value: 'must-not-be-sent-to-api', url: origin }]);
+  await context.addCookies([{ name: 'fixture-session-cookie', value: 'must-not-be-sent-to-api', url: api.origin }]);
   await context.addInitScript(({ storage }) => {
     // Do not restore values after reload, logout, or a deliberate auth failure.
     if (!sessionStorage.getItem('fixture-seeded')) {
@@ -88,7 +89,7 @@ async function enterCredentials(page, admin = false, password = FIXTURE.password
 }
 
 async function waitForApi(page, path, method, action, status = 200) {
-  const pending = page.waitForResponse(response => response.url().startsWith(origin) && new URL(response.url()).pathname === path && response.request().method() === method);
+  const pending = page.waitForResponse(response => response.url().startsWith(api.origin) && new URL(response.url()).pathname === path && response.request().method() === method);
   await action();
   assert.equal((await pending).status(), status, `${method} ${path}`);
 }
@@ -116,9 +117,11 @@ try {
   const proxyTests = await exec(process.execPath, ['--test', resolve(root, 'tests/fixture-proxy.test.mjs')], { cwd: root });
   console.log(proxyTests.stdout.trim());
   current = 'build';
+  api = await startFixtureApi();
   const outDir = resolve(temporary, 'bundle');
   await exec(process.execPath, [resolve(root, 'node_modules/vite/bin/vite.js'), 'build', '--outDir', outDir, '--emptyOutDir'], {
     cwd: root,
+    env: { ...process.env, VITE_API_BASE_URL: api.origin },
     maxBuffer: 4 * 1024 * 1024,
   });
   const html = await readFile(resolve(outDir, 'index.html'));
@@ -127,9 +130,9 @@ try {
   for (const name of (await readdir(outDir)).filter(name => name.endsWith('.woff2'))) {
     assets.set(`/${name}`, await readFile(resolve(outDir, name)));
   }
-  api = await startFixtureApi({
-    async frontend(request, response, url) {
-      if (request.method !== 'GET') return false;
+  frontend = createServer((request, response) => {
+      const url = new URL(request.url, 'http://fixture.invalid');
+      if (request.method !== 'GET') { response.writeHead(405).end(); return; }
       const path = url.pathname;
       if (path === '/favicon.ico') { response.writeHead(204).end(); return true; }
       const spa = path === '/' || path === '/admin' || path === '/admin/' || path === '/dashboard' || path === '/dashboard/' || path.startsWith('/dashboard/');
@@ -139,11 +142,11 @@ try {
       }
       const font = assets.get(path);
       if (font) { response.writeHead(200, { 'Content-Type': 'font/woff2', 'Cache-Control': 'no-store' }).end(font); return true; }
-      return false;
-    },
+      response.writeHead(404).end();
   });
-  origin = api.origin;
-  proxy = await startFixtureProxy([{ origin: api.origin, methods: ['GET', 'POST', 'OPTIONS'] }]);
+  origin = await listen(frontend);
+  api.origins.add(origin);
+  proxy = await startFixtureProxy([{ origin: api.origin, methods: ['GET', 'POST', 'OPTIONS'] }, { origin, methods: ['GET'] }]);
   current = 'launch browser';
   browser = await chromium.launch({
     headless: true,
@@ -435,17 +438,18 @@ try {
     await page.locator('.reading-main').getByText(edited, { exact: true }).waitFor();
   });
 
-  current = 'same-origin transport proof';
+  current = 'cross-origin transport proof';
   assert.ok(api.requests.length > 0, 'No API request was recorded');
   for (const record of api.requests) {
-    assert.ok(record.origin === undefined || record.origin === api.origin, `API call left the fixture origin: ${record.method} ${record.path} (${record.origin})`);
+    assert.equal(record.origin, origin, 'Every API call must originate from the separate frontend');
   }
+  assert.ok(api.requests.some(record => record.method === 'OPTIONS'), 'Native browser CORS preflights must reach the API');
   assert.ok(api.requests.every(r => proxy.requests.some(p => p.method === r.method && p.path === r.path)), 'Every API request must traverse the restricted proxy');
   assert.deepEqual(api.unexpected, []);
   assert.deepEqual(proxy.blocked, []);
   assert.deepEqual(proxy.errors, []);
-  console.log(`PASS same-origin API transport (${api.requests.length} requests through the restricted proxy)`);
-  console.log(`Fixture browser regression passed: ${rows.length} scenarios, single embedded bundle, no live services.`);
+  console.log(`PASS cross-origin API transport (${api.requests.length} requests through the restricted proxy)`);
+  console.log(`Fixture browser regression passed: ${rows.length} scenarios, single console bundle, no live services.`);
 } catch (error) {
   console.error(`FAIL ${current}`);
   if (api?.unexpected.length) console.error('Fixture errors:', api.unexpected);
@@ -459,5 +463,6 @@ try {
   await browser?.close();
   await proxy?.close();
   await api?.close();
+  if (frontend) await closeServer(frontend);
   await rm(temporary, { recursive: true, force: true });
 }

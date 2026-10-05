@@ -11,6 +11,10 @@ assert.ok(!/<link[^>]*rel="stylesheet"/.test(html), 'Styles must be inlined by t
 assert.match(html, /\/[A-Za-z0-9_-]+\.woff2/, 'Fonts must stay separate files referenced with origin-absolute URLs');
 const fonts = readdirSync(dist).filter(name => name.endsWith('.woff2'));
 assert.ok(fonts.length > 0, 'No woff2 slices were emitted');
+const metadata = JSON.parse(readFileSync(new URL('build-info.json', dist), 'utf8'));
+assert.equal(metadata.target, 'console');
+assert.match(metadata.site_revision, /^[0-9a-f]{40}$/);
+assert.ok(metadata.api_base_url && metadata.dashboard_url && metadata.admin_url, 'Public API and hostname provenance is required');
 
 const redirects = readFileSync(new URL('_redirects', dist), 'utf8');
 assert.equal(redirects, readFileSync(new URL('../public/_redirects', import.meta.url), 'utf8'));

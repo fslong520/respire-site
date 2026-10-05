@@ -50,6 +50,12 @@ jobs:
       - run: npm run test:hosted-cors
       - name: Check built console bundle and Pages files
         run: node scripts/verify-build.mjs
+      - name: Assemble the single console bundle with the homepage
+        working-directory: .
+        run: |
+          npm --prefix homepage ci
+          npm --prefix homepage run build
+          node scripts/assemble-pages.mjs
   windows-consoles:
     runs-on: windows-latest
     defaults:
@@ -71,3 +77,9 @@ jobs:
       - run: npm run build
       - name: Check clean console checkout build and Pages files
         run: node scripts/verify-build.mjs
+      - name: Assemble Pages on Windows
+        working-directory: .
+        run: |
+          npm --prefix homepage ci
+          npm --prefix homepage run build
+          node scripts/assemble-pages.mjs

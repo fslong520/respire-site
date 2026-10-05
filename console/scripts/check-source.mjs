@@ -12,4 +12,4 @@ for (const [path, expected] of Object.entries(source.unchanged_sha256)) {
 for (const path of ['src/api.js', 'src/config.js', 'src/consoleRoute.js', 'src/crypto.js', 'src/hashRoute.js', 'src/i18n.js', 'src/treeModel.js']) {
   execFileSync(process.execPath, ['--check', fileURLToPath(new URL(path, root))]);
 }
-console.log(`Verified ${Object.keys(source.unchanged_sha256).length} unchanged imported files from ${source.commit}. JSX is checked by both Vite builds.`);
+console.log(`Verified ${Object.keys(source.unchanged_sha256).length} unchanged imported files from ${source.commit}. JSX is checked by the shared Vite build.`);

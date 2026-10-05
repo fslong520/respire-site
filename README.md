@@ -34,7 +34,7 @@ See [homepage documentation](homepage/README.md) for browser checks, motion cont
 
 ## Dashboard and Admin
 
-The shared [`console/`](console/README.md) React codebase builds Dashboard and Admin artifacts. `scripts/assemble-pages.mjs` combines these with the homepage into one Pages deployment: the project root serves the website, while the configured Dashboard and Admin hostnames serve their respective console. See [the Pages configuration and staged API-first cutover](console/CLOUDFLARE-PAGES.md).
+The shared [`console/`](console/README.md) React codebase builds one bundle for Dashboard and Admin. `scripts/assemble-pages.mjs` combines this bundle with the homepage into one Pages deployment: the project root serves the website, while the configured Dashboard and Admin hostnames select their surface from the same console code. See [the Pages configuration and staged API-first cutover](console/CLOUDFLARE-PAGES.md).
 
 Frontend source moves now; existing runtime routes and containers remain until API deployment, Pages verification and separately authorized traffic migration have finished.
 

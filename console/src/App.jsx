@@ -5,6 +5,7 @@ import {
   ADMIN_KEY, USER_KEY, api, onUnauthorized, readToken, writeSecret, writeSuper, writeToken,
 } from './api.js';
 import { pathRestToHash } from './hashRoute.js';
+import { consoleRoute } from './consoleRoute.js';
 import { t } from './i18n.js';
 import { useI18n } from './ui.jsx';
 
@@ -15,8 +16,14 @@ function pagePath() {
 export default function App() {
   useI18n();
   const path = pagePath();
-  if (path === '/admin' || path.startsWith('/admin/')) return <Console admin />;
-  if (path === '/dashboard' || path.startsWith('/dashboard/')) return <Console admin={false} />;
+  const hostname = window.location.hostname;
+  const target = hostname === new URL(import.meta.env.VITE_ADMIN_URL).hostname ? 'admin'
+    : hostname === new URL(import.meta.env.VITE_DASHBOARD_URL).hostname ? 'dashboard'
+    : path === '/admin' || path.startsWith('/admin/') ? 'admin'
+    : path === '/dashboard' || path.startsWith('/dashboard/') ? 'dashboard' : null;
+  if (target && consoleRoute(path, target, window.location.hash).supported) {
+    return <Console admin={target === 'admin'} />;
+  }
   return (
     <div className="gate-page" style={{ padding: 48 }}>
       <h1>respire</h1>

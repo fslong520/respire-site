@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build && node scripts/copy-html.mjs",
-    "test": "node tests/hash-route.test.mjs && node tests/i18n.test.mjs",
+    "build": "vite build",
+    "test": "node tests/hash-route.test.mjs && node tests/i18n.test.mjs && node --test tests/config.test.mjs tests/vite-config.test.mjs",
     "test:render": "node tests/browser-render.mjs",
     "test:browser": "node tests/browser-fixtures.mjs",
     "test:hosted": "node tests/browser-hosted-split-smoke.mjs",

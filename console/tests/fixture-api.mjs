@@ -29,6 +29,7 @@ export async function closeServer(server) {
 }
 
 export async function startFixtureApi({ frontend } = {}) {
+  const origins = new Set();
   const requests = [];
   const unexpected = [];
   const userAuth = await authPayload(FIXTURE.user, FIXTURE.password);
@@ -65,20 +66,24 @@ export async function startFixtureApi({ frontend } = {}) {
       requests.push(record);
       const json = (status, body) => response.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
       try {
-        // Same-origin transport: requests carry either no Origin header (GET) or
-        // this server's own origin. Anything else must fail loudly.
-        if (origin !== undefined && origin !== `http://${request.headers.host}`) {
+        // Only explicitly registered frontend origins may reach this API.
+        if (!origins.has(origin)) {
           unexpected.push(`Cross-origin fixture API request from ${origin}: ${method} ${path}`);
           return json(403, { error: 'fixture origin not allowed' });
         }
         assert.equal(request.headers.cookie, undefined, 'API transport must omit browser cookies');
+        response.setHeader('Access-Control-Allow-Origin', origin);
+        response.setHeader('Vary', 'Origin');
         response.setHeader('Cache-Control', 'no-store');
         if (method === 'OPTIONS') {
-          // Same-origin fetch never preflights; a stray preflight is a transport regression.
+          // Native browser preflights must carry only the supported API headers.
           const requestedMethod = request.headers['access-control-request-method'];
           assert.ok(['GET', 'POST'].includes(requestedMethod));
           const headers = (request.headers['access-control-request-headers'] || '').split(',').map(h => h.trim()).filter(Boolean);
           assert.ok(headers.every(h => ['authorization', 'content-type'].includes(h)));
+          response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+          response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+          response.setHeader('Access-Control-Max-Age', '0');
           return response.writeHead(204).end();
         }
       const chunks = [];
@@ -178,5 +183,5 @@ export async function startFixtureApi({ frontend } = {}) {
     }
   });
   const origin = await listen(server);
-  return { origin, requests, unexpected, state, reset, close: () => closeServer(server) };
+  return { origin, origins, requests, unexpected, state, reset, close: () => closeServer(server) };
 }

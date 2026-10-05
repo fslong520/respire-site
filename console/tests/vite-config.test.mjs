@@ -13,15 +13,16 @@ function withEnv(values, run) {
   }
 }
 
-test('mode is explicit and each build has a separate output', () => {
+test('all modes share one console output and both hostname definitions', () => {
   withEnv({ CF_PAGES: undefined, VITE_API_BASE_URL: undefined }, () => {
-    for (const mode of ['dashboard', 'admin']) {
+    for (const mode of ['production', 'dashboard', 'admin']) {
       const resolved = config({ mode });
-      assert.equal(resolved.define['import.meta.env.VITE_CONSOLE_TARGET'], JSON.stringify(mode));
+      assert.equal(resolved.define['import.meta.env.VITE_CONSOLE_TARGET'], undefined);
+      assert.equal(resolved.define['import.meta.env.VITE_DASHBOARD_URL'], '"https://dash.rsrs.rs"');
+      assert.equal(resolved.define['import.meta.env.VITE_ADMIN_URL'], '"https://admin.rsrs.rs"');
       assert.equal(resolved.define['import.meta.env.VITE_API_BASE_URL'], '"https://api.rsrs.rs"');
-      assert.equal(resolved.build.outDir, fileURLToPath(new URL(`../dist/${mode}`, import.meta.url)));
+      assert.equal(resolved.build.outDir, fileURLToPath(new URL('../dist', import.meta.url)));
     }
-    assert.throws(() => config({ mode: 'production' }), /explicit dashboard or admin/);
   });
 });
 

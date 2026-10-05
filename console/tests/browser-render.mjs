@@ -1,14 +1,21 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 
 // This gate renders actual compiled sign-in surfaces with no credentials or API mocks.
 const html = await readFile(new URL('../dist/index.html', import.meta.url));
+const fonts = new Map(await Promise.all((await readdir(new URL('../dist/', import.meta.url)))
+  .filter(name => name.endsWith('.woff2'))
+  .map(async name => ['/' + name, await readFile(new URL('../dist/' + name, import.meta.url))])));
 const output = resolve(process.env.RESPIRE_RENDER_OUTPUT || 'render-output');
 await mkdir(output, { recursive: true });
 const server = createServer((request, response) => {
+  if (request.method === 'GET' && fonts.has(request.url)) {
+    response.writeHead(200, { 'Content-Type': 'font/woff2' }).end(fonts.get(request.url));
+    return;
+  }
   if (request.method !== 'GET' || !['/dashboard', '/admin', '/favicon.ico'].includes(request.url)) {
     response.writeHead(404).end();
     return;

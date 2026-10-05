@@ -158,7 +158,7 @@ export function Gate({ admin, onEnter, notify }) {
   return (
     <div className={`gate-page ${admin ? 'admin-login' : 'user-login'}`}>
       <header>
-        <Brand href="https://rsrs.rs" />
+        <Brand href={import.meta.env.VITE_HOMEPAGE_URL} />
         <Badge>{admin ? t('badgeAdmin') : t('badgeUser')}</Badge>
         <LangSwitch />
       </header>
