@@ -7,8 +7,7 @@ import {
 } from '@phosphor-icons/react';
 import { Button, Badge, Heading, Empty, Note, SecretResult, copy, download, useI18n } from './ui.jsx';
 import { decryptItem, deriveDataKey, encryptItem, generateSecretKey, unwrapUrk, wrapVaultV4 } from './crypto.js';
-import { api, USER_KEY, readToken, readSecret, readSuper, superFresh, superFreshText, writeSecret, writeSuper } from './api.js';
-import { MemorySync } from './memorySync.js';
+import { api, readSecret, readSuper, superFresh, superFreshText, writeSecret, writeSuper } from './api.js';
 import { Security } from './Security.jsx';
 import { buildIndex, childrenOf, subtreeCount, diaryDays, visibleRows, ROOT_ID, DIARY_ID } from './treeModel.js';
 import { t, getLocale, kindLabel } from './i18n.js';
@@ -41,6 +40,23 @@ const KIND_TONES = {
   emotion: 'red',
   time: undefined,
 };
+
+/** Rows per page for the list/card pagers. */
+const PAGE_SIZE = 24;
+
+/** Shared pager for the list and card views: prev/next with a page indicator. */
+function Pager({ total, page, onPage, labels }) {
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (pageCount <= 1) return null;
+  return (
+    <nav className="pager" aria-label={labels.pager}>
+      <button className="pager-step" disabled={page <= 1} onClick={() => onPage(page - 1)}>{labels.prev}</button>
+      <span className="pager-state">{labels.pageOf.replace('{n}', String(page)).replace('{total}', String(pageCount))}</span>
+      <button className="pager-step" disabled={page >= pageCount} onClick={() => onPage(page + 1)}>{labels.next}</button>
+    </nav>
+  );
+}
+
 import DiaryCalendar from './DiaryCalendar.jsx';
 
 function maskKey(s) {
@@ -52,12 +68,45 @@ function maskKey(s) {
 function EmptyInstallHint() {
   return <Note icon={Terminal}><a href="https://github.com/risense-ai/respire-docs" target="_blank" rel="noreferrer">{t('docsHelp')}</a></Note>;
 }
+
+/** Onboarding card shown in the list/tree/card area while the vault is empty. */
+function EmptyGuide({ notify }) {
+  const steps = [
+    { cmd: 'npm i -g @rsrsai/cli', label: t('guideStepInstall'), desc: t('guideStepInstallDesc') },
+    { cmd: 'rsrs doctor', label: t('guideStepDoctor'), desc: t('guideStepDoctorDesc') },
+  ];
+  return (
+    <div className="empty-guide">
+      <p className="guide-empty-note">{t('emptyNotice')}</p>
+      <h3>{t('guideTitle')}</h3>
+      <p className="guide-sub">{t('guideSub')}</p>
+      <ol className="guide-steps">
+        {steps.map(({ cmd, label, desc }) => (
+          <li key={cmd}>
+            <span className="guide-label">{label}</span>
+            <div className="guide-cmd">
+              <code>{cmd}</code>
+              <button className="icon-button" aria-label={t('copySuper')} onClick={() => copy(cmd, notify)}><Copy size={15} /></button>
+            </div>
+            <p>{desc}</p>
+          </li>
+        ))}
+        <li>
+          <span className="guide-label">{t('guideStepSave')}</span>
+          <p>{t('guideStepSaveDesc')}</p>
+        </li>
+      </ol>
+      <p className="guide-views">{t('guideViews')}</p>
+    </div>
+  );
+}
 export function DashboardPages({
   page, memoryId, token, me, sessions, keys, notify, open, go, onReload, onToken, onLogout,
 }) {
   useI18n();
   const [query, setQuery] = useState('');
   const [items, setItems] = useState(null);
+  const [listPage, setListPage] = useState(1);
   const openMemory = (id) => go(id ? `memories/${encodeURIComponent(id)}` : 'memories');
   const [locked, setLocked] = useState(true);
   const [revealed, setRevealed] = useState(false);
@@ -120,16 +169,12 @@ export function DashboardPages({
     .filter((m) => m.importance !== 'trivial')
     .map((m) => ({ value: m.id, label: m.title || String(m.id).slice(0, 8) })), [items]);
   const dataKeyRef = useRef(null);
-  const memorySyncRef = useRef(null);
-  const unlockGeneration = useRef(0);
+  // Keep the incremental /pull cursor and active content key in refs.
+  const cursorRef = useRef(null);
+  const syncingRef = useRef(false);
+  const trailingRef = useRef(false);
   const [syncing, setSyncing] = useState(false);
-  const [loadError, setLoadError] = useState('');
   const [lastSync, setLastSync] = useState(null);
-  useEffect(() => () => {
-    unlockGeneration.current++;
-    memorySyncRef.current?.close();
-    dataKeyRef.current = null;
-  }, [token]);
   const saveMemory = async (payload, existingId) => {
     const dataKey = dataKeyRef.current;
     if (!dataKey) throw new Error(t('pleaseUnlock'));
@@ -165,105 +210,96 @@ export function DashboardPages({
   }, [page, token, tick]);
 
   const unlockMemories = async (pass, secret) => {
-    const generation = ++unlockGeneration.current;
-    memorySyncRef.current?.close();
     const vault = await api('/api/self/vault', { token });
     const v = Number(vault.version) || 0;
     if (v >= 4 && !pass) throw new Error(t('needSuper'));
     if (v === 3 && !pass) throw new Error(t('needSuperV3'));
     if (v === 3 && !secret) throw new Error(t('needSecretV3'));
     const urk = await unwrapUrk(pass, secret, vault);
-    const dataKey = await deriveDataKey(urk);
-    const decryptKey = await crypto.subtle.importKey('raw', dataKey, 'AES-GCM', false, ['decrypt']);
-    if (generation !== unlockGeneration.current || readToken(USER_KEY) !== token) {
-      throw new DOMException('Unlock superseded', 'AbortError');
-    }
     writeSuper(pass);
     if (v === 3 && secret) writeSecret(secret);
+    const pull = await api('/pull', { token });
+    const dataKey = await deriveDataKey(urk);
     dataKeyRef.current = dataKey;
-    setLoadError('');
-    let firstResolve;
-    let firstReject;
-    let displayed = false;
-    const firstBatch = new Promise((resolve, reject) => { firstResolve = resolve; firstReject = reject; });
-    const controller = new MemorySync({
-      token, vault,
-      isCurrent: () => dataKeyRef.current === dataKey && readToken(USER_KEY) === token
-        && memorySyncRef.current === controller,
-      onLoading: setSyncing,
-      onCacheError: () => notify(t('memoryCacheUnavailable')),
-      onReset: () => setItems([]),
-      onBlobs: async (blobs, signal) => {
-        let failed = 0;
-        // Small batches yield between paints, with one imported key per unlocked session.
-        for (let offset = 0; offset < Math.max(blobs.length, 1); offset += 25) {
-          const changes = await Promise.all(blobs.slice(offset, offset + 25).map(async (blob) => {
-            if (blob.deleted) return [blob.id, null];
-            try {
-              const payload = JSON.parse(await decryptItem(decryptKey, blob.ciphertext, blob.nonce));
-              return [blob.id, { ...payload, id: blob.id }];
-            } catch { failed++; return null; }
-          }));
-          controller.current();
-          signal.throwIfAborted();
-          setItems((prev) => {
-            const next = new Map((prev || []).map((m) => [m.id, m]));
-            for (const change of changes) {
-              if (!change) continue;
-              const [id, memory] = change;
-              if (memory === null) next.delete(id);
-              else next.set(id, memory);
-            }
-            return [...next.values()];
-          });
-          setLocked(false);
-          if (!displayed) {
-            displayed = true;
-            firstResolve();
-          }
-          await new Promise(resolve => window.setTimeout(resolve, 0));
-        }
-        if (failed) notify(t('newCipherFail', { n: failed }));
-      },
+    // The response cursor is captured before rows; later revisions remain available in subsequent pulls.
+    cursorRef.current = pull.cursor;
+    const out = [];
+    let failed = 0;
+    for (const blob of pull.blobs || []) {
+      if (blob.deleted) continue;
+      try {
+        const payload = JSON.parse(await decryptItem(dataKey, blob.ciphertext, blob.nonce));
+        out.push({ id: blob.id, ...payload });
+      } catch { failed++; }
+    }
+    setItems(out);
+    setLocked(false);
+    setLastSync(Date.now());
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.add(ROOT_ID);
+      next.add(DIARY_ID);
+      return next;
     });
-    memorySyncRef.current = controller;
-    controller.start().then(() => {
-      controller.current();
-      setLastSync(Date.now());
-    }).catch((error) => {
-      if (!displayed) firstReject(error);
-      if (error.name === 'AbortError') return;
-      setLoadError(t('memoryLoadInterrupted'));
-      if (displayed) notify(error.message);
-    });
-    await firstBatch;
+    if (failed > 0) {
+      notify(t('unlockedPartial', { ok: out.length, fail: failed }));
+    }
   };
 
-  // Refresh and writes share the same bounded incremental stream.
+  // Incremental sync pulls changed blobs and tombstones after the cursor and merges locally decrypted content.
+  // Keep the previous local version when a new ciphertext cannot be decrypted.
   const syncIncremental = async () => {
-    const controller = memorySyncRef.current;
-    if (!controller || !dataKeyRef.current) return;
+    if (syncingRef.current) { trailingRef.current = true; return; }
+    const dataKey = dataKeyRef.current;
+    if (!dataKey) return;
+    syncingRef.current = true;
+    setSyncing(true);
     try {
-      await controller.sync();
-      controller.current();
-      setLoadError('');
+      const since = cursorRef.current;
+      const pull = await api(since == null ? '/pull' : `/pull?since=${encodeURIComponent(since)}`, { token });
+      // Locking or unlocking during await can clear or replace the dataKeyRef object.
+      // Check object identity before merging plaintext into the active session.
+      if (dataKeyRef.current !== dataKey) return;
+      cursorRef.current = pull.cursor;
+      const changed = pull.blobs || [];
+      if (changed.length) {
+        const ups = new Map();
+        let failed = 0;
+        for (const blob of changed) {
+          if (blob.deleted) { ups.set(blob.id, null); continue; }
+          try {
+            const payload = JSON.parse(await decryptItem(dataKey, blob.ciphertext, blob.nonce));
+            ups.set(blob.id, { id: blob.id, ...payload });
+          } catch { failed++; }
+        }
+        // Recheck session identity after decrypting entries and before merging.
+        if (dataKeyRef.current !== dataKey) return;
+        setItems((prev) => {
+          const next = new Map((prev || []).map((m) => [m.id, m]));
+          for (const [id, mem] of ups.entries()) {
+            if (mem === null) next.delete(id);
+            else next.set(id, mem);
+          }
+          return [...next.values()];
+        });
+        if (failed > 0) notify(t('newCipherFail', { n: failed }));
+      }
       setLastSync(Date.now());
-    } catch (error) {
-      if (error.name === 'AbortError') return;
-      setLoadError(t('memoryLoadInterrupted'));
-      throw error;
+    } finally {
+      syncingRef.current = false;
+      setSyncing(false);
+      const runTrailing = trailingRef.current;
+      trailingRef.current = false;
+      if (runTrailing && dataKeyRef.current) {
+        syncIncremental().catch(() => { /* Retry on the next poll */ });
+      }
     }
   };
 
   // Locking clears key material and invalidates in-flight sync by dataKeyRef identity.
   // Never render returned plaintext after the user locks the view.
   const lockMemories = () => {
-    unlockGeneration.current++;
-    memorySyncRef.current?.close();
-    memorySyncRef.current = null;
     dataKeyRef.current = null;
-    setSyncing(false);
-    setLoadError('');
     setLocked(true);
     setItems(null);
   };
@@ -305,8 +341,7 @@ export function DashboardPages({
     // Saved recovery codes expire after three days; request manual entry instead of auto-unlocking.
     if (!superFresh()) { setLocked(true); return; }
     unlockMemories(saved, readSecret()).catch((e) => {
-      if (e.name === 'AbortError') return;
-      setLoadError(t('memoryLoadInterrupted'));
+      setLocked(true);
       const why = String(e.message || e);
       const hint = e.status === 404
         ? t('noVault')
@@ -493,7 +528,7 @@ export function DashboardPages({
           {mem ? <Button icon={ArrowLeft} onClick={() => openMemory(null)}>{t('backMemory')}</Button> : (
             <>
               <Button primary icon={Plus} onClick={openNewMemory}>{t('saveMemory')}</Button>
-              <Button icon={ArrowClockwise} onClick={() => syncIncremental().then(() => notify(t('pulled'))).catch((e) => notify(e.message))}>{t('pullLatest')}</Button>
+              <Button icon={ArrowClockwise} onClick={() => unlockMemories(readSuper(), readSecret()).then(() => notify(t('pulled'))).catch((e) => notify(e.message))}>{t('pullLatest')}</Button>
               <Button icon={LockKey} onClick={() => { lockMemories(); openMemory(null); notify(t('locked')); }}>{t('lock')}</Button>
             </>
           )}
@@ -531,9 +566,7 @@ export function DashboardPages({
           </div>
         ) : (
           <>
-            {emptyVault && !syncing && !loadError && <EmptyInstallHint notify={notify} />}
-            {loadError && <Note>{loadError}</Note>}
-            {syncing && <Note>{t('memoryLoading', { n: (items || []).length })}</Note>}
+            {emptyVault && <EmptyInstallHint notify={notify} />}
             <div className="memory-status">
               <span><CloudCheck size={22} />{t('cloudReady')}</span>
               <span>{t('nMemories', { n: (items || []).length })}</span>
@@ -546,7 +579,7 @@ export function DashboardPages({
             <section className="memory-collection panel" style={{ padding: 20 }}>
               <label className="search-box memory-search">
                 <MagnifyingGlass size={21} />
-                <input aria-label={t('searchMemory')} placeholder={t('searchPh')} value={query} onChange={(e) => setQuery(e.target.value)} />
+                <input aria-label={t('searchMemory')} placeholder={t('searchPh')} value={query} onChange={(e) => { setQuery(e.target.value); setListPage(1); }} />
                 {query && <button className="icon-button" aria-label={t('clear')} onClick={() => setQuery('')}><X size={17} /></button>}
               </label>
               <div className="collection-title">
@@ -562,7 +595,9 @@ export function DashboardPages({
                   </div>
                 </div>
               </div>
-              {query && list.length ? (
+              {emptyVault ? (
+                <EmptyGuide notify={notify} />
+              ) : query && list.length ? (
                 <div className="search-results">
                   {list.slice(0, 200).map((m) => {
                     const path = [];
@@ -590,7 +625,7 @@ export function DashboardPages({
                 </div>
               ) : viewMode === 'card' && list.length ? (
                 <div className="memory-cards">
-                  {list.slice(0, 200).map((m) => {
+                  {list.slice((listPage - 1) * PAGE_SIZE, listPage * PAGE_SIZE).map((m) => {
                     const tags = toTagList(m.tags);
                     const when = m.updated_at || m.created_at || '';
                     const whenText = when ? new Date(when).toLocaleString(getLocale() === 'zh' ? 'zh-CN' : 'en-US', { hour12: false }) : '—';
@@ -609,7 +644,6 @@ export function DashboardPages({
                       </button>
                     );
                   })}
-                  {list.length > 200 ? <p className="hit-more">{t('hitMore', { n: list.length })}</p> : null}
                 </div>
               ) : viewMode === 'tree' && treeSource.length ? (
                 <div className="tree-view">
@@ -647,7 +681,7 @@ export function DashboardPages({
                 <div className="memory-row memory-row-head" role="row" aria-hidden="true">
                   <span>{t('memoryType')}</span><span>{t('fieldTitle').replace(/\s*\(.*\)$/, '')}</span><span>{t('project')}</span><span>{t('updatedAt')}</span><span>{t('fieldTags').replace(/\s*\(.*\)$/, '')}</span><span />
                 </div>
-                {list.map((m) => {
+                {list.slice((listPage - 1) * PAGE_SIZE, listPage * PAGE_SIZE).map((m) => {
                   const tags = toTagList(m.tags);
                   const when = m.updated_at || m.created_at || '';
                   const whenText = when ? new Date(when).toLocaleString(getLocale() === 'zh' ? 'zh-CN' : 'en-US', { hour12: false }) : '—';
@@ -667,6 +701,14 @@ export function DashboardPages({
                 })}
                 {!list.length && !emptyVault && <Empty title={t('noMemoryFound')} text={t('noMemoryHint')} />}
               </div>
+              )}
+              {!query && (viewMode === 'card' || viewMode === 'list') && list.length > PAGE_SIZE && (
+                <Pager
+                  total={list.length}
+                  page={listPage}
+                  onPage={setListPage}
+                  labels={{ pager: t('pager'), prev: t('prevPage'), next: t('nextPage'), pageOf: t('pageOf', { n: '{n}', total: '{total}' }) }}
+                />
               )}
             </section>
           </>
