@@ -157,6 +157,8 @@ page.setDefaultTimeout(30000);
       for (const path of ['/', `/${target}`]) {
         await page.goto(`${origins[target]}${path}`);
         await page.locator(`.gate-page.${target === 'admin' ? 'admin' : 'user'}-login`).waitFor();
+        // Finish shared font loads before the next navigation cancels CDP interceptions.
+        await page.waitForLoadState('networkidle');
         assert.equal(new URL(page.url()).origin, origins[target]);
       }
     }
