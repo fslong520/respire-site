@@ -25,6 +25,10 @@ Cloud browser transport: public `VITE_API_BASE_URL`, GET/POST, JSON bodies, opti
 ## Administrator bearer and existing role checks
 
 - GET `/admin/me`, `/admin/admins`, `/admin/outbox`, `/admin/audit` (page query)
+- GET `/admin/stats?days=N`: daily operations time series, requires owner/admin role (viewer receives 403; unauthenticated 401)
+  - Request: optional `days` query parameter, default 30, valid range 7–90; out-of-range or non-numeric values return 400 with `{"error":"days must be an integer between 7 and 90"}`
+  - Response 200: `{"days": N, "series": [{"date": "YYYY-MM-DD", "registrations": n, "memories": n, "sessions": n}, …]}` — ascending, zero-filled for days without data, day boundaries at Asia/Shanghai; `registrations` counts non-deleted users by `created_at`, `memories` counts non-deleted blobs by their `updated_at` timestamp, `sessions` counts new sessions by `created_at`
+  - Errors: `400` out-of-range `days`, `401` missing/rejected token, `403` viewer role, `503` database unavailable
 - GET `/admin/users` (`q`, `page`, `limit`, `status`, optional `export`)
 - GET `/admin/users/{user}/sessions`
 - POST `/admin/users`, `/admin/admins`, `/admin/admins/{user}/revoke`

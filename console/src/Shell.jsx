@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Users, ShieldCheck, Clock, Envelope, LockKey, TreeStructure, Desktop, Key,
   MagnifyingGlass, ArrowUpRight, BookOpen, SignOut, CaretDown, Sun, Moon,
-  TextAa, List, CheckCircle,
+  TextAa, List, CheckCircle, ChartLine,
 } from '@phosphor-icons/react';
 import { AdminPages } from './AdminPages.jsx';
 import { DashboardPages } from './DashboardPages.jsx';
@@ -13,6 +13,7 @@ import { parseRoute } from './hashRoute.js';
 import { t } from './i18n.js';
 
 const adminNav = [
+  ['stats', 'navStats', ChartLine],
   ['users', 'navUsers', Users],
   ['admins', 'navAdmins', ShieldCheck],
   ['audit', 'navAudit', Clock],
