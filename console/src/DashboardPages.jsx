@@ -175,7 +175,9 @@ export function DashboardPages({
     const urk = await unwrapUrk(pass, secret, vault);
     const dataKey = await deriveDataKey(urk);
     const decryptKey = await crypto.subtle.importKey('raw', dataKey, 'AES-GCM', false, ['decrypt']);
-    if (generation !== unlockGeneration.current || readToken(USER_KEY) !== token) return;
+    if (generation !== unlockGeneration.current || readToken(USER_KEY) !== token) {
+      throw new DOMException('Unlock superseded', 'AbortError');
+    }
     writeSuper(pass);
     if (v === 3 && secret) writeSecret(secret);
     dataKeyRef.current = dataKey;
