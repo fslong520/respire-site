@@ -49,7 +49,7 @@ export class MemorySync {
   async initialize() {
     this.onLoading(true);
     const [identity, capabilities] = await Promise.all([
-      this.call('/api/self'), this.call('/v2/capabilities'),
+      this.call('/api/self'), this.call('/sync/capabilities'),
     ]);
     this.current();
     this.scope = JSON.stringify([normalizeApiBase(import.meta.env?.VITE_API_BASE_URL), identity.user]);
@@ -90,7 +90,7 @@ export class MemorySync {
         this.current();
         if (error.status !== 409 || error.body?.code !== 'snapshot_required' || restarted) throw error;
         restarted = true;
-        const capabilities = await this.call('/v2/capabilities');
+        const capabilities = await this.call('/sync/capabilities');
         this.current();
         await this.cached(cache => cache.clear(this.scope));
         this.current();
