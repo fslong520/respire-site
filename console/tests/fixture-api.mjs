@@ -146,6 +146,19 @@ export async function startFixtureApi({ frontend } = {}) {
         const since = Number(url.searchParams.get('since') || 0);
         return json(200, { cursor: state.revision, blobs: [...state.blobs.values()].filter(blob => blob.revision > since) });
       }
+      if (method === 'GET' && path === '/v2/capabilities') {
+        return json(200, { epoch: 'fixture-epoch', protocols: [1, 2] });
+      }
+      if (method === 'GET' && path === '/api/self/memories') {
+        const after = Number(url.searchParams.get('after'));
+        const until = Number(url.searchParams.get('until') ?? state.revision);
+        const rows = [...state.blobs.values()].filter(blob => blob.revision > after && blob.revision <= until)
+          .sort((a, b) => a.revision - b.revision);
+        const blobs = rows.slice(0, 100);
+        const has_more = rows.length > blobs.length;
+        const cursor = has_more ? blobs.at(-1).revision : until;
+        return json(200, { epoch: 'fixture-epoch', cursor, until, has_more, blobs });
+      }
       if (method === 'POST' && path === '/push') {
         assert.match(body.ciphertext, /^[0-9a-f]+$/);
         assert.match(body.nonce, /^[0-9a-f]{24}$/);

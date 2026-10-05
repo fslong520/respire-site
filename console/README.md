@@ -12,3 +12,19 @@ One Cloudflare Pages project serves the homepage and this shared bundle on three
 | `npm run check` | Verify sources against the upstream manifest |
 | `npm run test:render` | Render the built sign-in surfaces at desktop/mobile sizes |
 | `npm run test:browser` | Exercise both surfaces of the same bundle against a separate loopback API with native CORS |
+
+## Memory loading
+
+Deploy the paired Server `/api/self/memories` endpoint before this console.
+The dashboard reads a bounded immutable snapshot, renders decrypted batches
+as pages arrive, then follows per-account incremental revisions. Pull latest,
+polling and edits share that incremental stream. Loading/interruption messages
+make clear when search only covers the currently loaded portion.
+
+IndexedDB stores only ciphertext and an atomic page cursor. API origin and
+authenticated username scope the cache; epoch or vault changes invalidate it.
+Incomplete snapshots retain their upper boundary and resume after reopening.
+Keys and plaintext stay in memory, and locking/sign-out cancels pending work.
+If browser storage is blocked or full, a visible notice reports it and the
+current session continues without persistent caching. No legacy API fallback
+is attempted when the paired Server endpoint has not been deployed.
