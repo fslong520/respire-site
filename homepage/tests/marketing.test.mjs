@@ -19,6 +19,25 @@ test('installation and product guidance describe the supported CLI',()=>{
   assert.ok(details.includes('rsrs doctor'));
   assert.doesNotMatch(details,/proprietary|open source|product brief|hospital deployment/i);
 });
+test('the AI install prompt card is ported with its prompt verbatim',()=>{
+  const card=read('../src/respire/ai-install.tsx');
+  const details=read('../src/respire/product-details.tsx');
+  const styles=read('../src/styles.css');
+  for(const step of [
+    'npm i -g @rsrsai/cli',
+    'rsrs doctor --fix',
+    'rsrs register',
+    'rsrs inject --all',
+    'rsrs remember "安装测试条目" && rsrs sync && rsrs recall "安装测试条目" --titles',
+    'rsrs doctor --remote（fail 必须是 0，Remote 要 PASS）',
+    '干净环境实测通过 · 直连 rsrs 云',
+  ])assert.ok(card.includes(step),'prompt step missing: '+step);
+  assert.ok(details.includes('<AiInstallCard lang={lang}/>'));
+  assert.ok(card.includes('navigator.clipboard.writeText'));
+  assert.ok(card.includes('document.execCommand'));
+  assert.match(card,/'idle' \| 'copied' \| 'manual'/);
+  assert.ok(styles.includes('.prompt-card{'));
+});
 test('production output copies the current website assets',()=>{
   assert.ok(read('../vite.config.mjs').includes('publicDir: "assets"'));
 });

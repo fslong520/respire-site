@@ -196,3 +196,36 @@ body{background:#faf8f4;color:#1b1c19}.logo,.logo.light{font-family:var(--font-s
 @media(min-width:1450px){.hero-note{font-size:13px}}
 @media(max-width:950px){.hero-note{font-size:10px}}
 @media(max-width:767px){.hero-note{font-size:11px}}
+
+/* ---- AI install prompt card ----------------------------------------------
+   Ported from the archived Next.js line (site/app/ai-install.tsx, commits
+   b496a8b and 7cd4298). That card was dark glass with a mint/violet gradient
+   edge; on this line it borrows the command-grid notebook surface instead:
+   warm paper, a vermilion hairline in place of the gradient ring, square
+   corners, and a mono prompt body that wraps instead of scrolling sideways. */
+.prompt-card{position:relative;z-index:1;margin-top:22px;padding:20px;background:linear-gradient(180deg,#fdfaf4,#f9f3ea);border:1px solid #d4c4ae;border-radius:0;box-shadow:0 17px 30px #23241f10}
+.prompt-card::before{position:absolute;inset:-1px;z-index:-1;padding:1px;content:'';background:linear-gradient(135deg,#a93021,#a9302188 38%,transparent 66%,#c8bfb0);border-radius:inherit;opacity:.8;-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.prompt-card-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:13px}
+.prompt-card-title{display:inline-flex;align-items:center;gap:8px;color:#292821;font-family:var(--font-serif);font-size:15px;letter-spacing:-.2px}
+.prompt-card-title>svg{flex-shrink:0;color:#a93021}
+.prompt-card-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;color:#a93021;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:9px;letter-spacing:.7px;white-space:nowrap;background:#f3e5d8;border:1px solid #d4bea0}
+.prompt-card-badge>svg{flex-shrink:0}
+.prompt-body{margin:0;padding:17px 19px;max-width:100%;color:#39362f;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;line-height:1.9;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;background:#faf8f4;border:1px solid #dcd5ca;border-radius:0}
+.prompt-card-foot{display:flex;align-items:center;gap:14px;margin-top:14px}
+.prompt-copy{display:inline-flex;flex-shrink:0;align-items:center;gap:8px;min-height:45px;padding:12px 20px;color:#faf8f4;font-size:13px;font-weight:500;cursor:pointer;background:#1b1c19;border:1px solid #1b1c19;border-radius:0;transition:transform .18s,background .18s,color .18s}
+.prompt-copy:hover{transform:translateY(-1px);background:#3b3832}
+.prompt-copy.is-copied{color:#faf8f4;background:#a93021;border-color:#a93021}
+.prompt-copy.is-copied:hover{background:#8d281d}
+.prompt-copy.is-manual{color:#8a6a3a;background:transparent;border-color:#d4bea0}
+.prompt-copy.is-manual:hover{background:#f2eee8;transform:none}
+.prompt-card-note{color:#776958;font-family:var(--font-sans);font-size:12px;line-height:1.7}
+@media(max-width:767px){
+  .prompt-card{padding:15px}
+  .prompt-card-head{flex-wrap:wrap;gap:8px}
+  .prompt-card-title{font-size:14px}
+  .prompt-body{max-height:300px;overflow:auto;padding:13px 14px;font-size:11.5px;line-height:1.85}
+  .prompt-card-foot{flex-direction:column;align-items:stretch;gap:11px}
+  .prompt-copy{justify-content:center}
+  .prompt-card-note{text-align:center;font-size:11px}
+}
+@media(prefers-reduced-motion:reduce){.prompt-copy{transition:none}}
