@@ -146,7 +146,7 @@ export async function startFixtureApi({ frontend } = {}) {
         const since = Number(url.searchParams.get('since') || 0);
         return json(200, { cursor: state.revision, blobs: [...state.blobs.values()].filter(blob => blob.revision > since) });
       }
-      if (method === 'GET' && path === '/v2/capabilities') {
+      if (method === 'GET' && path === '/sync/capabilities') {
         return json(200, { epoch: 'fixture-epoch', protocols: [1, 2] });
       }
       if (method === 'GET' && path === '/api/self/memories') {
