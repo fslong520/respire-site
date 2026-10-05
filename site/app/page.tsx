@@ -1,3 +1,4 @@
+import { AiInstallCard } from "./ai-install";
 import {
   ArrowDown,
   ArrowRight,
@@ -513,17 +514,15 @@ export default function Home() {
         </div>
         <span className="kicker light">YOUR AI, YOUR MEMORY</span>
         <h2>让 AI 从此真正认识你。</h2>
-        <p>一次教会，安全保存，到处可用。客户端与 CLI 现已开放下载。</p>
+        <p>一次教会，安全保存，到处可用。不必读文档，把下面这段交给你的 AI 即可。</p>
+        <AiInstallCard />
         <div className="cta-actions">
-          <a className="button button-primary button-white" href="https://github.com/memocap-ai/memocap-releases/releases/latest">
+          <a className="button button-light-outline" href="https://github.com/memocap-ai/memocap-releases/releases/latest">
             下载桌面客户端 <ArrowRight size={18} />
           </a>
           <a className="button button-light-outline" href="https://github.com/memocap-ai/memocap/tree/main/docs">
             阅读文档
           </a>
-        </div>
-        <div className="cta-install">
-          <code>npm i -g @memocap/cli &amp;&amp; memocap doctor</code>
         </div>
         <span>memocap.ai · 端到端加密 · 开源</span>
       </section>
