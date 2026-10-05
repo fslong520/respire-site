@@ -93,6 +93,7 @@ function Console({ admin }) {
   }
   return (
     <Shell
+      key={token}
       admin={admin}
       token={token}
       onToken={(t) => setToken(t)}
