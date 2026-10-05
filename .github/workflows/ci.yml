@@ -61,10 +61,10 @@ jobs:
         env:
           CF_PAGES: '1'
           CF_PAGES_BRANCH: develop
-          VITE_API_BASE_URL: https://dev.rsrs.rs
+          VITE_API_BASE_URL: https://api.dev.rsrs.rs
           VITE_DASHBOARD_URL: https://dash.dev.rsrs.rs
           VITE_ADMIN_URL: https://admin.dev.rsrs.rs
-          VITE_HOMEPAGE_URL: https://respire-dev-site.pages.dev
+          VITE_HOMEPAGE_URL: https://dev.rsrs.rs
         run: |
           npm --prefix console test
           npm --prefix console run build

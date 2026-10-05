@@ -10,7 +10,7 @@ Paired API/source-ownership change: [respire-server PR #6](https://github.com/ri
 
 | Pages project | Production branch in Cloudflare | Trigger | API origin |
 | --- | --- | --- | --- |
-| `respire-dev-site` | `develop` | Push to `develop` | `https://dev.rsrs.rs` |
+| `respire-dev-site` | `develop` | Push to `develop` | `https://api.dev.rsrs.rs` |
 | `respire-site` | `main` | Merge the verified `develop` changes into `main` | `https://api.rsrs.rs` |
 
 Both projects keep automatic production-branch deployments enabled. Disable
@@ -39,10 +39,10 @@ Publish **`site/dist/pages`**. Attach the website, Dashboard and Admin domains t
 | Public build variable | Production project | DEV project |
 | --- | --- | --- |
 | `NODE_VERSION` | `22` | `22` |
-| `VITE_API_BASE_URL` | `https://api.rsrs.rs` | `https://dev.rsrs.rs` |
+| `VITE_API_BASE_URL` | `https://api.rsrs.rs` | `https://api.dev.rsrs.rs` |
 | `VITE_DASHBOARD_URL` | `https://dash.rsrs.rs` | `https://dash.dev.rsrs.rs` |
 | `VITE_ADMIN_URL` | `https://admin.rsrs.rs` | `https://admin.dev.rsrs.rs` |
-| `VITE_HOMEPAGE_URL` | `https://rsrs.rs` | `https://respire-dev-site.pages.dev` |
+| `VITE_HOMEPAGE_URL` | `https://rsrs.rs` | `https://dev.rsrs.rs` |
 
 No credentials, recovery material, private API token belong in Pages environment variables. Individual component builds remain available for local checks; the combined project publishes the assembled directory, not the parent `console/dist` directory.
 
@@ -57,6 +57,7 @@ The existing homepage layout, language paths and component `site/dist/client` ou
 | Environment | Dashboard/Admin UI | API |
 | --- | --- | --- |
 | Production (after cutover) | `https://dash.rsrs.rs`, `https://admin.rsrs.rs` | `https://api.rsrs.rs` |
+| DEV | `https://dash.dev.rsrs.rs`, `https://admin.dev.rsrs.rs` | `https://api.dev.rsrs.rs` |
 | Pre-cutover smoke | Explicitly selected Pages preview deployment URLs | Explicit isolated HTTPS test API origin |
 | Automated fixtures | Two different loopback UI origins created by the test | A third loopback origin created by the test |
 | Legacy runtime (until cutover passes) | Existing Dashboard/Admin web container/proxy | Existing API paths |
