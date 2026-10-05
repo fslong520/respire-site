@@ -16,7 +16,7 @@ export function onUnauthorized(handler) {
   unauthorized = handler;
 }
 
-export async function api(path, { method = 'GET', body, token } = {}) {
+export async function api(path, { method = 'GET', body, token, signal } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   let payload;
@@ -24,7 +24,7 @@ export async function api(path, { method = 'GET', body, token } = {}) {
     headers['Content-Type'] = 'application/json';
     payload = JSON.stringify(body);
   }
-  const response = await fetch(apiUrl(path, import.meta.env.VITE_API_BASE_URL), { method, headers, body: payload, cache: 'no-store', credentials: 'omit' });
+  const response = await fetch(apiUrl(path, import.meta.env?.VITE_API_BASE_URL), { method, headers, body: payload, cache: 'no-store', credentials: 'omit', signal });
   const text = await response.text();
   let json = {};
   try {

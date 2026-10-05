@@ -7,7 +7,8 @@ import {
 } from '@phosphor-icons/react';
 import { Button, Badge, Heading, Empty, Note, SecretResult, copy, download, useI18n } from './ui.jsx';
 import { decryptItem, deriveDataKey, encryptItem, generateSecretKey, unwrapUrk, wrapVaultV4 } from './crypto.js';
-import { api, readSecret, readSuper, superFresh, superFreshText, writeSecret, writeSuper } from './api.js';
+import { api, USER_KEY, readToken, readSecret, readSuper, superFresh, superFreshText, writeSecret, writeSuper } from './api.js';
+import { MemorySync } from './memorySync.js';
 import { Security } from './Security.jsx';
 import { buildIndex, childrenOf, subtreeCount, diaryDays, visibleRows, ROOT_ID, DIARY_ID } from './treeModel.js';
 import { t, getLocale, kindLabel } from './i18n.js';
@@ -119,12 +120,16 @@ export function DashboardPages({
     .filter((m) => m.importance !== 'trivial')
     .map((m) => ({ value: m.id, label: m.title || String(m.id).slice(0, 8) })), [items]);
   const dataKeyRef = useRef(null);
-  // Keep the incremental /pull cursor and active content key in refs.
-  const cursorRef = useRef(null);
-  const syncingRef = useRef(false);
-  const trailingRef = useRef(false);
+  const memorySyncRef = useRef(null);
+  const unlockGeneration = useRef(0);
   const [syncing, setSyncing] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [lastSync, setLastSync] = useState(null);
+  useEffect(() => () => {
+    unlockGeneration.current++;
+    memorySyncRef.current?.close();
+    dataKeyRef.current = null;
+  }, [token]);
   const saveMemory = async (payload, existingId) => {
     const dataKey = dataKeyRef.current;
     if (!dataKey) throw new Error(t('pleaseUnlock'));
@@ -160,96 +165,105 @@ export function DashboardPages({
   }, [page, token, tick]);
 
   const unlockMemories = async (pass, secret) => {
+    const generation = ++unlockGeneration.current;
+    memorySyncRef.current?.close();
     const vault = await api('/api/self/vault', { token });
     const v = Number(vault.version) || 0;
     if (v >= 4 && !pass) throw new Error(t('needSuper'));
     if (v === 3 && !pass) throw new Error(t('needSuperV3'));
     if (v === 3 && !secret) throw new Error(t('needSecretV3'));
     const urk = await unwrapUrk(pass, secret, vault);
+    const dataKey = await deriveDataKey(urk);
+    const decryptKey = await crypto.subtle.importKey('raw', dataKey, 'AES-GCM', false, ['decrypt']);
+    if (generation !== unlockGeneration.current || readToken(USER_KEY) !== token) {
+      throw new DOMException('Unlock superseded', 'AbortError');
+    }
     writeSuper(pass);
     if (v === 3 && secret) writeSecret(secret);
-    const pull = await api('/pull', { token });
-    const dataKey = await deriveDataKey(urk);
     dataKeyRef.current = dataKey;
-    // The response cursor is captured before rows; later revisions remain available in subsequent pulls.
-    cursorRef.current = pull.cursor;
-    const out = [];
-    let failed = 0;
-    for (const blob of pull.blobs || []) {
-      if (blob.deleted) continue;
-      try {
-        const payload = JSON.parse(await decryptItem(dataKey, blob.ciphertext, blob.nonce));
-        out.push({ id: blob.id, ...payload });
-      } catch { failed++; }
-    }
-    setItems(out);
-    setLocked(false);
-    setLastSync(Date.now());
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.add(ROOT_ID);
-      next.add(DIARY_ID);
-      return next;
+    setLoadError('');
+    let firstResolve;
+    let firstReject;
+    let displayed = false;
+    const firstBatch = new Promise((resolve, reject) => { firstResolve = resolve; firstReject = reject; });
+    const controller = new MemorySync({
+      token, vault,
+      isCurrent: () => dataKeyRef.current === dataKey && readToken(USER_KEY) === token
+        && memorySyncRef.current === controller,
+      onLoading: setSyncing,
+      onCacheError: () => notify(t('memoryCacheUnavailable')),
+      onReset: () => setItems([]),
+      onBlobs: async (blobs, signal) => {
+        let failed = 0;
+        // Small batches yield between paints, with one imported key per unlocked session.
+        for (let offset = 0; offset < Math.max(blobs.length, 1); offset += 25) {
+          const changes = await Promise.all(blobs.slice(offset, offset + 25).map(async (blob) => {
+            if (blob.deleted) return [blob.id, null];
+            try {
+              const payload = JSON.parse(await decryptItem(decryptKey, blob.ciphertext, blob.nonce));
+              return [blob.id, { ...payload, id: blob.id }];
+            } catch { failed++; return null; }
+          }));
+          controller.current();
+          signal.throwIfAborted();
+          setItems((prev) => {
+            const next = new Map((prev || []).map((m) => [m.id, m]));
+            for (const change of changes) {
+              if (!change) continue;
+              const [id, memory] = change;
+              if (memory === null) next.delete(id);
+              else next.set(id, memory);
+            }
+            return [...next.values()];
+          });
+          setLocked(false);
+          if (!displayed) {
+            displayed = true;
+            firstResolve();
+          }
+          await new Promise(resolve => window.setTimeout(resolve, 0));
+        }
+        if (failed) notify(t('newCipherFail', { n: failed }));
+      },
     });
-    if (failed > 0) {
-      notify(t('unlockedPartial', { ok: out.length, fail: failed }));
-    }
+    memorySyncRef.current = controller;
+    controller.start().then(() => {
+      controller.current();
+      setLastSync(Date.now());
+    }).catch((error) => {
+      if (!displayed) firstReject(error);
+      if (error.name === 'AbortError') return;
+      setLoadError(t('memoryLoadInterrupted'));
+      if (displayed) notify(error.message);
+    });
+    await firstBatch;
   };
 
-  // Incremental sync pulls changed blobs and tombstones after the cursor and merges locally decrypted content.
-  // Keep the previous local version when a new ciphertext cannot be decrypted.
+  // Refresh and writes share the same bounded incremental stream.
   const syncIncremental = async () => {
-    if (syncingRef.current) { trailingRef.current = true; return; }
-    const dataKey = dataKeyRef.current;
-    if (!dataKey) return;
-    syncingRef.current = true;
-    setSyncing(true);
+    const controller = memorySyncRef.current;
+    if (!controller || !dataKeyRef.current) return;
     try {
-      const since = cursorRef.current;
-      const pull = await api(since == null ? '/pull' : `/pull?since=${encodeURIComponent(since)}`, { token });
-      // Locking or unlocking during await can clear or replace the dataKeyRef object.
-      // Check object identity before merging plaintext into the active session.
-      if (dataKeyRef.current !== dataKey) return;
-      cursorRef.current = pull.cursor;
-      const changed = pull.blobs || [];
-      if (changed.length) {
-        const ups = new Map();
-        let failed = 0;
-        for (const blob of changed) {
-          if (blob.deleted) { ups.set(blob.id, null); continue; }
-          try {
-            const payload = JSON.parse(await decryptItem(dataKey, blob.ciphertext, blob.nonce));
-            ups.set(blob.id, { id: blob.id, ...payload });
-          } catch { failed++; }
-        }
-        // Recheck session identity after decrypting entries and before merging.
-        if (dataKeyRef.current !== dataKey) return;
-        setItems((prev) => {
-          const next = new Map((prev || []).map((m) => [m.id, m]));
-          for (const [id, mem] of ups.entries()) {
-            if (mem === null) next.delete(id);
-            else next.set(id, mem);
-          }
-          return [...next.values()];
-        });
-        if (failed > 0) notify(t('newCipherFail', { n: failed }));
-      }
+      await controller.sync();
+      controller.current();
+      setLoadError('');
       setLastSync(Date.now());
-    } finally {
-      syncingRef.current = false;
-      setSyncing(false);
-      const runTrailing = trailingRef.current;
-      trailingRef.current = false;
-      if (runTrailing && dataKeyRef.current) {
-        syncIncremental().catch(() => { /* Retry on the next poll */ });
-      }
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      setLoadError(t('memoryLoadInterrupted'));
+      throw error;
     }
   };
 
   // Locking clears key material and invalidates in-flight sync by dataKeyRef identity.
   // Never render returned plaintext after the user locks the view.
   const lockMemories = () => {
+    unlockGeneration.current++;
+    memorySyncRef.current?.close();
+    memorySyncRef.current = null;
     dataKeyRef.current = null;
+    setSyncing(false);
+    setLoadError('');
     setLocked(true);
     setItems(null);
   };
@@ -291,7 +305,8 @@ export function DashboardPages({
     // Saved recovery codes expire after three days; request manual entry instead of auto-unlocking.
     if (!superFresh()) { setLocked(true); return; }
     unlockMemories(saved, readSecret()).catch((e) => {
-      setLocked(true);
+      if (e.name === 'AbortError') return;
+      setLoadError(t('memoryLoadInterrupted'));
       const why = String(e.message || e);
       const hint = e.status === 404
         ? t('noVault')
@@ -478,7 +493,7 @@ export function DashboardPages({
           {mem ? <Button icon={ArrowLeft} onClick={() => openMemory(null)}>{t('backMemory')}</Button> : (
             <>
               <Button primary icon={Plus} onClick={openNewMemory}>{t('saveMemory')}</Button>
-              <Button icon={ArrowClockwise} onClick={() => unlockMemories(readSuper(), readSecret()).then(() => notify(t('pulled'))).catch((e) => notify(e.message))}>{t('pullLatest')}</Button>
+              <Button icon={ArrowClockwise} onClick={() => syncIncremental().then(() => notify(t('pulled'))).catch((e) => notify(e.message))}>{t('pullLatest')}</Button>
               <Button icon={LockKey} onClick={() => { lockMemories(); openMemory(null); notify(t('locked')); }}>{t('lock')}</Button>
             </>
           )}
@@ -516,7 +531,9 @@ export function DashboardPages({
           </div>
         ) : (
           <>
-            {emptyVault && <EmptyInstallHint notify={notify} />}
+            {emptyVault && !syncing && !loadError && <EmptyInstallHint notify={notify} />}
+            {loadError && <Note>{loadError}</Note>}
+            {syncing && <Note>{t('memoryLoading', { n: (items || []).length })}</Note>}
             <div className="memory-status">
               <span><CloudCheck size={22} />{t('cloudReady')}</span>
               <span>{t('nMemories', { n: (items || []).length })}</span>

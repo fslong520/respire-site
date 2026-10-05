@@ -412,7 +412,7 @@ try {
     assert.equal(api.state.blobs.size, 1, 'Editing must retain memory identity');
     const saved = api.state.blobs.get(blob.id);
     assert.equal(JSON.parse(await decryptItem(key, saved.ciphertext, saved.nonce)).content, edited);
-    assert.ok(api.requests.some(r => r.path === '/pull' && r.search.includes('since=')), 'Saving should use incremental sync');
+    assert.ok(api.requests.some(r => r.path === '/api/self/memories' && r.search.includes('snapshot=0')), 'Saving should use incremental sync');
     await page.goto(`${origin}/dashboard/memories/${blob.id}`);
     await page.locator('.reading-main').getByText(edited, { exact: true }).waitFor();
     assert.equal(new URL(page.url()).hash, `#/memories/${blob.id}`);

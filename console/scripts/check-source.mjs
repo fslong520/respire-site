@@ -9,7 +9,7 @@ for (const [path, expected] of Object.entries(source.unchanged_sha256)) {
   const actual = createHash('sha256').update(readFileSync(new URL(path, root))).digest('hex');
   assert.equal(actual, expected, `Unrecorded change to imported source ${path}`);
 }
-for (const path of ['src/api.js', 'src/config.js', 'src/consoleRoute.js', 'src/crypto.js', 'src/hashRoute.js', 'src/i18n.js', 'src/treeModel.js']) {
+for (const path of ['src/api.js', 'src/config.js', 'src/consoleRoute.js', 'src/crypto.js', 'src/hashRoute.js', 'src/i18n.js', 'src/treeModel.js', 'src/memoryCache.js', 'src/memorySync.js']) {
   execFileSync(process.execPath, ['--check', fileURLToPath(new URL(path, root))]);
 }
 console.log(`Verified ${Object.keys(source.unchanged_sha256).length} unchanged imported files from ${source.commit}. JSX is checked by the shared Vite build.`);

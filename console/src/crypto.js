@@ -295,7 +295,9 @@ export async function deriveDataKey(urk) {
 }
 
 export async function decryptItem(dataKey, ciphertextHex, nonceHex) {
-  const key = await crypto.subtle.importKey('raw', dataKey, 'AES-GCM', false, ['decrypt']);
+  const key = dataKey instanceof Uint8Array
+    ? await crypto.subtle.importKey('raw', dataKey, 'AES-GCM', false, ['decrypt'])
+    : dataKey;
   const pt = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv: fromHex(nonceHex) },
     key,
