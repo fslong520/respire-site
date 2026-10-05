@@ -84,7 +84,7 @@ export function AiInstallCard() {
         </span>
         <span className="prompt-card-badge">
           <ShieldCheck size={13} strokeWidth={2.4} />
-          干净环境实测通过
+          干净环境实测通过 · 直连 rsrs 云
         </span>
       </div>
 

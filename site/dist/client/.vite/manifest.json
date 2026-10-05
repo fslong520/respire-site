@@ -19,7 +19,7 @@
     "name": "rolldown-runtime"
   },
   "app/ai-install.tsx": {
-    "file": "assets/ai-install-U4AYmxCs.js",
+    "file": "assets/ai-install-CD3FD6_b.js",
     "name": "ai-install",
     "src": "app/ai-install.tsx",
     "isDynamicEntry": true,
@@ -30,7 +30,7 @@
     ]
   },
   "node_modules/vinext/dist/shims/layout-segment-context.js": {
-    "file": "assets/layout-segment-context-BQ3nM8Wt.js",
+    "file": "assets/layout-segment-context-sGmo6ys3.js",
     "name": "layout-segment-context",
     "src": "node_modules/vinext/dist/shims/layout-segment-context.js",
     "isDynamicEntry": true,
@@ -41,7 +41,7 @@
     ]
   },
   "virtual:vinext-app-browser-entry": {
-    "file": "assets/index-BOkzP1t2.js",
+    "file": "assets/index-DsB-pjlQ.js",
     "name": "index",
     "src": "virtual:vinext-app-browser-entry",
     "isEntry": true,
