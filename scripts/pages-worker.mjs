@@ -7,6 +7,9 @@ export default {
     if (!['GET', 'HEAD'].includes(request.method)) {
       return new Response('Frontend requests must use the configured API origin', { status: 405, headers: { Allow: 'GET, HEAD' } });
     }
+    if (url.pathname === '/favicon.ico') {
+      return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
+    }
     if (url.pathname === '/build-info.json') {
       return new Response(request.method === 'HEAD' ? null : JSON.stringify({ ...consoleBuild, target }), {
         headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' },
