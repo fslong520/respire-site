@@ -14,7 +14,7 @@ function withEnv(values, run) {
 }
 
 test('all modes share one console output and both hostname definitions', () => {
-  withEnv({ CF_PAGES: undefined, VITE_API_BASE_URL: undefined }, () => {
+  withEnv({ CF_PAGES: undefined, VITE_API_BASE_URL: undefined, VITE_DASHBOARD_URL: undefined, VITE_ADMIN_URL: undefined }, () => {
     for (const mode of ['production', 'dashboard', 'admin']) {
       const resolved = config({ mode });
       assert.equal(resolved.define['import.meta.env.VITE_CONSOLE_TARGET'], undefined);
