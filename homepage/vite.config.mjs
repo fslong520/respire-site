@@ -1,49 +1,48 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { buildProvenance } from "../scripts/build-provenance.mjs";
 
 const ROOT = import.meta.dirname;
-const OUT = resolve(ROOT, process.env.VITE_SITE_OUT_DIR || "../site/dist/client");
-const BASE = process.env.VITE_SITE_BASE || "/";
-if (!/^\/(?:[a-zA-Z0-9_-]+\/)*$/.test(BASE)) throw new Error("Invalid website base path");
+const OUT = resolve(ROOT, "../site/dist/client");
 
-/// Build the default language at / and other languages at /<locale>/.
+/// 官网多语言构建：默认语言（en）出在站点根，其余语言出在 /<locale>/。
 ///
-/// Deployment serves the generated static files by URL.
-/// Each language needs an index.html; the client selects strings from the URL.
-/// Localized pages differ in language, title, and description.
-/// All language entries share the same hashed assets.
+/// 站点由 service/build.rs 扫目录嵌入 memocap-server，按 URL 精确查表返回，
+/// 故每个语言必须有各自的 index.html。单页应用在运行时按 location.pathname 选定
+/// 词条集，各语言 HTML 只有 lang / title / description 不同；哈希资源为绝对路径，
+/// 各语言目录共用同一份。
 ///
+/// 客户端交互预览（public/preview/client.<locale>.html）是 client/tree-ui 的独立
+/// 单文件产物，含内嵌 JS/CSS/Logo，不进打包；英文版由 scripts/preview-i18n.mjs
+/// 按对照表生成。
 const LOCALES = ["en", "zh"];
 
 const HEAD = {
   en: {
     lang: "en",
-    title: "Respire — Memory as natural as breathing",
+    title: "memocap — Teach once. Every AI remembers.",
     description:
-      "A local-first memory layer for the way you think. Carry useful context across your AI tools and sessions.",
+      "memocap turns your background, preferences, and project experience into one memory tree. Stored locally, end-to-end encrypted, and shared with your AI tools only within the scope you choose.",
   },
   zh: {
     lang: "zh-CN",
-    title: "Respire — 你的记忆，随 AI 同行",
+    title: "memocap — 你的记忆，随 AI 同行",
     description:
-      "Respire 把你的背景、偏好与项目经验整理成一棵记忆树。本地保存，端到端加密，按所选范围接入你的 AI 工具。",
+      "memocap 把你的背景、偏好与项目经验整理成一棵记忆树。本地保存，端到端加密，按所选范围接入你的 AI 工具。",
   },
 };
 
-/// Localize the generated index.html head using its hreflang placeholder.
+/// 把构建产物 index.html 按语言改写头部。占位注释在 homepage/index.html 里。
 ///
-/// Use relative alternate-language links across development and production.
-/// Links resolve against the current document origin.
+/// hreflang 用相对路径（`/`、`/zh/`）：dev 与生产同源不同域名，绝对地址只对生产
+/// 正确，相对路径两边都对，且符合 hreflang 规范（相对当前文档 URL 解析）。
 function localize(html, locale) {
   const head = HEAD[locale];
   const alternates = [
-    `<link rel="alternate" hreflang="en" href="${BASE}" />`,
-    `<link rel="alternate" hreflang="zh-Hans" href="${BASE}zh/" />`,
-    `<link rel="alternate" hreflang="x-default" href="${BASE}" />`,
+    '<link rel="alternate" hreflang="en" href="/" />',
+    '<link rel="alternate" hreflang="zh-Hans" href="/zh/" />',
+    '<link rel="alternate" hreflang="x-default" href="/" />',
   ].join('\n    ');
   return html
     .replace(/<html lang="[^"]*"/, `<html lang="${head.lang}"`)
@@ -52,29 +51,15 @@ function localize(html, locale) {
       /(<meta name="description" content=")[^"]*(")/,
       `$1${head.description.replace(/"/g, '&quot;')}$2`,
     )
-    .replace('<!-- locale:hreflang -->', `<link rel="canonical" href="https://rsrs.rs${locale === 'en' ? '/' : '/zh/'}" />\n    ${alternates}`);
+    .replace('<!-- locale:hreflang -->', alternates);
 }
 
-/// Write the default entry in place and other entries in locale directories.
+/// 生成各语言入口（默认语言原地改写，其余语言另存到子目录）。
 function multiLocale() {
   return {
-    name: "respire-multilocale",
+    name: "memocap-multilocale",
     apply: "build",
     closeBundle() {
-      // Pages path redirects must follow the same explicit console destinations
-      // as homepage links. Relative local-preview links retain the static defaults.
-      const consoleOrigin = (value, fallback) => {
-        if (!value || value.startsWith('/')) return fallback;
-        const url = new URL(value);
-        if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') {
-          throw new Error('Homepage console redirects require an HTTPS origin');
-        }
-        return url.origin;
-      };
-      const dashboard = consoleOrigin(process.env.VITE_DASHBOARD_URL, 'https://dash.rsrs.rs');
-      const admin = consoleOrigin(process.env.VITE_ADMIN_URL, 'https://admin.rsrs.rs');
-      writeFileSync(resolve(OUT, '_redirects'), `/dashboard ${dashboard}/dashboard 302\n/dashboard/* ${dashboard}/dashboard/:splat 302\n/admin ${admin}/admin 302\n/admin/* ${admin}/admin/:splat 302\n`);
-      writeFileSync(resolve(OUT, "build-info.json"), JSON.stringify({ ...buildProvenance(ROOT), target: "homepage", base: BASE }, null, 2) + "\n");
       const root = resolve(OUT, "index.html");
       const built = readFileSync(root, "utf8");
       writeFileSync(root, localize(built, "en"), "utf8");
@@ -87,7 +72,6 @@ function multiLocale() {
 }
 
 export default defineConfig({
-  base: BASE,
   build: {
     outDir: OUT,
     emptyOutDir: true,
@@ -102,6 +86,5 @@ export default defineConfig({
       clientFiles: ["./src/main.jsx"],
     },
   },
-  publicDir: "assets",
-  plugins: [react(), tailwindcss(), multiLocale()],
+  plugins: [react(), multiLocale()],
 });

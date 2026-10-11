@@ -1,9 +1,8 @@
 
 node_modules/
-.qa/
 target/
 *.db
-site/dist/preview/
-site/dist
+.qa/
 .zcodeignore
 .zcode
+

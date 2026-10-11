@@ -1,99 +1,24 @@
 name: Site CI
 on:
-  workflow_dispatch:
   push:
-    branches: [develop, main]
+    branches: [main]
   pull_request:
-    branches: [develop, main]
+    branches: [main]
 permissions:
   contents: read
 jobs:
-  homepage:
+  site:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: homepage
+        working-directory: site
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: homepage/package-lock.json
+          cache-dependency-path: site/package-lock.json
       - run: npm ci
-      - run: npm test
-      - run: npm run check
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
-      - run: npm run verify:browser
-      - run: npm run build:dev
-      - run: VITE_SITE_BASE=/preview/ VITE_SITE_OUT_DIR=../site/dist/preview VITE_DASHBOARD_URL=/dashboard VITE_ADMIN_URL=/admin npm run verify:browser
-  consoles:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: console
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: console/package-lock.json
-      - run: npm ci
-      - run: npm run check
       - run: npm test
-      - run: npm run build
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:render
-      - run: npm run test:browser
-      - run: npm run test:hosted-cors
-      - name: Check built console bundle and Pages files
-        run: node scripts/verify-build.mjs
-      - name: Assemble the single console bundle with the homepage
-        working-directory: .
-        run: |
-          npm --prefix homepage ci
-          npm --prefix homepage run build
-          node scripts/assemble-pages.mjs
-      - name: Check and assemble the isolated DEV Pages configuration
-        working-directory: .
-        env:
-          CF_PAGES: '1'
-          CF_PAGES_BRANCH: develop
-          VITE_API_BASE_URL: https://api.dev.rsrs.rs
-          VITE_DASHBOARD_URL: https://dash.dev.rsrs.rs
-          VITE_ADMIN_URL: https://admin.dev.rsrs.rs
-          VITE_HOMEPAGE_URL: https://dev.rsrs.rs
-        run: |
-          npm --prefix console test
-          npm --prefix console run build
-          npm --prefix homepage run build
-          node scripts/assemble-pages.mjs
-  windows-consoles:
-    runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: console
-    steps:
-      - name: Exercise a clean checkout with Windows line-ending conversion
-        working-directory: ${{ runner.temp }}
-        run: git config --global core.autocrlf true
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: console/package-lock.json
-      - run: npm ci
-      - run: npm run check
-      - run: npm test
-      - run: npm run build
-      - name: Check clean console checkout build and Pages files
-        run: node scripts/verify-build.mjs
-      - name: Assemble Pages on Windows
-        working-directory: .
-        run: |
-          npm --prefix homepage ci
-          npm --prefix homepage run build
-          node scripts/assemble-pages.mjs

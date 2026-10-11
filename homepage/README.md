@@ -1,52 +1,89 @@
-# Respire Homepage
+# memocap 官网首页
 
-React/Vite source for the Respire website. English is served at `/`; Chinese at `/zh/`. The URL selects the language.
+源码在本目录。`npm run build` 产物写入 `../site/dist/client/`。现网由 `memocap-server` 的 **Deploy Web** 编进 `memocap-web` nginx 镜像，**不再**编进 API 二进制。
 
-| Path | Purpose |
+登录入口使用相对路径 `/dashboard`，dev 与生产同源。
+
+## 多语言
+
+支持英文（默认）与中文。**英文出在站点根 `/`，中文出在 `/zh/`**——`memocap-web` nginx
+按目录提供静态页，前端按 `location.pathname` 选定词条集，
+两处必须一致（`src/i18n/index.js` 是唯一判据来源）。
+
+| 位置 | 作用 |
 | --- | --- |
-| `src/App.tsx` | Header, hero, product sections and portal links |
-| `src/respire/product-story.tsx` | Workflow tabs, examples and FAQ |
-| `src/respire/product-details.tsx` | CLI installation and usage |
-| `src/respire/MemoryFiberScene.tsx` | Three.js artwork, image fallback and motion controls |
-| `src/respire/memory-narrative.tsx` | Scroll-linked continuous red strand |
-| `src/destinations.ts` | Portal and base-path configuration |
-| `assets/` | Original reference artwork and favicon |
-| `scripts/verify-marketing.mjs` | Built-page browser checks |
+| `src/i18n/en.js` `zh.js` | 页面词条，两侧键集必须完全一致 |
+| `src/i18n/index.js` | 语言前缀解析、词条选取、浏览器偏好判断 |
+| `scripts/preview-i18n.mjs` | 由中文预览产物生成英文版（对照表 `i18n/preview.en.json`） |
+| `tests/i18n.test.mjs` | 键集一致、无空词条、英文不含中文、URL 策略、预览对照表覆盖 |
 
-## Development
+`npm run build` 单次构建产出全部语言：根 `index.html` 为英文，`zh/index.html` 为中文，
+哈希资源（`assets/*`）各语言共用。各语言 HTML 只有 `lang` / `title` / `description` 不同。
 
-```sh
+英文站会按浏览器语言给一次中文提示（`sessionStorage` 记录已关闭），**只提示不跳转**——
+URL 决定语言，不做自动重定向，以免分享链接与搜索引擎见到非预期语言。
+
+### 新增一种语言
+
+1. 加 `src/i18n/<locale>.js`，键集照抄 `en.js`（测试会校验）。
+2. `src/i18n/index.js` 的 `LOCALES` 加该语言。
+3. `vite.config.mjs` 的 `LOCALES` 与 `HEAD` 加该语言；Deploy Web 按目录提供 `/<locale>/`。
+4. `public/preview/client.<locale>.html` 放该语言的客户端预览（可先用英文版复制）。
+5. `npm test` 须全过。
+
+## 客户端交互预览
+
+`public/preview/client.<locale>.html` 是 `client/tree-ui` 的单文件构建产物（内嵌 JS/CSS/Logo），
+**不进 Vite 打包**，原样作为静态资源发布，站点以 iframe 引入。
+
+本目录里的中文版是既有产物，且已领先 `client/tree-ui` 源码若干版，故不重构建，只做文本对照替换：
+`i18n/preview.en.json` 是「中文原文 → 英文」对照表（键为解码后的文本，可写真实换行与引号），
+`npm run build:preview` 据此生成英文版。产物替换后自动做 JS 语法校验，语法不过即失败。
+
+```bash
+npm run build:preview          # 生成 public/preview/client.en.html
+npm run build:preview -- --extract   # 列出缺译文本（写 .tmp-preview-missing.json）
+```
+
+改预览文案：改 `i18n/preview.en.json` 后重跑 `build:preview`。若将来改用 `client/tree-ui`
+源码重建预览，须同步核对两处：`.dock button` 的文本（站点靠它做标签联动）与预览里多出的
+「治理」档与日记视图。
+
+## 开发与校验
+
+```bash
 npm ci
-npm run dev
-npm run check
-npm test
-npm run build
-npx playwright install chromium
-npm run verify:browser
+npm run dev                    # 本地开发（默认语言由 URL 决定，/zh/ 看中文）
+npm test                       # 含 tests/i18n.test.mjs
+npm run build                  # 产出 site/dist/client/{index.html, zh/index.html, assets/*, preview/*}
 ```
 
-Set `CHROME_PATH` to use an existing Chrome executable instead of the Playwright browser. Set `SITE_SCREENSHOTS` to capture desktop and mobile screenshots during verification.
+构建后须把 `site/dist/client/` 的变更一并提交——镜像构建期从仓库读该目录（`service/Dockerfile`）。
 
-The browser check exercises English and Chinese rendering, portal links, CLI instructions, FAQ, animation pause, mobile navigation, overflow and reduced motion. Source checks run through `npm test`.
+## 六语言官网设计稿
 
-## Production and development preview
+两个独立可运行的设计版本，皆不参与当前 React 官网构建、不覆盖 `site/dist/client/`：
 
-| Setting | Production default | Development preview |
-| --- | --- | --- |
-| `VITE_SITE_BASE` | `/` | `/preview/` |
-| `VITE_SITE_OUT_DIR` | `../site/dist/client` | `../site/dist/preview` |
-| `VITE_DASHBOARD_URL` | `https://dash.rsrs.rs` | `/dashboard` |
-| `VITE_ADMIN_URL` | `https://admin.rsrs.rs` | `/admin` |
+### V2：紧凑版（沿用现有设计语言）
 
-`npm run build:dev` applies the preview settings and writes a separate distribution. To verify it:
+`prototypes/multilingual-v2/` 保存新版完整静态前端：默认英文，支持中文、西班牙语、法语、韩语和日语，沿用官网八个主要模块与柔和阴影样式。中文不显示英文主标题副本。
 
-```sh
-VITE_SITE_BASE=/preview/ VITE_SITE_OUT_DIR=../site/dist/preview VITE_DASHBOARD_URL=/dashboard VITE_ADMIN_URL=/admin npm run verify:browser
+安装说明、源码结构、公开入口配置和验证限制见 [设计稿 README](prototypes/multilingual-v2/README.md) 与 [验证记录](prototypes/multilingual-v2/VERIFICATION.md)。
+
+```bash
+python3 -m http.server 4183 --bind 127.0.0.1 --directory homepage/prototypes/multilingual-v2
+# 打开 http://127.0.0.1:4183/
 ```
 
-The build copies static files from `assets/`. The sibling `site/` directory contains build output and deployment configuration only.
+编辑模板、翻译或资源后，运行 `python3 homepage/prototypes/multilingual-v2/build.py` 重新生成默认英文入口和单文件版。
 
-The renderer honors reduced motion and pauses while offscreen. Focus the artwork and press **P** or **Space** to pause or resume. The original artwork is retained as a fallback when WebGL is unavailable. See [third-party notices](../THIRD_PARTY_NOTICES.md) for attribution.
+### V3：Lumina 风格（另立视觉系统）
 
+完整静态源码位于 [`prototypes/lumina-v3/`](prototypes/lumina-v3/README.md)。新版采用悬浮深色导航、暖橙强调色、大字排版、错层记忆卡片与深浅交替的展示区，保留六语文案和客户端交互预览。
 
-The build also emits public `build-info.json` with `site_revision`, `source_tree_dirty`, `target: "homepage"`, and the configured base path. This metadata contains no credentials and does not change visual assets. The revision comes from the actual checkout; if `CF_PAGES_COMMIT_SHA` is present it must be a valid full SHA matching that checkout. The separate hosted migration smoke uses this endpoint to prove the live homepage revision alongside both consoles and the API.
+```bash
+python3 -m http.server 4184 --bind 127.0.0.1 --directory homepage/prototypes/lumina-v3
+# 打开 http://127.0.0.1:4184/
+```
+
+修改后运行 `python3 homepage/prototypes/lumina-v3/build.py`，生成默认英文入口与内嵌资源的单文件版。默认英文，可切换中文、西班牙语、法语、韩语和日语。已知限制与验收记录见 [`VERIFICATION.md`](prototypes/lumina-v3/VERIFICATION.md)。
