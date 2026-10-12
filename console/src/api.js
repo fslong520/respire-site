@@ -1,15 +1,12 @@
-import { t } from './i18n.js';
 import { apiUrl } from './config.js';
 
-export const USER_KEY = 'onememory.userToken';
-export const ADMIN_KEY = 'onememory.adminToken';
-export const SUPER_KEY = 'onememory.superPass';
-export const SECRET_KEY = 'onememory.secretKey';
-export const SUPER_AT_KEY = 'onememory.superPassAt';
-
-// Locally saved recovery codes expire after three days; do not auto-unlock or prefill expired codes.
-// Require manual entry after expiration and renew the timestamp on successful unlock.
-export const SUPER_TTL_MS = 3 * 24 * 3600 * 1000;
+export const USER_KEY = 'rsrs.userToken';
+export const ADMIN_KEY = 'rsrs.adminToken';
+// Read old browser credentials without copying or deleting them. An explicit
+// empty current value prevents logout from reviving a legacy credential.
+function stored(key) {
+  return localStorage.getItem(key) ?? localStorage.getItem(key.replace(/^rsrs\./, 'onememory.')) ?? '';
+}
 
 let unauthorized = null;
 export function onUnauthorized(handler) {
@@ -51,7 +48,7 @@ export async function api(path, { method = 'GET', body, token, signal } = {}) {
 
 export function readToken(key) {
   try {
-    return localStorage.getItem(key) || '';
+    return stored(key);
   } catch {
     return '';
   }
@@ -60,69 +57,53 @@ export function readToken(key) {
 export function writeToken(key, value) {
   try {
     if (value) localStorage.setItem(key, value);
-    else localStorage.removeItem(key);
+    else localStorage.setItem(key, '');
+    return true;
   } catch {
-    /* ignore quota */
+    return false;
   }
 }
 
-export function readSuper() {
-  try {
-    return localStorage.getItem(SUPER_KEY) || '';
-  } catch {
-    return '';
+// Only explicit recovery backup/cleanup may read historical plaintext caches.
+// These values never participate in unlocking and no new sensitive value is saved.
+const RECOVERY_KEYS = ['rsrs', 'onememory'].flatMap(prefix =>
+  ['superPass', 'secretKey', 'superPassAt'].map(name => `${prefix}.${name}`));
+export function hasLegacyRecovery() {
+  // Storage may be blocked independently. Detection must not break the page;
+  // explicit export and deletion still report their storage errors to the user.
+  for (const name of ['localStorage', 'sessionStorage']) {
+    try {
+      const storage = window[name];
+      if (RECOVERY_KEYS.some(key => storage.getItem(key))) return true;
+    } catch { /* This storage is unavailable; inspect the other one. */ }
   }
+  return false;
 }
-
-export function writeSuper(value) {
-  try {
-    if (value) {
-      localStorage.setItem(SUPER_KEY, value);
-      localStorage.setItem(SUPER_AT_KEY, String(Date.now()));
-    } else {
-      localStorage.removeItem(SUPER_KEY);
-      localStorage.removeItem(SUPER_AT_KEY);
+export function exportLegacyRecovery() {
+  const backup = {};
+  for (const [name, storage] of [['localStorage', localStorage], ['sessionStorage', sessionStorage]]) {
+    for (const key of RECOVERY_KEYS) {
+      const value = storage.getItem(key);
+      if (value) backup[`${name}:${key}`] = value;
     }
-  } catch {
-    /* ignore quota */
+  }
+  return JSON.stringify(backup, null, 2);
+}
+export function clearLegacyRecovery() {
+  for (const storage of [localStorage, sessionStorage]) {
+    for (const key of RECOVERY_KEYS) storage.removeItem(key);
   }
 }
-
-export function readSecret() {
-  try {
-    return localStorage.getItem(SECRET_KEY) || '';
-  } catch {
-    return '';
+// Retired plaintext slots are removed on entry, including signed-out pages.
+// Never read or copy their values; keep account sessions and other data intact.
+export function removeRetiredSuperPass() {
+  let cleared = true;
+  for (const name of ['localStorage', 'sessionStorage']) {
+    try {
+      const storage = window[name];
+      storage.removeItem('onememory.superPass');
+      storage.removeItem('onememory.superPassAt');
+    } catch { cleared = false; }
   }
-}
-
-export function writeSecret(value) {
-  try {
-    if (value) localStorage.setItem(SECRET_KEY, value);
-    else localStorage.removeItem(SECRET_KEY);
-  } catch {
-    /* ignore quota */
-  }
-}
-
-// Check whether a locally stored recovery code is present and unexpired.
-export function superFresh() {
-  const saved = readSuper();
-  if (!saved) return false;
-  const at = Number(localStorage.getItem(SUPER_AT_KEY) || 0);
-  if (!at) return false; // Treat older records without a timestamp as expired.
-  return Date.now() - at < SUPER_TTL_MS;
-}
-
-// Expiration status text shared by the keys and locked pages.
-export function superFreshText() {
-  const saved = readSuper();
-  if (!saved) return t('superNotSaved');
-  const at = Number(localStorage.getItem(SUPER_AT_KEY) || 0);
-  if (!at) return t('superExpiredNoTs');
-  const remain = SUPER_TTL_MS - (Date.now() - at);
-  if (remain <= 0) return t('superExpiredShort');
-  const days = Math.floor(remain / (24 * 3600 * 1000));
-  const hours = Math.floor((remain % (24 * 3600 * 1000)) / (3600 * 1000));
-  return days > 0 ? t('superRemainDays', { days, hours }) : t('superRemainHours', { hours });
+  return cleared;
 }

@@ -5,24 +5,24 @@ import { createHmac, randomBytes } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { chromium } from 'playwright';
-import { authPayload, decryptItem, deriveDataKey, unwrapUrk } from '../src/crypto.js';
+import { authPayload, decryptItem, deriveDataKeys, unwrapUrk } from '../src/crypto.js';
 import { t } from '../src/i18n.js';
 
-const origin = process.env.RESPIRE_DEV_SERVER_ADDR;
-const adminToken = process.env.RESPIRE_DEV_ADMIN_TOKEN;
-const expectedSha = process.env.RESPIRE_DEV_SERVER_SHA;
-const consoleSha = process.env.RESPIRE_DEV_CONSOLE_SHA;
-const siteSha = process.env.RESPIRE_DEV_SITE_SHA;
-const mailAddress = process.env.RESPIRE_DEV_MAIL_ADDRESS;
-const mailReader = JSON.parse(process.env.RESPIRE_DEV_MAIL_READER || '[]');
+const origin = process.env.RSRS_DEV_SERVER_ADDR;
+const adminToken = process.env.RSRS_DEV_ADMIN_TOKEN;
+const expectedSha = process.env.RSRS_DEV_SERVER_SHA;
+const consoleSha = process.env.RSRS_DEV_CONSOLE_SHA;
+const siteSha = process.env.RSRS_DEV_SITE_SHA;
+const mailAddress = process.env.RSRS_DEV_MAIL_ADDRESS;
+const mailReader = JSON.parse(process.env.RSRS_DEV_MAIL_READER || '[]');
 if (!mailAddress || !Array.isArray(mailReader) || !mailReader.length || !mailReader.every(value => typeof value === 'string' && value.length)) {
   throw new Error('A development recipient and JSON command array for the mailbox reader are required.');
 }
 const readMail = promisify(execFile);
-if (origin !== 'https://dev.rsrs.rs' || !adminToken || process.env.RESPIRE_DEV_API_ADMIN_APPROVED !== 'true' || ![expectedSha, consoleSha, siteSha].every(value => /^[0-9a-f]{40}$/.test(value || ''))) {
+if (origin !== 'https://dev.rsrs.rs' || !adminToken || process.env.RSRS_DEV_API_ADMIN_APPROVED !== 'true' || ![expectedSha, consoleSha, siteSha].every(value => /^[0-9a-f]{40}$/.test(value || ''))) {
   throw new Error('Approved isolated development URL, admin token and exact API/console/site SHAs are required.');
 }
-const output = resolve(process.env.RESPIRE_WEB_SMOKE_OUTPUT || 'browser-smoke-output');
+const output = resolve(process.env.RSRS_WEB_SMOKE_OUTPUT || 'browser-smoke-output');
 await mkdir(output, { recursive: true, mode: 0o700 });
 const run = `${Date.now()}-${randomBytes(3).toString('hex')}`;
 const user = `web-smoke-${run}`;
@@ -36,7 +36,7 @@ const viewerPassword = randomBytes(20).toString('hex');
 const rows = [];
 const created = new Set();
 let current = 'launch';
-const browser = await chromium.launch({ headless: true, ...(process.env.RESPIRE_BROWSER_EXECUTABLE ? { executablePath: process.env.RESPIRE_BROWSER_EXECUTABLE } : {}) });
+const browser = await chromium.launch({ headless: true, ...(process.env.RSRS_BROWSER_EXECUTABLE ? { executablePath: process.env.RSRS_BROWSER_EXECUTABLE } : {}) });
 const context = await browser.newContext({ baseURL: origin, viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
 const page = await context.newPage();
 page.setDefaultTimeout(30000);
@@ -59,7 +59,7 @@ async function call(path, { method = 'GET', token, body, expected = 200 } = {}) 
   return response.json();
 }
 async function receivedCode(purpose, requestedAt) {
-  const waitSeconds = Number(process.env.RESPIRE_DEV_MAIL_WAIT_SECONDS || 120);
+  const waitSeconds = Number(process.env.RSRS_DEV_MAIL_WAIT_SECONDS || 120);
   assert.ok(Number.isFinite(waitSeconds) && waitSeconds >= 30 && waitSeconds <= 600);
   console.log('WAITING_FOR_MAIL ' + purpose);
   const deadline = performance.now() + waitSeconds * 1000;
@@ -155,7 +155,7 @@ try {
     await page.getByRole('checkbox').check();
     await page.getByRole('button', { name: t('enterMemory'), exact: true }).click();
     await page.locator('.console-main').waitFor();
-    userToken = await page.evaluate(() => localStorage.getItem('onememory.userToken'));
+    userToken = await page.evaluate(() => localStorage.getItem('rsrs.userToken'));
     assert.ok(userToken);
   });
   const title = `Synthetic browser memory ${run}`;
@@ -176,7 +176,7 @@ try {
     await responseFor('/push', () => page.getByRole('dialog').locator('button[type="submit"]').click());
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     const vault = await call('/api/self/vault', { token: userToken });
-    const key = await deriveDataKey(await unwrapUrk(recovery, '', vault));
+    const key = await deriveDataKeys(await unwrapUrk(recovery, '', vault));
     const pull = await call('/pull', { token: userToken });
     let found = false;
     for (const blob of pull.blobs || []) {
@@ -246,7 +246,7 @@ try {
     const session = await call('/login/totp', { method: 'POST', body: { ticket: nextChallenge.ticket, code: totp(totpSecret), device_name: 'browser-smoke-secondary' } });
     assert.ok(session.token);
     await page.getByLabel(t('verify'), { exact: true }).fill(totp(totpSecret));
-    await responseFor('/api/self/totp/disable', () => page.locator('.key-actions').getByRole('button', { name: t('close'), exact: true }).click());
+    await responseFor('/api/self/totp/disable', () => page.locator('.key-actions').getByRole('button', { name: t('unbindTotp'), exact: true }).click());
     assert.equal((await call('/api/self/keys', { token: userToken })).totp, false);
     await page.locator('.security-overview h2').getByText(t('totpOffH2'), { exact: true }).waitFor();
     await page.reload();
@@ -264,7 +264,7 @@ try {
     await page.getByLabel(t('superOptional'), { exact: true }).fill(recovery);
     await page.locator('.gate-form form').getByRole('button', { name: t('login'), exact: true }).click();
     await page.locator('.console-main').waitFor();
-    userToken = await page.evaluate(() => localStorage.getItem('onememory.userToken'));
+    userToken = await page.evaluate(() => localStorage.getItem('rsrs.userToken'));
     assert.ok(userToken);
   });
   await step('user-email-password-recovery', async () => {
@@ -291,7 +291,7 @@ try {
     await page.getByLabel(t('superOptional'), { exact: true }).fill(recovery);
     await page.locator('.gate-form form').getByRole('button', { name: t('login'), exact: true }).click();
     await page.locator('.console-main').waitFor();
-    userToken = await page.evaluate(() => localStorage.getItem('onememory.userToken'));
+    userToken = await page.evaluate(() => localStorage.getItem('rsrs.userToken'));
     assert.deepEqual(await call('/api/self/vault', { token: userToken }), vault);
     assert.equal((await call('/api/self/keys', { token: userToken })).email_verified, true);
     await page.getByText(t('verified'), { exact: true }).waitFor();
@@ -317,7 +317,7 @@ try {
     await page.getByLabel(t('loginPassword'), { exact: true }).fill(ownerPassword);
     await page.locator('.gate-form form').getByRole('button', { name: t('login'), exact: true }).click();
     await page.locator('.console-main').waitFor();
-    ownerToken = await page.evaluate(() => localStorage.getItem('onememory.adminToken'));
+    ownerToken = await page.evaluate(() => localStorage.getItem('rsrs.adminToken'));
     assert.ok(ownerToken);
     for (const id of ['users', 'admins', 'audit', 'mail', 'security']) {
       await navigate(id);

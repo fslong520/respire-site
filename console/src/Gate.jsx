@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { ArrowRight, ShieldCheck, LockKey, Key } from '@phosphor-icons/react';
 import { Button, Badge, Note, LangSwitch, useI18n } from './ui.jsx';
 import { Brand } from './Brand.jsx';
-import { authPayload, generateSecretKey, wrapVaultV4 } from './crypto.js';
-import { api, writeSecret } from './api.js';
+import { authPayload, deriveSalt, generateSecretKey, wrapVaultV4 } from './crypto.js';
+import { api } from './api.js';
 import { t } from './i18n.js';
+import { beginGithub } from './githubAuth.js';
 
-export function Gate({ admin, onEnter, notify }) {
+export function Gate({ admin, authorization = false, onEnter, notify }) {
   useI18n();
   const [tab, setTab] = useState('login');
   const [step, setStep] = useState(1);
@@ -26,8 +27,21 @@ export function Gate({ admin, onEnter, notify }) {
 
   const fail = (e) => setError(e.message || String(e));
 
+  async function loginPayload() {
+    let salt;
+    try {
+      const reply = await api(`/auth/salt?user=${encodeURIComponent(user.trim())}${admin ? '&kind=admin' : ''}`);
+      if (typeof reply.salt !== 'string' || !reply.salt) throw new Error('Invalid authentication salt');
+      salt = reply.salt;
+    } catch (err) {
+      if (err.status !== 404) throw err;
+      salt = await deriveSalt(user, 'onememory');
+    }
+    return authPayload(user, pass, salt);
+  }
+
   const finishUser = (token, superPass, secretKey) => {
-    onEnter({ token, superPass, secretKey });
+    return onEnter({ token, superPass, secretKey });
   };
 
   async function submit(e) {
@@ -52,7 +66,7 @@ export function Gate({ admin, onEnter, notify }) {
           onEnter({ token: reply.token });
           return;
         }
-        const payload = await authPayload(user, pass);
+        const payload = await loginPayload();
         const reply = await api('/admin/login', { method: 'POST', body: { user: payload.user, pass_hash: payload.pass_hash } });
         if (reply.totp_required) {
           setTicket(reply.ticket);
@@ -77,16 +91,13 @@ export function Gate({ admin, onEnter, notify }) {
       if (step === 2) {
         setBusy(true);
         try {
-          const payload = await authPayload(user, pass);
+          const payload = await loginPayload();
           const reply = await api('/register', { method: 'POST', body: { ...payload, device_name: 'dashboard' } });
           // v4 uses a generated A3- recovery code as the single memory unlock factor.
           const superPass = generateSecretKey();
           const vault = await wrapVaultV4(superPass);
           await api('/api/self/vault', { method: 'POST', token: reply.token, body: vault });
-          // Store under the same localStorage key used by api.js SUPER_KEY.
-          try { localStorage.setItem('onememory.superPass', superPass); } catch {}
-          try { localStorage.setItem('onememory.superPassAt', String(Date.now())); } catch {}
-          try { localStorage.removeItem('onememory.secretKey'); } catch {}
+          // Save unlock material only after the new account becomes active.
           setIssued({ token: reply.token, superPass });
           setStep(3);
         } catch (err) {
@@ -97,8 +108,15 @@ export function Gate({ admin, onEnter, notify }) {
         return;
       }
       if (!saved) return setError(t('confirmSuperFirst'));
-      finishUser(issued.token, issued.superPass, undefined);
-      notify(t('accountCreated'));
+      setBusy(true);
+      try {
+        await finishUser(issued.token, issued.superPass, undefined);
+        notify(t('accountCreated'));
+      } catch (err) {
+        fail(err);
+      } finally {
+        setBusy(false);
+      }
       return;
     }
 
@@ -137,17 +155,17 @@ export function Gate({ admin, onEnter, notify }) {
     try {
       if (ticket) {
         const reply = await api('/login/totp', { method: 'POST', body: { ticket, code, device_name: 'dashboard' } });
-        finishUser(reply.token, superpass, undefined);
+        await finishUser(reply.token, superpass, undefined);
         return;
       }
-      const payload = await authPayload(user, pass);
+      const payload = await loginPayload();
       const reply = await api('/login', { method: 'POST', body: { user: payload.user, pass_hash: payload.pass_hash, device_name: 'dashboard' } });
       if (reply.totp_required) {
         setTicket(reply.ticket);
         notify(t('needTotp'));
         return;
       }
-      finishUser(reply.token, superpass, undefined);
+      await finishUser(reply.token, superpass, undefined);
     } catch (err) {
       fail(err);
     } finally {
@@ -175,9 +193,9 @@ export function Gate({ admin, onEnter, notify }) {
         </section>
         <section className="gate-form panel">
           <div className="feature-mark">{admin ? <ShieldCheck size={28} /> : <LockKey size={28} />}</div>
-          <h2>{admin ? t('gateAdminTitle') : tab === 'register' ? (step === 3 ? t('gateSaveRecovery') : t('gateCreate')) : tab === 'reset' ? t('gateResetTitle') : t('gateWelcome')}</h2>
-          <p>{admin ? t('gateAdminLeadForm') : t('gateUserLeadForm')}</p>
-          {!admin && step === 1 && (
+          <h2>{ticket ? t('totpTitle') : admin ? t('gateAdminTitle') : tab === 'register' ? (step === 3 ? t('gateSaveRecovery') : t('gateCreate')) : tab === 'reset' ? t('gateResetTitle') : t('gateWelcome')}</h2>
+          <p>{ticket ? t('needTotp') : admin ? t('gateAdminLeadForm') : t('gateUserLeadForm')}</p>
+          {!admin && step === 1 && !ticket && (
             <div className="tabs stretch">
               {[['login', t('login')], ['register', t('register')]].map(([id, label]) => (
                 <button key={id} disabled={busy} className={tab === id ? 'active' : ''} onClick={() => { setTab(id); setError(''); setTicket(''); }}>{label}</button>
@@ -186,7 +204,12 @@ export function Gate({ admin, onEnter, notify }) {
           )}
           {tab === 'register' && <div className="step-label">{Math.min(step, 2)} / 2 · {step === 1 ? t('stepAccount') : t('stepSuper')}</div>}
           <form onSubmit={submit}>
-            {tab === 'register' && step === 3 && issued ? (
+            {ticket ? (
+              <>
+                <p>{user}</p>
+                <label className="field">{t('totpCode')}<input autoFocus required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} /></label>
+              </>
+            ) : tab === 'register' && step === 3 && issued ? (
               <>
                 <Note tone="amber">{t('copySuperNow')}</Note>
                 <div className="demo-key"><span>{t('superPassword')}</span><code>{issued.superPass}</code></div>
@@ -214,10 +237,9 @@ export function Gate({ admin, onEnter, notify }) {
                     {(tab === 'register' && step === 1) || (tab === 'reset' && step === 2) ? (
                       <label className="field">{t('confirmLoginPassword')}<input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} /></label>
                     ) : null}
-                    {tab === 'login' && !admin ? (
+                    {tab === 'login' && !admin && !authorization ? (
                       <label className="field">{t('superOptional')}<input type="password" value={superpass} onChange={(e) => setSuper(e.target.value)} autoComplete="off" /></label>
                     ) : null}
-                    {ticket ? <label className="field">{t('totpCode')}<input required value={code} onChange={(e) => setCode(e.target.value)} /></label> : null}
                     {tab === 'reset' && step === 2 ? <label className="field">{t('emailCode')}<input value={code} required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} onChange={(e) => setCode(e.target.value)} /></label> : null}
                   </>
                 )}
@@ -237,7 +259,13 @@ export function Gate({ admin, onEnter, notify }) {
             }}>{t('resendCode')}</Button>}
             {tab === 'reset' && <Note>{t('resetNotDecrypt')}</Note>}
           </form>
-          {admin ? (
+          {!admin && !ticket && step === 1 && tab !== 'reset' && <Button className="full" disabled={busy} onClick={async () => {
+            setBusy(true); setError('');
+            try { await beginGithub(); } catch (err) { fail(err); setBusy(false); }
+          }}>{t('githubContinue')}</Button>}
+          {ticket ? (
+            <button className="gate-link" disabled={busy} onClick={() => { setTicket(''); setCode(''); setPass(''); setError(''); }}>{t('backToLogin')}</button>
+          ) : admin ? (
             <button className="gate-link" onClick={() => setTokenMode(!tokenMode)}>{tokenMode ? t('usePasswordLogin') : t('useAdminToken')}</button>
           ) : (
             <button className="gate-link" disabled={busy} onClick={() => { setPass(''); setConfirm(''); setCode(''); setTab(tab === 'reset' ? 'login' : 'reset'); setStep(1); setError(''); setTicket(''); }}>

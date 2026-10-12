@@ -42,7 +42,7 @@ try {
   });
   const config = { origins };
   assert.equal(new Set(Object.values(origins)).size, 4);
-  browser = await chromium.launch({ headless: true, ...(process.env.RESPIRE_BROWSER_EXECUTABLE ? { executablePath: process.env.RESPIRE_BROWSER_EXECUTABLE } : {}) });
+  browser = await chromium.launch({ headless: true, ...(process.env.RSRS_BROWSER_EXECUTABLE ? { executablePath: process.env.RSRS_BROWSER_EXECUTABLE } : {}) });
 
   // Baseline proves the fixture's native CORS behavior. Protected mode imports
   // the actual hosted harness guard, including raw CDP request/response handling.

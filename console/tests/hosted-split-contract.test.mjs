@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
 import { APPROVALS, hostedOrigin, readHostedConfig, verifyCheckoutSource, verifyApiSource, verifySiteSource, requestViolation, getExact, verifyHostedProvenance } from './hosted-split-contract.mjs';
 
 const SERVER_SHA = '1'.repeat(40);
@@ -9,15 +8,15 @@ const SITE_SHA = '2'.repeat(40);
 const IMPORT_SHA = '3'.repeat(40);
 const env = () => ({
   ...Object.fromEntries(APPROVALS.map(name => [name, 'true'])),
-  RESPIRE_SPLIT_API_ORIGIN: 'https://api.test.invalid',
-  RESPIRE_SPLIT_DASHBOARD_ORIGIN: 'https://dashboard.test.invalid',
-  RESPIRE_SPLIT_ADMIN_ORIGIN: 'https://admin.test.invalid',
-  RESPIRE_SPLIT_HOMEPAGE_ORIGIN: 'https://homepage.test.invalid',
-  RESPIRE_SPLIT_SERVER_SHA: SERVER_SHA,
-  RESPIRE_SPLIT_SITE_SHA: SITE_SHA,
-  RESPIRE_SPLIT_ADMIN_TOKEN: 'unit-only-placeholder',
-  RESPIRE_SPLIT_MAIL_ADDRESS: 'synthetic@test.invalid',
-  RESPIRE_SPLIT_MAIL_READER: '["python3","scripts/read-dev-mail.py"]',
+  RSRS_SPLIT_API_ORIGIN: 'https://api.test.invalid',
+  RSRS_SPLIT_DASHBOARD_ORIGIN: 'https://dashboard.test.invalid',
+  RSRS_SPLIT_ADMIN_ORIGIN: 'https://admin.test.invalid',
+  RSRS_SPLIT_HOMEPAGE_ORIGIN: 'https://homepage.test.invalid',
+  RSRS_SPLIT_SERVER_SHA: SERVER_SHA,
+  RSRS_SPLIT_SITE_SHA: SITE_SHA,
+  RSRS_SPLIT_ADMIN_TOKEN: 'unit-only-placeholder',
+  RSRS_SPLIT_MAIL_ADDRESS: 'synthetic@test.invalid',
+  RSRS_SPLIT_MAIL_READER: '["python3","scripts/read-dev-mail.py"]',
 });
 const config = () => readHostedConfig(env());
 const metadata = target => ({ site_revision: SITE_SHA, source_tree_dirty: false, target,
@@ -69,9 +68,9 @@ test('each approval is independently mandatory and accepts only literal true', (
 
 test('all origins are mandatory and no legacy environment variable is a fallback', () => {
   for (const target of ['API', 'DASHBOARD', 'ADMIN', 'HOMEPAGE']) {
-    assert.throws(() => readHostedConfig({ ...env(), [`RESPIRE_SPLIT_${target}_ORIGIN`]: undefined, RESPIRE_DEV_SERVER_ADDR: 'https://dev.rsrs.rs' }));
+    assert.throws(() => readHostedConfig({ ...env(), [`RSRS_SPLIT_${target}_ORIGIN`]: undefined, RSRS_DEV_SERVER_ADDR: 'https://dev.rsrs.rs' }));
   }
-  assert.throws(() => readHostedConfig({ ...env(), RESPIRE_SPLIT_ADMIN_ORIGIN: env().RESPIRE_SPLIT_DASHBOARD_ORIGIN }), /Four distinct/);
+  assert.throws(() => readHostedConfig({ ...env(), RSRS_SPLIT_ADMIN_ORIGIN: env().RSRS_SPLIT_DASHBOARD_ORIGIN }), /Four distinct/);
 });
 
 test('origins reject known production, credentials, non-HTTPS, loopback, IPs, paths, queries, fragments, and normalization escapes', () => {
@@ -84,13 +83,13 @@ test('origins reject known production, credentials, non-HTTPS, loopback, IPs, pa
 
 test('both exact revisions, dedicated recipient, token, mail command and bounded timeout are required', () => {
   for (const key of ['SERVER', 'SITE']) for (const value of [undefined, 'main', 'abcd123', 'A'.repeat(40), 'x'.repeat(40), '1'.repeat(39)]) {
-    assert.throws(() => readHostedConfig({ ...env(), [`RESPIRE_SPLIT_${key}_SHA`]: value }));
+    assert.throws(() => readHostedConfig({ ...env(), [`RSRS_SPLIT_${key}_SHA`]: value }));
   }
   for (const [key, values] of Object.entries({
-    RESPIRE_SPLIT_ADMIN_TOKEN: [undefined, '', ' '],
-    RESPIRE_SPLIT_MAIL_ADDRESS: [undefined, '', 'arbitrary name', 'x@test.invalid\n'],
-    RESPIRE_SPLIT_MAIL_READER: [undefined, '{}', '[]', '[""]', '[1]', 'python3 script.py'],
-    RESPIRE_SPLIT_MAIL_WAIT_SECONDS: ['0', '29', '601', 'NaN', 'Infinity'],
+    RSRS_SPLIT_ADMIN_TOKEN: [undefined, '', ' '],
+    RSRS_SPLIT_MAIL_ADDRESS: [undefined, '', 'arbitrary name', 'x@test.invalid\n'],
+    RSRS_SPLIT_MAIL_READER: [undefined, '{}', '[]', '[""]', '[1]', 'python3 script.py'],
+    RSRS_SPLIT_MAIL_WAIT_SECONDS: ['0', '29', '601', 'NaN', 'Infinity'],
   })) for (const value of values) assert.throws(() => readHostedConfig({ ...env(), [key]: value }));
 });
 
@@ -186,11 +185,11 @@ test('browser restrictions allow only configured origins and send API activity o
   for (const url of ['https://api.rsrs.rs/login', 'https://other.test.invalid/', 'https://name:pass@api.test.invalid/', 'wss://api.test.invalid/', 'file:///tmp/fixture']) assert.equal(requestViolation(cfg, request(url), 'Document'), 'unapproved-origin');
 });
 
-test('legacy live smoke and IMAP helper remain byte-for-byte upstream provenance', async () => {
+test('live smoke and IMAP namespace adaptations are recorded in provenance', async () => {
   const upstream = JSON.parse(await readFile(new URL('../upstream.json', import.meta.url), 'utf8'));
   for (const path of ['tests/browser-dev-smoke.mjs', 'scripts/read-dev-mail.py']) {
-    const bytes = await readFile(new URL(`../${path}`, import.meta.url));
-    assert.equal(createHash('sha256').update(bytes).digest('hex'), upstream.unchanged_sha256[path]);
+    assert.ok(upstream.intentionally_adapted.includes(path));
+    assert.equal(upstream.unchanged_sha256[path], undefined);
   }
 });
 
@@ -198,7 +197,8 @@ test('hosted adaptation retains every strict legacy user/admin acceptance step',
   const legacy = await readFile(new URL('./browser-dev-smoke.mjs', import.meta.url), 'utf8');
   const hosted = await readFile(new URL('./browser-hosted-split-smoke.mjs', import.meta.url), 'utf8');
   const names = source => [...source.matchAll(/await step\('([^']+)'/g)].map(match => match[1]);
-  assert.deepEqual(names(hosted).slice(3), names(legacy).slice(2));
+  assert.deepEqual(names(hosted).slice(3).filter(name => name !== 'admin-daily-stats-ranges-history-and-responsive-readback'), names(legacy).slice(2));
+  assert.ok(names(hosted).includes('admin-daily-stats-ranges-history-and-responsive-readback'));
   assert.ok(hosted.includes('verifyCheckoutSource(checkoutSha, checkoutStatus, config)'));
   assert.ok(hosted.includes('await verifyHostedProvenance(context.request, config, upstream.commit)'));
   const guard = await readFile(new URL('./hosted-browser-guard.mjs', import.meta.url), 'utf8');

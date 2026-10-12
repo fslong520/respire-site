@@ -306,6 +306,11 @@ tr.selected,tbody tr:hover { background:var(--soft); }
 .secret-result p { font-size:0.6875rem; color:var(--muted); line-height:1.8; }
 .toast { position:fixed; z-index:100; bottom:25px; left:50%; transform:translate(-50%,15px); display:flex; gap:9px; align-items:center; max-width:90vw; background:#1c1d19; color:#f8f6f2; padding:13px 19px; border-radius:4px; font-size:0.6875rem; opacity:0; pointer-events:none; box-shadow:0 8px 24px #1c1d1920; }
 .toast.visible { opacity:1; transform:translate(-50%,0); }
+.memory-tip { position:fixed; z-index:90; top:90px; right:24px; display:flex; align-items:flex-start; gap:10px; width:max-content; max-width:min(420px,calc(100vw - 32px)); max-height:calc(100dvh - 120px); overflow:auto; padding:14px 18px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--text); box-shadow:0 8px 24px #1c1d1920; font-size:.875rem; line-height:1.6; overflow-wrap:anywhere; }
+.memory-tip svg { flex-shrink:0; margin-top:2px; }
+.totp-setup { margin:16px 0; }
+.totp-setup p { margin-bottom:12px; }
+.totp-qr { display:block; max-width:100%; height:auto; background:white; border-radius:4px; }
 .lang-switch { display:inline-flex; gap:0; background:transparent; padding:0; border-radius:0; }
 .lang-switch button { padding:4px 7px; color:var(--muted); font:0.8125rem ui-monospace,monospace; background:transparent; border-radius:0; }
 .lang-switch button[aria-pressed=true] { background:transparent; color:var(--text); text-decoration:underline; text-underline-offset:4px; }
@@ -421,3 +426,7 @@ html[data-theme=dark] .memory-card[data-kind='skill'] { --card-accent:#7aa88f; }
 html[data-theme=dark] .memory-card[data-kind='preference'] { --card-accent:#cf9f66; }
 html[data-theme=dark] .memory-card[data-kind='emotion'] { --card-accent:#cf8484; }
 html[data-theme=dark] .memory-card[data-kind='time'] { --card-accent:#a9a197; }
+
+.account-switch-controls { padding: 0 16px 12px; }
+.account-switch-controls label { display: grid; gap: 6px; }
+.account-switch-controls select { width: 100%; padding: 8px; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 6px; }

@@ -2,7 +2,7 @@
 
 Run `npm ci`, install Playwright Chromium with `npx playwright install chromium`,
 then run `npm run test:browser`. A system Chromium can be selected with
-`RESPIRE_BROWSER_EXECUTABLE=/absolute/path/to/chromium`.
+`RSRS_BROWSER_EXECUTABLE=/absolute/path/to/chromium`.
 
 `browser-fixtures.mjs` builds the actual single-file bundle and serves it, together
 with the API fixture, on one ephemeral loopback origin — mirroring the embedded
