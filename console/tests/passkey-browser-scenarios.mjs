@@ -286,12 +286,17 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     await page.getByRole('button', { name: t('passkeyUnlock'), exact: true }).click();
     await page.waitForFunction(() => !!window.passkeyFixture.resolve);
     await nav(page, 'diary');
+    await page.waitForFunction(() => location.hash === '#/diary');
     await page.evaluate(() => { window.passkeyFixture.resolve(); window.passkeyFixture.mode = 'normal'; });
     await page.waitForLoadState('networkidle');
     await page.locator('.locked-state').waitFor();
-    assert.equal(requests().filter(r => r.path.endsWith('/unlock/finish')).length, 0);
+    const lateFinishes = requests().filter(r => r.path.endsWith('/unlock/finish'));
+    assert.equal(lateFinishes.filter(r => r.method === 'POST').length, 0,
+      `No late assertion may be submitted after route navigation; observed methods: ${JSON.stringify(lateFinishes.map(r => r.method))}`);
     await page.getByRole('button', { name: t('passkeyUnlock'), exact: true }).click();
     await page.locator('.locked-state').waitFor({ state: 'hidden' });
+    assert.equal(requests().filter(r => r.method === 'POST' && r.path.endsWith('/unlock/finish')).length, 1,
+      'Only the fresh Diary attempt may submit an assertion');
   });
 
   await run('passkeys: an accepted memory session disables redundant passkey unlock and keeps syncing', async () => {

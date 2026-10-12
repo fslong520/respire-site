@@ -85,8 +85,12 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
   const begin = () => {
     active.current?.abort();
     const controller = new AbortController();
+    const route = globalThis.location?.hash;
     active.current = controller;
-    const isCurrent = () => mounted.current && active.current === controller && readToken(USER_KEY) === token;
+    // Hash navigation precedes React's keyed-child cleanup. Fence that gap so
+    // a late native result cannot verify/unlock the route the user just left.
+    const isCurrent = () => mounted.current && active.current === controller && readToken(USER_KEY) === token
+      && globalThis.location?.hash === route;
     return { controller, signal: controller.signal, isCurrent, current: () => assertPasskeyCurrent(controller.signal, isCurrent) };
   };
   const finish = operation => {
@@ -187,8 +191,10 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
     const pending = pendingCommits.get(token);
     if (!pending) return;
     const controller = new AbortController();
+    const route = globalThis.location?.hash;
     let cancelled = false, continued = false;
-    const current = () => !cancelled && !controller.signal.aborted && mounted.current && readToken(USER_KEY) === token;
+    const current = () => !cancelled && !controller.signal.aborted && mounted.current && readToken(USER_KEY) === token
+      && globalThis.location?.hash === route;
     open({ title: t('passkeyRetryUnknown'), description: t('passkeyRetryWarning'), submit: t('passkeyRetryConfirm'),
       onDismiss: () => { if (!continued) { cancelled = true; controller.abort(); } },
       onSubmit: async () => {
