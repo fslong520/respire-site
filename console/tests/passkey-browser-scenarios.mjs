@@ -52,17 +52,20 @@ async function noRecoveryStorage(page, recovery) {
 
 export async function passkeyBrowserScenarios({ run, open, api }) {
   const setup = async () => {
+    // The fixture retains its request log for the final cross-origin audit.
+    // Every scenario asserts its own delta without clearing that audit trail.
+    const requestStart = api.requests.length;
     api.state.passkeysEnabled = true;
     const recovery = generateSecretKey();
     api.state.vault = await wrapVaultV4(recovery);
     const page = await open('/dashboard/keys', { 'rsrs.userToken': FIXTURE.userToken });
     await syntheticProvider(page);
     await page.getByRole('button', { name: t('passkeyBind'), exact: true }).waitFor();
-    return { recovery, page };
+    return { recovery, page, requests: () => api.requests.slice(requestStart) };
   };
 
   await run('passkeys: two verified gets, multiple bindings, reload unlock, removal and recovery', async () => {
-    const { recovery, page } = await setup();
+    const { recovery, page, requests } = await setup();
     const original = structuredClone(api.state.vault);
     await (await enroll(page, recovery)).waitFor({ state: 'hidden' });
     assert.equal(await page.evaluate(() => window.passkeyFixture.gets), 2);
@@ -87,13 +90,13 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     assert.deepEqual(api.state.vault, original);
     assert.equal((await unwrapUrk(recovery, undefined, api.state.vault)).length, 32);
     await noRecoveryStorage(page, recovery);
-    const sent = JSON.stringify(api.requests.filter(r => r.path.startsWith('/api/self/passkeys')).map(r => r.body));
+    const sent = JSON.stringify(requests().filter(r => r.path.startsWith('/api/self/passkeys')).map(r => r.body));
     assert.ok(!sent.includes(recovery));
     assert.ok(!sent.includes('results'));
   });
 
   await run('passkeys: missing PRF fails closed, cancellation retries, late modal result cannot commit', async () => {
-    const { recovery, page } = await setup();
+    const { recovery, page, requests } = await setup();
     await page.evaluate(() => { window.passkeyFixture.mode = 'missing'; });
     const dialog = await enroll(page, recovery, 'Unsupported');
     await dialog.getByRole('alert').waitFor();
@@ -111,7 +114,7 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
   });
 
   for (const interruption of ['cancel', 'navigate', 'competing recovery']) await run(`passkeys: ${interruption} before first memory batch fences stale unlock`, async () => {
-    const { recovery, page } = await setup();
+    const { recovery, page, requests } = await setup();
     await (await enroll(page, recovery, 'Synthetic')).waitFor({ state: 'hidden' });
     await nav(page, 'memories');
     let release;
@@ -141,7 +144,7 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
   });
 
   await run('passkeys: navigation dismisses pending binding and fences a late provider response', async () => {
-    const { recovery, page } = await setup();
+    const { recovery, page, requests } = await setup();
     await page.evaluate(() => { window.passkeyFixture.mode = 'delay'; });
     await enroll(page, recovery, 'Abandoned');
     await page.waitForFunction(() => !!window.passkeyFixture.resolve);
@@ -155,15 +158,15 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
   });
 
   await run('passkeys: accepted commit with failed confirmation refreshes list without retry or removal', async () => {
-    const { recovery, page } = await setup();
+    const { recovery, page, requests } = await setup();
     const original = structuredClone(api.state.vault);
     api.state.passkeyCommitResponseLost = true;
     await (await enroll(page, recovery, 'Lost confirmation')).waitFor({ state: 'hidden' });
     await page.locator('.passkey-list').getByText('Lost confirmation', { exact: true }).waitFor();
     await page.getByText(t('passkeyCommitFound'), { exact: true }).waitFor();
     assert.equal(api.state.passkeys.size, 1);
-    assert.equal(api.requests.filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 1);
-    assert.equal(api.requests.filter(r => r.path.endsWith('/remove')).length, 0);
+    assert.equal(requests().filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 1);
+    assert.equal(requests().filter(r => r.path.endsWith('/remove')).length, 0);
     assert.deepEqual(api.state.vault, original);
     await noRecoveryStorage(page, recovery);
     await page.locator('.passkey-list').getByRole('button', { name: t('passkeyRemove'), exact: true }).click();
@@ -173,7 +176,7 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
   });
 
   await run('passkeys: cancel after server commit refreshes binding and never reopens the dialog', async () => {
-    const { recovery, page } = await setup();
+    const { recovery, page, requests } = await setup();
     let release, stored;
     api.state.passkeyCommitResponseGate = new Promise(resolve => { release = resolve; });
     const accepted = new Promise(resolve => { stored = resolve; });
@@ -188,11 +191,11 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     } finally { release(); api.state.passkeyCommitResponseGate = null; }
     assert.equal(await page.getByRole('dialog').count(), 0);
     assert.equal(api.state.passkeys.size, 1);
-    assert.equal(api.requests.filter(r => r.path.endsWith('/remove')).length, 0);
+    assert.equal(requests().filter(r => r.path.endsWith('/remove')).length, 0);
   });
 
   for (const interruption of ['cancel', 'navigate']) await run(`passkeys: ${interruption} after dispatch preserves uncertainty when refresh precedes commit`, async () => {
-    const { recovery, page } = await setup();
+    const { recovery, page, requests } = await setup();
     let release, started, stored;
     api.state.passkeyCommitGate = new Promise(resolve => { release = resolve; });
     const dispatched = new Promise(resolve => { started = resolve; });
@@ -215,13 +218,13 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     await page.locator('.passkey-list').getByText('In-flight commit', { exact: true }).waitFor();
     await page.getByText(t('passkeyCommitFound'), { exact: true }).waitFor();
     assert.equal(await page.getByRole('dialog').count(), 0);
-    assert.equal(api.requests.filter(r => r.path.endsWith('/remove')).length, 0);
-    assert.equal(api.requests.filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 1);
+    assert.equal(requests().filter(r => r.path.endsWith('/remove')).length, 0);
+    assert.equal(requests().filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 1);
     await noRecoveryStorage(page, recovery);
   });
 
   await run('passkeys: acknowledged retry refreshes first and preserves possibly successful credentials', async () => {
-    const { recovery, page } = await setup();
+    const { recovery, page, requests } = await setup();
     api.state.passkeyCommitRejected = true;
     await (await enroll(page, recovery, 'Unconfirmed first attempt')).waitFor({ state: 'hidden' });
     await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).waitFor();
@@ -234,12 +237,12 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     await dialog.getByRole('button', { name: t('passkeyBind'), exact: true }).click();
     await dialog.waitFor({ state: 'hidden' });
     await page.locator('.passkey-list').getByText('Acknowledged retry', { exact: true }).waitFor();
-    assert.equal(api.requests.filter(r => r.path.endsWith('/remove')).length, 0);
-    assert.equal(api.requests.filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 2);
+    assert.equal(requests().filter(r => r.path.endsWith('/remove')).length, 0);
+    assert.equal(requests().filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 2);
   });
 
   await run('passkeys: cancelling a delayed retry refresh never reopens enrollment', async () => {
-    const { recovery, page } = await setup();
+    const { recovery, page, requests } = await setup();
     api.state.passkeyCommitRejected = true;
     await (await enroll(page, recovery, 'Unconfirmed')).waitFor({ state: 'hidden' });
     await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).waitFor();
@@ -263,7 +266,7 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
   });
 
   await run('passkeys: authoritative generation change clears an old uncertainty fence', async () => {
-    const { recovery, page } = await setup();
+    const { recovery, page, requests } = await setup();
     api.state.passkeyCommitRejected = true;
     await (await enroll(page, recovery, 'Old generation')).waitFor({ state: 'hidden' });
     await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).waitFor();
@@ -272,11 +275,11 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     await page.getByRole('button', { name: t('passkeyRefresh'), exact: true }).click();
     await page.getByText(t('passkeyCommitChanged'), { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: t('passkeyBind'), exact: true }).isDisabled(), false);
-    assert.equal(api.requests.filter(r => r.path.endsWith('/remove')).length, 0);
+    assert.equal(requests().filter(r => r.path.endsWith('/remove')).length, 0);
   });
 
   await run('passkeys: Memories to Diary cancels a pending native unlock even with matching layout', async () => {
-    const { recovery, page } = await setup();
+    const { recovery, page, requests } = await setup();
     await (await enroll(page, recovery, 'Route-scoped')).waitFor({ state: 'hidden' });
     await nav(page, 'memories');
     await page.evaluate(() => { window.passkeyFixture.mode = 'delay'; });
@@ -286,13 +289,13 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     await page.evaluate(() => { window.passkeyFixture.resolve(); window.passkeyFixture.mode = 'normal'; });
     await page.waitForLoadState('networkidle');
     await page.locator('.locked-state').waitFor();
-    assert.equal(api.requests.filter(r => r.path.endsWith('/unlock/finish')).length, 0);
+    assert.equal(requests().filter(r => r.path.endsWith('/unlock/finish')).length, 0);
     await page.getByRole('button', { name: t('passkeyUnlock'), exact: true }).click();
     await page.locator('.locked-state').waitFor({ state: 'hidden' });
   });
 
   await run('passkeys: an accepted memory session disables redundant passkey unlock and keeps syncing', async () => {
-    const { recovery, page } = await setup();
+    const { recovery, page, requests } = await setup();
     await (await enroll(page, recovery, 'Synthetic')).waitFor({ state: 'hidden' });
     await nav(page, 'memories');
     await page.getByRole('button', { name: t('passkeyUnlock'), exact: true }).click();
