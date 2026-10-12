@@ -40,8 +40,8 @@ export function Gate({ admin, authorization = false, onEnter, notify }) {
     return authPayload(user, pass, salt);
   }
 
-  const finishUser = (token, superPass, secretKey) => {
-    return onEnter({ token, superPass, secretKey });
+  const finishUser = (token, superPass, secretKey, recoveryCreated = false) => {
+    return onEnter({ token, superPass, secretKey, recoveryCreated });
   };
 
   async function submit(e) {
@@ -110,7 +110,7 @@ export function Gate({ admin, authorization = false, onEnter, notify }) {
       if (!saved) return setError(t('confirmSuperFirst'));
       setBusy(true);
       try {
-        await finishUser(issued.token, issued.superPass, undefined);
+        await finishUser(issued.token, issued.superPass, undefined, true);
         notify(t('accountCreated'));
       } catch (err) {
         fail(err);

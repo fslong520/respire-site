@@ -52,3 +52,33 @@ code to confirm binding. The QR uses the server-provided `otpauth` URI and does
 not contact a third-party image service. Binding clears the displayed setup
 material and preserves the session; unbinding requires a current code and
 also keeps the account signed in.
+
+## Optional passkey memory unlock
+
+After saving the recovery code, new accounts are offered optional passkey setup.
+Existing accounts can add multiple named bindings on Encryption & keys after
+entering their current recovery material once. Sign-in remains independent of
+memory decryption. Keep the same recovery code: binding leaves the existing URK,
+recovery wrapper, derived data keys, and memory ciphertext unchanged.
+
+The paired Server must explicitly enable the Dashboard RP and exact origin.
+Registration requires runtime PRF support, a fresh assertion to wrap the existing
+URK, and another independently challenged assertion to reopen that wrapper
+before activation. Unsupported providers, missing PRF outputs, cancellation and
+stale sessions fail closed with recovery-code fallback. An abandoned enrollment
+may leave an unused entry in the provider; removing a server binding does not
+delete that provider entry.
+
+PRF output stays in the browser. HKDF-SHA-256 derives a nonextractable AES-GCM KEK,
+with authenticated account/RP/credential/generation metadata. Credential transport
+uses an explicit allowlist rather than `PublicKeyCredential.toJSON()`, which could
+include PRF output. URKs and PRF byte buffers are wiped on completion/failure;
+JavaScript cannot guarantee erasure of all engine or provider copies. Only derived
+memory keys remain in the existing token-scoped in-memory unlock session. No PRF
+output, KEK, root key or recovery code is sent to the API or persisted in browser
+storage. Refreshing requires another unlock.
+
+Recovery-code changes that preserve the same URK send `operation:
+rewrap_same_urk` plus `expected_key_generation`. Destructive new-root-key resets
+use `/api/self/vault/reset`, which atomically invalidates passkey bindings and
+in-flight ceremonies. Deploy the paired Server before enabling this feature.

@@ -13,6 +13,7 @@ import { decryptItem, deriveDataKeys, unwrapUrk, generateSecretKey, wrapVaultV4 
 import { t } from '../src/i18n.js';
 import { FIXTURE, startFixtureApi, closeServer, listen } from './fixture-api.mjs';
 import { startFixtureProxy } from './fixture-proxy.mjs';
+import { passkeyBrowserScenarios } from './passkey-browser-scenarios.mjs';
 
 async function assertNoRecoveryStorage(page) {
   const keys = await page.evaluate(() => [localStorage, sessionStorage].flatMap(storage =>
@@ -949,6 +950,8 @@ try {
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     await page.locator('.reading-main').getByText(edited, { exact: true }).waitFor();
   });
+
+  await passkeyBrowserScenarios({ run, open, api });
 
   current = 'cross-origin transport proof';
   assert.ok(api.requests.length > 0, 'No API request was recorded');

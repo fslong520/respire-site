@@ -430,3 +430,10 @@ html[data-theme=dark] .memory-card[data-kind='time'] { --card-accent:#a9a197; }
 .account-switch-controls { padding: 0 16px 12px; }
 .account-switch-controls label { display: grid; gap: 6px; }
 .account-switch-controls select { width: 100%; padding: 8px; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 6px; }
+
+.passkey-unlock { max-width: 30rem; display: grid; gap: .65rem; margin: .75rem auto; }
+.passkey-unlock .key-actions { justify-content: center; }
+.passkey-unlock small { display: block; }
+.passkey-list { list-style: none; padding: 0; }
+.passkey-list li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .65rem 0; }
+.passkey-list li > span { overflow-wrap: anywhere; }
