@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Gate } from './Gate.jsx';
-import { clearPendingPasskeyCommit } from './Passkeys.jsx';
+import { clearPendingPasskeyCommit, movePendingPasskeyCommit } from './Passkeys.jsx';
 import { Shell } from './Shell.jsx';
 import { CliAuthorization } from './CliAuthorization.jsx';
 import { GithubCallback } from './GithubCallback.jsx';
@@ -214,7 +214,12 @@ function Console({ admin }) {
           if (current) setAccounts(saveAccount(current.user, value));
         }
         setToken(value);
-        if (!admin) moveUnlockSession(token, value);
+        if (!admin) {
+          moveUnlockSession(token, value);
+          // This callback is used only by authenticated same-account rotation.
+          // setToken must succeed before public pending metadata can move.
+          movePendingPasskeyCommit(token, value);
+        }
       }}
       onLogout={() => { try { setToken(''); } catch (error) { setHint(error.message); } }}
     />

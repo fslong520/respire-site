@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Key, Plus, Trash, X } from '@phosphor-icons/react';
 import { api, readToken, USER_KEY } from './api.js';
-import { bindPasskey, unlockWithPasskey, passkeyAvailable, validatePasskeyOrigin, assertPasskeyCurrent, passkeyCommitConfirmed, reconcilePasskeyCommit } from './passkeys.js';
+import { bindPasskey, unlockWithPasskey, passkeyAvailable, validatePasskeyOrigin, assertPasskeyCurrent, passkeyCommitConfirmed, reconcilePasskeyCommit, movePasskeyCommit } from './passkeys.js';
 import { Button, Note, useI18n } from './ui.jsx';
 import { t } from './i18n.js';
 
@@ -9,6 +9,7 @@ import { t } from './i18n.js';
 // An early empty list must not erase an uncertain in-flight commit.
 const pendingCommits = new Map();
 export const clearPendingPasskeyCommit = token => pendingCommits.delete(token);
+export const movePendingPasskeyCommit = (from, to) => movePasskeyCommit(pendingCommits, from, to, readToken(USER_KEY));
 
 function errorText(error) {
   if (error.name === 'NotAllowedError' || error.name === 'AbortError') return t('passkeyCancelled');

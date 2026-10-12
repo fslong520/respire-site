@@ -4,7 +4,7 @@ import { pbkdf2Sync } from 'node:crypto';
 import {
   bindPasskey, unlockWithPasskey, wrapPasskeyUrk, unwrapPasskeyUrk,
   serializePasskeyCredential, encodeBase64url as b64, decodeBase64url,
-  validatePasskeyContext, validatePasskeyOrigin, creationOptions, assertionOptions, passkeyCommitConfirmed, passkeyCommitContextChanged, reconcilePasskeyCommit,
+  validatePasskeyContext, validatePasskeyOrigin, creationOptions, assertionOptions, passkeyCommitConfirmed, passkeyCommitContextChanged, reconcilePasskeyCommit, movePasskeyCommit,
 } from '../src/passkeys.js';
 import { wrapVault, wrapVaultV4, unwrapUrk, deriveDataKeys, encryptItem, decryptItem, toHex } from '../src/crypto.js';
 
@@ -289,4 +289,33 @@ test('a delayed old-component list cannot resolve a newer-generation pending com
   assert.equal(pending.get('token'), newer);
   assert.equal(reconcilePasskeyCommit(pending, 'token', newer, { ...CONFIG, key_generation: 2, credentials: [newer] }), 'confirmed');
   assert.equal(pending.has('token'), false);
+});
+
+
+test('verified token rotation moves the same public pending record and fences old-token reads', () => {
+  const record = { ...CONTEXT };
+  const pending = new Map([['old-token', record]]);
+  assert.equal(movePasskeyCommit(pending, 'old-token', 'rotated-token', 'rotated-token'), true);
+  assert.equal(pending.get('rotated-token'), record);
+  assert.equal(pending.has('old-token'), false);
+  assert.equal(reconcilePasskeyCommit(pending, 'old-token', record, CONFIG), 'stale');
+  assert.equal(pending.get('rotated-token'), record, 'Old response cannot clear the migrated pending record');
+  const newer = { ...record, key_generation: record.key_generation + 1 };
+  pending.set('rotated-token', newer);
+  assert.equal(reconcilePasskeyCommit(pending, 'rotated-token', record, CONFIG), 'stale');
+  assert.equal(pending.get('rotated-token'), newer, 'Old response cannot clear a newer pending record');
+});
+
+test('unsaved rotation and occupied destination never transfer or overwrite pending metadata', () => {
+  const record = { ...CONTEXT };
+  const other = { ...CONTEXT, account_id: 'other-account' };
+  const pending = new Map([['old-token', record], ['other-token', other]]);
+  assert.equal(movePasskeyCommit(pending, 'old-token', 'new-token', 'old-token'), false, 'Failed token save leaves active token unchanged');
+  assert.equal(pending.get('old-token'), record);
+  assert.equal(pending.has('new-token'), false);
+  assert.equal(movePasskeyCommit(pending, 'old-token', 'other-token', 'other-token'), false);
+  assert.equal(pending.get('old-token'), record);
+  assert.equal(pending.get('other-token'), other);
+  assert.equal(movePasskeyCommit(pending, 'old-token', '', ''), false);
+  assert.equal(movePasskeyCommit(pending, 'old-token', 'old-token', 'old-token'), false);
 });

@@ -168,6 +168,17 @@ export function reconcilePasskeyCommit(store, token, observed, config) {
   return 'unknown';
 }
 
+// Call only after the explicit same-account rotation has saved its new token.
+// Preserve record identity so reads dispatched under the old token stay stale.
+export function movePasskeyCommit(store, from, to, activeToken) {
+  if (!from || !to || from === to || activeToken !== to || store.has(to)) return false;
+  const pending = store.get(from);
+  if (!pending) return false;
+  store.set(to, pending);
+  store.delete(from);
+  return true;
+}
+
 export async function bindPasskey({ request, vault, config, superPass, secretKey, label, signal, isCurrent, credentials = globalThis.navigator?.credentials, onStage = () => {} }) {
   const current = () => assertPasskeyCurrent(signal, isCurrent);
   let urk, prf, reopenedPrf, roundtrip;

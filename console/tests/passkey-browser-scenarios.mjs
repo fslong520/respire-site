@@ -51,14 +51,14 @@ async function noRecoveryStorage(page, recovery) {
 }
 
 export async function passkeyBrowserScenarios({ run, open, api }) {
-  const setup = async () => {
+  const setup = async (storage = {}) => {
     // The fixture retains its request log for the final cross-origin audit.
     // Every scenario asserts its own delta without clearing that audit trail.
     const requestStart = api.requests.length;
     api.state.passkeysEnabled = true;
     const recovery = generateSecretKey();
     api.state.vault = await wrapVaultV4(recovery);
-    const page = await open('/dashboard/keys', { 'rsrs.userToken': FIXTURE.userToken });
+    const page = await open('/dashboard/keys', { ...storage, 'rsrs.userToken': FIXTURE.userToken });
     await syntheticProvider(page);
     await page.getByRole('button', { name: t('passkeyBind'), exact: true }).waitFor();
     return { recovery, page, requests: () => api.requests.slice(requestStart) };
@@ -297,6 +297,58 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     await page.locator('.locked-state').waitFor({ state: 'hidden' });
     assert.equal(requests().filter(r => r.method === 'POST' && r.path.endsWith('/unlock/finish')).length, 1,
       'Only the fresh Diary attempt may submit an assertion');
+  });
+
+  await run('passkeys: same-account token rotation preserves an uncertain commit until positive reconciliation', async () => {
+    const { recovery, page, requests } = await setup();
+    let release, started, stored;
+    api.state.passkeyCommitGate = new Promise(resolve => { release = resolve; });
+    const dispatched = new Promise(resolve => { started = resolve; });
+    const accepted = new Promise(resolve => { stored = resolve; });
+    api.state.passkeyCommitStarted = started;
+    api.state.passkeyCommitStored = stored;
+    try {
+      const dialog = await enroll(page, recovery, 'Rotating account');
+      await dispatched;
+      await dialog.getByRole('button', { name: t('cancel'), exact: true }).click();
+      await dialog.waitFor({ state: 'hidden' });
+      await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).waitFor();
+      await nav(page, 'sessions');
+      await page.getByRole('button', { name: t('rotateToken'), exact: true }).click();
+      await page.waitForFunction(() => localStorage.getItem('rsrs.userToken') === 'fixture-rotated-token');
+      await nav(page, 'keys');
+      await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).waitFor();
+      assert.equal(await page.getByRole('button', { name: t('passkeyBind'), exact: true }).isDisabled(), true);
+      assert.equal(api.state.passkeys.size, 0);
+    } finally { release(); api.state.passkeyCommitGate = null; }
+    await accepted;
+    await page.getByRole('button', { name: t('passkeyRefresh'), exact: true }).click();
+    await page.locator('.passkey-list').getByText('Rotating account', { exact: true }).waitFor();
+    await page.getByText(t('passkeyCommitFound'), { exact: true }).waitFor();
+    assert.ok(requests().some(r => r.method === 'GET' && r.path === '/api/self/passkeys'
+      && r.headers.authorization === 'Bearer fixture-rotated-token'));
+    assert.equal(requests().filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 1);
+    assert.equal(requests().filter(r => r.path.endsWith('/remove')).length, 0);
+    await noRecoveryStorage(page, recovery);
+  });
+
+  await run('passkeys: ordinary account switching never transfers another account pending outcome', async () => {
+    const { recovery, page } = await setup({ 'rsrs.dashboard.accounts': JSON.stringify([
+      { user: FIXTURE.user, token: FIXTURE.userToken }, { user: FIXTURE.secondUser, token: FIXTURE.secondToken },
+    ]) });
+    api.state.passkeyCommitRejected = true;
+    await (await enroll(page, recovery, 'First account only')).waitFor({ state: 'hidden' });
+    await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).waitFor();
+    await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.secondToken);
+    await page.waitForFunction(token => localStorage.getItem('rsrs.userToken') === token, FIXTURE.secondToken);
+    await nav(page, 'keys');
+    await page.getByRole('button', { name: t('passkeyBind'), exact: true }).waitFor();
+    assert.equal(await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).count(), 0);
+    await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.userToken);
+    await page.waitForFunction(token => localStorage.getItem('rsrs.userToken') === token, FIXTURE.userToken);
+    await nav(page, 'keys');
+    await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: t('passkeyBind'), exact: true }).isDisabled(), true);
   });
 
   await run('passkeys: an accepted memory session disables redundant passkey unlock and keeps syncing', async () => {

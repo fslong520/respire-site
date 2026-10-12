@@ -88,7 +88,8 @@ cannot prove that no binding was saved. The UI reports an unknown outcome and
 refreshes the authenticated binding list without retrying the commit or deleting
 credentials. Only a matching positive list entry confirms success; an early
 empty or failed read leaves uncertainty. Public pending metadata is scoped to
-the session token in page memory, survives navigation, and is cleared on logout.
+the session token in page memory, survives navigation, follows a successfully saved same-account token rotation,
+and is cleared on logout. Ordinary account switching never transfers it.
 A key-generation change removes the old retry fence without asserting that no
 binding existed historically. Users can explicitly acknowledge a possible extra
 credential and start a new ceremony after another fresh list check. Cancelling
