@@ -41,7 +41,8 @@ async function enroll(page, recovery, label) {
   await dialog.getByRole('button', { name: t('passkeyBind'), exact: true }).click();
   return dialog;
 }
-const nav = (page, destination) => page.locator(`.sidebar nav a[href="#/${destination}"]`).click();
+const nav = (page, destination) => page.getByRole('navigation', { name: t('mainNav'), exact: true })
+  .locator(`a[href="#/${destination}"]`).click();
 async function noRecoveryStorage(page, recovery) {
   const storage = await page.evaluate(() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]));
   assert.ok(!storage.includes(recovery));
