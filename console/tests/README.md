@@ -72,3 +72,35 @@ allowed origins can read 401 responses, denied origins cannot, and redirects /
 unapproved destinations remain blocked. It uses no hosted configuration or
 credentials. Run it in browser-capable CI; mocked contracts alone do not establish
 native CORS behavior.
+
+## Passkey PRF coverage
+
+The normal unit suite includes `passkeys.test.mjs`: exact same-URK and mixed
+legacy/current ciphertext compatibility (recovery wrappers v1–v4), AEAD metadata
+and ciphertext tampering, secret-free credential serialization, two independent
+assertion PRF outputs before activation, missing/unstable PRF, cancellation,
+retries, and stale account/unlock fencing. These are synthetic WebCrypto tests.
+
+The existing compiled-UI fixture suite also includes passkey management, multiple
+bindings, memory unlock after reload, removal, recovery preservation, missing PRF,
+late responses, navigation/dismissal and interrupted first memory loads. Its
+`navigator.credentials` is deliberately synthetic; it does not establish real
+provider support or Server signature verification.
+
+`npm run test:browser` then runs `browser-passkey-prf.mjs` with a Chromium CDP
+virtual authenticator supporting PRF. That test uses native WebAuthn creation and
+assertion, the production crypto flow, and an isolated loopback service. It also
+checks a PRF-disabled authenticator. Signature verification is covered separately
+by the paired Server's authenticator tests. A virtual authenticator passing is
+not evidence for iCloud Keychain, Google Password Manager, Windows Hello,
+1Password, Bitwarden, hardware keys, or any other real provider. Test those
+manually on the intended RP/origin before advertising compatibility.
+
+Commit-lifecycle regressions additionally cover a successful synthetic write
+with a failed confirmation response, cancellation before/after the write,
+automatic safe list reconciliation, an early empty list remaining unknown,
+explicit acknowledged retry, cancellation of a delayed retry refresh,
+authoritative key-generation changes, stale cross-instance responses, removal
+of a previously confirmed binding, and Memories-to-Diary route cancellation.
+The failed-confirmation fixture returns a synthetic 503 after storing the binding;
+it does not claim to reproduce every real network failure mode.

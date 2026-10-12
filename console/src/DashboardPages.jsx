@@ -10,6 +10,7 @@ import { decryptItem, deriveDataKeys, encryptItem, generateSecretKey, unwrapUrk,
 import { api, readToken, USER_KEY, hasLegacyRecovery, exportLegacyRecovery, clearLegacyRecovery } from './api.js';
 import { MemorySync } from './memorySync.js';
 import { Security } from './Security.jsx';
+import { Passkeys } from './Passkeys.jsx';
 import { buildIndex, childrenOf, subtreeCount, diaryDays, visibleRows, ROOT_ID, DIARY_ID } from './treeModel.js';
 import { t, getLocale, kindLabel } from './i18n.js';
 import { readUnlockSession, saveUnlockSession, dropUnlockSession } from './unlockSession.js';
@@ -211,10 +212,13 @@ export function DashboardPages({
       });
   }, [page, token, tick]);
 
-  const unlockMemories = async (pass, secret, session) => {
-    const generation = ++unlockGeneration.current;
-    memorySyncRef.current?.close();
+  const unlockMemories = async (pass, secret, session, lease) => {
+    const generation = lease?.generation ?? ++unlockGeneration.current;
+    let leaseAccepted = false;
+    const current = () => generation === unlockGeneration.current && readToken(USER_KEY) === token && (!lease || leaseAccepted || lease.isCurrent());
+    if (!current()) throw new DOMException('Unlock superseded', 'AbortError');
     const vault = await api('/api/self/vault', { token });
+    if (!current()) throw new DOMException('Unlock superseded', 'AbortError');
     const v = Number(vault.version) || 0;
     let dataKey;
     if (session) {
@@ -235,9 +239,10 @@ export function DashboardPages({
       legacy: await crypto.subtle.importKey('raw', dataKey.legacy, 'AES-GCM', false, ['decrypt']),
       current: await crypto.subtle.importKey('raw', dataKey.current, 'AES-GCM', false, ['decrypt']),
     };
-    if (generation !== unlockGeneration.current || readToken(USER_KEY) !== token) {
+    if (!current()) {
       throw new DOMException('Unlock superseded', 'AbortError');
     }
+    memorySyncRef.current?.close();
     dataKeyRef.current = dataKey;
     setLoadError('');
     let firstResolve;
@@ -247,10 +252,11 @@ export function DashboardPages({
     const controller = new MemorySync({
       token, vault,
       isCurrent: () => dataKeyRef.current === dataKey && readToken(USER_KEY) === token
-        && memorySyncRef.current === controller,
+        && memorySyncRef.current === controller && (leaseAccepted || current()),
       onLoading: setSyncing,
       onCacheError: () => notify(t('memoryCacheUnavailable')),
-      onReset: () => setItems([]),
+      // Keep the locked controls mounted until the first accepted batch.
+      onReset: () => setItems(leaseAccepted ? [] : null),
       onBlobs: async (blobs, signal) => {
         let failed = 0;
         // Small batches yield between paints, with one imported key per unlocked session.
@@ -264,6 +270,13 @@ export function DashboardPages({
           }));
           controller.current();
           signal.throwIfAborted();
+          if (!leaseAccepted) {
+            // Transfer ownership only once a current batch is ready to render.
+            // Before this point, modal dismissal/navigation still cancels unlock.
+            leaseAccepted = true;
+            lease?.onAccept?.();
+            lease?.signal?.removeEventListener('abort', releaseIfUnaccepted);
+          }
           setItems((prev) => {
             const next = new Map((prev || []).map((m) => [m.id, m]));
             for (const change of changes) {
@@ -285,12 +298,24 @@ export function DashboardPages({
         if (failed) notify(t('newCipherFail', { n: failed }));
       },
     });
+    const releaseIfUnaccepted = () => {
+      if (leaseAccepted) return;
+      controller.close();
+      if (memorySyncRef.current === controller) { memorySyncRef.current = null; setSyncing(false); }
+      if (dataKeyRef.current === dataKey) dataKeyRef.current = null;
+      firstReject(new DOMException('Unlock superseded', 'AbortError'));
+    };
+    lease?.signal?.addEventListener('abort', releaseIfUnaccepted, { once: true });
     memorySyncRef.current = controller;
     controller.start().then(() => {
       controller.current();
       setLastSync(Date.now());
     }).catch((error) => {
-      if (!displayed) firstReject(error);
+      if (!displayed) {
+        lease?.signal?.removeEventListener('abort', releaseIfUnaccepted);
+        if (dataKeyRef.current === dataKey) dataKeyRef.current = null;
+        firstReject(error);
+      }
       if (error.name === 'AbortError') return;
       setLoadError(t('memoryLoadInterrupted'));
       if (displayed) notify(error.message);
@@ -447,6 +472,17 @@ export function DashboardPages({
     },
     submit: t('saveEdit'),
   });
+  const passkeyControls = (mode = 'unlock') => <Passkeys key={JSON.stringify([token, tick, page, memoryId])} token={token} mode={mode} hasVault={hasVault} unlocked={keyStored} open={open} notify={notify}
+    beginUnlock={() => {
+      const generation = ++unlockGeneration.current;
+      return { generation, isCurrent: () => generation === unlockGeneration.current && readToken(USER_KEY) === token };
+    }}
+    onCancelUnlock={lockMemories}
+    onUnlock={async (dataKey, vault, lease) => {
+      await unlockMemories('', '', { vault: JSON.stringify(vault), dataKey }, lease);
+      notify(t('unlockedHere'));
+    }} />;
+
   const openUnlock = async () => {
     let vault = {};
     try { vault = await api('/api/self/vault', { token }); } catch { /* Report a missing vault on submission */ }
@@ -501,6 +537,7 @@ export function DashboardPages({
             <h2>{t('diaryLockedH2')}</h2>
             <p>{t('diaryLockedP')}</p>
             <Button primary icon={Key} onClick={openUnlock}>{t('unlockMemory')}</Button>
+            {passkeyControls()}
           </section>
         </>
       );
@@ -531,6 +568,7 @@ export function DashboardPages({
               {t('lockedP')}
             </p>
             <Button primary icon={Key} onClick={openUnlock}>{t('unlockMemory')}</Button>
+            {passkeyControls()}
             <span>{t('memoryOnlyDescription')}</span>
             {legacyRecovery ? <Button onClick={() => go('keys')}>{t('legacyRecoveryClear')}</Button> : null}
           </section>
@@ -803,7 +841,8 @@ export function DashboardPages({
     // v4 recovery codes are generated rather than chosen by the user.
     const newSuper = generateSecretKey();
     const wrapped = await wrapVaultV4(newSuper);
-    await api('/api/self/vault', { method: 'POST', token, body: wrapped });
+    await api(reset ? '/api/self/vault/reset' : '/api/self/vault', { method: 'POST', token,
+      body: reset ? { ...wrapped, expected_key_generation: vaultInfo?.key_generation } : wrapped });
     setTick((n) => n + 1);
     lockMemories();
     notify(reset ? t('keysResetLost') : t('superGenerated'));
@@ -852,6 +891,7 @@ export function DashboardPages({
             </div>
           </> : null}
         </section>
+        {passkeyControls('manage')}
         <div className="settings-stack">
           {!hasVault ? (
             <div className="setting-row">
@@ -884,7 +924,8 @@ export function DashboardPages({
                   let wrapped;
                   try { wrapped = await wrapVaultV4(newSuper, urk); }
                   finally { urk.fill(0); }
-                  await api('/api/self/vault', { method: 'POST', token, body: wrapped });
+                  await api('/api/self/vault', { method: 'POST', token, body: { ...wrapped,
+                    operation: 'rewrap_same_urk', expected_key_generation: vault.key_generation } });
                   setTick((n) => n + 1);
                   lockMemories();
                   window.setTimeout(() => open({

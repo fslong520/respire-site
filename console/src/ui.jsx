@@ -95,6 +95,18 @@ export function Modal({
   onClose
 }) {
   const ref = useRef(null);
+  const alive = useRef(true);
+  const lifetime = useRef(0);
+  const dismissed = useRef(false);
+  const notifyDismiss = () => {
+    if (!dismissed.current) { dismissed.current = true; config.onDismiss?.(); }
+  };
+  const dismiss = () => {
+    if (!alive.current) return;
+    alive.current = false;
+    notifyDismiss();
+    onClose();
+  };
   const optionValue = option => Array.isArray(option) ? option[0] : option?.value ?? option;
   const optionLabel = option => Array.isArray(option) ? option[1] : option?.label ?? option;
   const [values, setValues] = useState(Object.fromEntries((config.fields || []).map(f => [f.name, f.value ?? (f.options?.length ? optionValue(f.options[0]) : '')])));
@@ -102,11 +114,20 @@ export function Modal({
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     const el = ref.current;
+    const generation = ++lifetime.current;
+    alive.current = true;
     el.showModal();
-    return () => el.close();
+    return () => {
+      alive.current = false;
+      el.close();
+      // StrictMode rehearses cleanup then mounts this same effect again. Only
+      // a real unmount cancels the owning asynchronous operation.
+      queueMicrotask(() => { if (lifetime.current === generation) notifyDismiss(); });
+    };
   }, []);
   async function submit(e) {
     e.preventDefault();
+    if (!alive.current || busy) return;
     setError('');
     const err = config.validate?.(values);
     if (err) {
@@ -116,21 +137,21 @@ export function Modal({
     setBusy(true);
     try {
       const keep = await config.onSubmit?.(values);
-      if (keep !== false) onClose();
+      if (alive.current && keep !== false) dismiss();
     } catch (e) {
-      setError(e.message);
+      if (alive.current) setError(e.message);
     } finally {
-      setBusy(false);
+      if (alive.current) setBusy(false);
     }
   }
   return <dialog ref={ref} className={`modal ${config.wide ? 'wide' : ''} ${config.danger ? 'danger' : ''}`} onCancel={e => {
     e.preventDefault();
-    onClose();
+    dismiss();
   }} onClick={e => {
-    if (e.target === ref.current) onClose();
+    if (e.target === ref.current) dismiss();
   }}><form onSubmit={submit}><div className="modal-heading"><div className="modal-mark">{config.icon ? React.createElement(config.icon, {
             size: 26
-          }) : <ShieldCheck size={26} />}</div><button type="button" className="icon-button" aria-label={t('closeDialog')} onClick={onClose}><X size={22} /></button></div><h2>{config.title}</h2>{config.description && <p className="modal-description">{config.description}</p>}{config.body}{config.fields?.map(f => <label className="field" key={f.name}>{f.label}{f.options ? <select aria-label={f.label} value={values[f.name]} onChange={e => setValues({
+          }) : <ShieldCheck size={26} />}</div><button type="button" className="icon-button" aria-label={t('closeDialog')} onClick={dismiss}><X size={22} /></button></div><h2>{config.title}</h2>{config.description && <p className="modal-description">{config.description}</p>}{config.body}{config.fields?.map(f => <label className="field" key={f.name}>{f.label}{f.options ? <select aria-label={f.label} value={values[f.name]} onChange={e => setValues({
           ...values,
           [f.name]: e.target.value
         })}>{f.options.map(o => <option key={optionValue(o)} value={optionValue(o)}>{optionLabel(o)}</option>)}</select> : f.type === 'textarea' ? <textarea aria-label={f.label} rows={f.rows || 6} required={f.required !== false} placeholder={f.placeholder} value={values[f.name]} onChange={e => setValues({
@@ -139,7 +160,7 @@ export function Modal({
         })} /> : <input aria-label={f.label} autoFocus={f.autofocus} type={f.type || 'text'} required={f.required !== false} placeholder={f.placeholder} value={values[f.name]} onChange={e => setValues({
           ...values,
           [f.name]: e.target.value
-        })} autoComplete="off" minLength={f.minLength} />}{f.hint && <small>{f.hint}</small>}</label>)}{error && <p role="alert" className="form-error"><WarningCircle size={18} />{error}</p>}<div className="modal-footer"><Button type="button" onClick={onClose}>{config.cancel || t('cancel')}</Button><Button type="submit" primary={!config.danger} danger={config.danger} className={config.danger ? 'purge' : ''} disabled={busy}>{busy ? t('working') : config.submit || t('confirm')}</Button></div></form></dialog>;
+        })} autoComplete="off" minLength={f.minLength} />}{f.hint && <small>{f.hint}</small>}</label>)}{error && <p role="alert" className="form-error"><WarningCircle size={18} />{error}</p>}<div className="modal-footer"><Button type="button" onClick={dismiss}>{config.cancel || t('cancel')}</Button><Button type="submit" primary={!config.danger} danger={config.danger} className={config.danger ? 'purge' : ''} disabled={busy}>{busy ? t('working') : config.submit || t('confirm')}</Button></div></form></dialog>;
 }
 
 /** Account purge requires two confirmations: explain the effects, then verify the username and confirmation phrase. */

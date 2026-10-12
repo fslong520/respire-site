@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Gate } from './Gate.jsx';
+import { clearPendingPasskeyCommit, movePendingPasskeyCommit } from './Passkeys.jsx';
 import { Shell } from './Shell.jsx';
 import { CliAuthorization } from './CliAuthorization.jsx';
 import { GithubCallback } from './GithubCallback.jsx';
@@ -43,6 +44,7 @@ function Console({ admin }) {
   const key = admin ? ADMIN_KEY : USER_KEY;
   const [token, setTokenState] = useState(() => readToken(key));
   const [hint, setHint] = useState('');
+  const [passkeyOfferToken, setPasskeyOfferToken] = useState('');
   useEffect(() => {
     if (!removeRetiredSuperPass()) setHint(t('legacyRecoveryClearFailed'));
   }, []);
@@ -66,13 +68,14 @@ function Console({ admin }) {
     entryGeneration.current += 1;
     if (!admin && !value) {
       dropUnlockSession(previous);
+      clearPendingPasskeyCommit(previous);
       // Account-list cleanup cannot undo a successful logout.
       try { setAccounts(removeAccount(previous)); }
       catch { setHint(t('accountListFailed')); }
     }
     setTokenState(value);
   };
-  async function enterAccount(value, superPass, secretKey) {
+  async function enterAccount(value, superPass, secretKey, recoveryCreated = false) {
     const generation = ++entryGeneration.current;
     const previous = readToken(key);
     const info = await api('/api/self', { token: value });
@@ -91,6 +94,7 @@ function Console({ admin }) {
     setToken(value);
     if (dataKey) saveUnlockSession(value, vault, dataKey);
     setAdding(false);
+    if (recoveryCreated) setPasskeyOfferToken(value);
     return true;
   }
   async function switchAccount(account) {
@@ -165,9 +169,9 @@ function Console({ admin }) {
     const generation = entryGeneration.current;
     return <GithubCallback grant={github} token={token} authorization={authorization}
       onDone={() => { entryGeneration.current += 1; setGithub(null); }}
-      onEnter={async ({ token: value, superPass }) => {
+      onEnter={async ({ token: value, superPass, recoveryCreated }) => {
         if (generation !== entryGeneration.current) return;
-        if (await enterAccount(value, superPass)) setGithub(null);
+        if (await enterAccount(value, superPass, undefined, recoveryCreated)) setGithub(null);
       }} />;
   }
   if (!checked) {
@@ -181,9 +185,9 @@ function Console({ admin }) {
           admin={admin}
           authorization={authorization}
           notify={(t) => { setHint(t); window.setTimeout(() => setHint(''), 3500); }}
-          onEnter={({ token: value, superPass, secretKey }) => {
+          onEnter={({ token: value, superPass, secretKey, recoveryCreated }) => {
             if (gateGeneration !== entryGeneration.current) return false;
-            return admin ? setToken(value) : enterAccount(value, superPass, secretKey);
+            return admin ? setToken(value) : enterAccount(value, superPass, secretKey, recoveryCreated);
           }}
         />
         {adding && <button type="button" className="gate-link" onClick={() => { entryGeneration.current += 1; setAdding(false); }}>{t('cancel')}</button>}
@@ -199,6 +203,8 @@ function Console({ admin }) {
       admin={admin}
       token={token}
       accounts={accounts}
+      passkeyOffer={passkeyOfferToken === token}
+      onDismissPasskeyOffer={() => setPasskeyOfferToken('')}
       switching={switching}
       onSwitchAccount={switchAccount}
       onAddAccount={addAccount}
@@ -208,7 +214,12 @@ function Console({ admin }) {
           if (current) setAccounts(saveAccount(current.user, value));
         }
         setToken(value);
-        if (!admin) moveUnlockSession(token, value);
+        if (!admin) {
+          moveUnlockSession(token, value);
+          // This callback is used only by authenticated same-account rotation.
+          // setToken must succeed before public pending metadata can move.
+          movePendingPasskeyCommit(token, value);
+        }
       }}
       onLogout={() => { try { setToken(''); } catch (error) { setHint(error.message); } }}
     />

@@ -52,6 +52,18 @@ export async function startFixtureApi({ frontend } = {}) {
       emailVerified: false,
       pendingEmail: '',
       vault: null,
+      passkeysEnabled: false,
+      passkeys: new Map(),
+      passkeyCeremonies: new Map(),
+      passkeyCommitGate: null,
+      passkeyCommitResponseGate: null,
+      passkeyCommitResponseLost: false,
+      passkeyCommitRejected: false,
+      passkeyListGate: null,
+      passkeyListStarted: null,
+      passkeyCommitStarted: null,
+      passkeyCommitStored: null,
+      keyGeneration: 1,
       blobs: new Map(),
       revision: 0,
       userTicket: 'fixture-user-ticket',
@@ -201,16 +213,103 @@ export async function startFixtureApi({ frontend } = {}) {
         return json(200, { ok: true });
       }
       if (method === 'GET' && /^\/api\/self\/cli-authorization\/[A-Fa-f0-9]{12}$/.test(path)) return json(404, { error: 'fixture authorization code not found' });
+      // Synthetic protocol fixture only: signature/attestation verification is
+      // covered by Server tests, not these browser UI regressions.
+      const passkeyMeta = { account_id: 'fixture-account-id', rp_id: new URL(origin).hostname, key_generation: state.keyGeneration };
+      const newCeremony = (stage, details = {}) => {
+        const ceremony_id = crypto.randomUUID();
+        const record = { ...passkeyMeta, ...details, ceremony_id, stage };
+        state.passkeyCeremonies.set(ceremony_id, record);
+        return record;
+      };
+      const assertionOptions = pending => ({ ...passkeyMeta, ceremony_id: pending.ceremony_id,
+        credential_id: pending.credential_id, prf_salt: pending.prf_salt, public_key: { challenge: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url'),
+        rpId: passkeyMeta.rp_id, userVerification: 'required', allowCredentials: [{ type: 'public-key', id: pending.credential_id }] } });
+      const takeCeremony = stage => {
+        const pending = state.passkeyCeremonies.get(body.ceremony_id);
+        assert.equal(pending?.stage, stage);
+        state.passkeyCeremonies.delete(body.ceremony_id);
+        assert.equal(body.credential.type, 'public-key');
+        assert.equal(body.credential.rawId, body.credential.id);
+        assert.equal(body.credential.clientExtensionResults?.prf?.results, undefined);
+        if (pending.credential_id) assert.equal(body.credential.id, pending.credential_id);
+        return pending;
+      };
+      if (method === 'GET' && path === '/api/self/passkeys') {
+        state.passkeyListStarted?.();
+        await state.passkeyListGate;
+        return json(200, { enabled: state.passkeysEnabled,
+        ...(state.passkeysEnabled ? { ...passkeyMeta, origin } : {}),
+        credentials: [...state.passkeys.values()].map(({ wrapper, ...credential }) => credential) });
+      }
+      if (method === 'POST' && path.startsWith('/api/self/passkeys/')) {
+        assert.equal(state.passkeysEnabled, true);
+        if (path.endsWith('/register/start')) {
+          assert.ok(body.label.length > 0);
+          const pending = newCeremony('register', { label: body.label });
+          return json(200, { ...pending, public_key: { challenge: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url'),
+            rp: { id: passkeyMeta.rp_id, name: 'Synthetic Respire' }, user: { id: Buffer.from(passkeyMeta.account_id).toString('base64url'), name: FIXTURE.user, displayName: FIXTURE.user },
+            pubKeyCredParams: [{ type: 'public-key', alg: -7 }], excludeCredentials: [...state.passkeys.values()].map(c => ({ type: 'public-key', id: c.credential_id })) } });
+        }
+        if (path.endsWith('/register/finish')) {
+          const pending = takeCeremony('register');
+          return json(200, assertionOptions(newCeremony('test', { ...pending, credential_id: body.credential.id,
+            prf_salt: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url') })));
+        }
+        if (path.endsWith('/register/test')) {
+          const pending = takeCeremony('test');
+          return json(200, assertionOptions(newCeremony('commit', pending)));
+        }
+        if (path.endsWith('/register/commit')) {
+          const pending = takeCeremony('commit');
+          state.passkeyCommitStarted?.();
+          if (state.passkeyCommitRejected) return json(400, { error: 'Synthetic rejected commit' });
+          await state.passkeyCommitGate;
+          assert.equal(body.wrapper.version, 1);
+          assert.equal(Buffer.from(body.wrapper.wrapped_urk, 'base64url').length, 48);
+          assert.equal(Buffer.from(body.wrapper.nonce, 'base64url').length, 12);
+          state.passkeys.set(pending.credential_id, { ...passkeyMeta, credential_id: pending.credential_id, label: pending.label,
+            prf_salt: pending.prf_salt, created_at: new Date().toISOString(), last_used_at: null, wrapper: body.wrapper });
+          state.passkeyCommitStored?.();
+          await state.passkeyCommitResponseGate;
+          // Successful write followed by an ambiguous confirmation failure.
+          if (state.passkeyCommitResponseLost) return json(503, { error: 'Synthetic confirmation lost after commit' });
+          return json(200, { ok: true });
+        }
+        if (path.endsWith('/unlock/start')) {
+          const credential = state.passkeys.get(body.credential_id);
+          if (!credential) return json(404, { error: 'fixture passkey not found' });
+          return json(200, assertionOptions(newCeremony('unlock', credential)));
+        }
+        if (path.endsWith('/unlock/finish')) {
+          const pending = takeCeremony('unlock');
+          return json(200, state.passkeys.get(pending.credential_id));
+        }
+        if (path.endsWith('/remove')) {
+          state.passkeys.delete(body.credential_id);
+          return json(200, { ok: true });
+        }
+      }
+      if (method === 'POST' && path === '/api/self/vault/reset') {
+        assert.equal(body.expected_key_generation, state.keyGeneration);
+        state.keyGeneration++;
+        state.passkeys.clear(); state.passkeyCeremonies.clear();
+        const { expected_key_generation, ...vault } = body;
+        state.vault = vault;
+        return json(200, { ok: true });
+      }
       if (path === '/api/self/vault') {
         if (method === 'POST') {
           assert.equal(body.version, 4);
           assert.match(body.wrapped_urk, /^rsrs:v1:[0-9a-f]{96}$/);
           assert.match(body.urk_nonce, /^[0-9a-f]{24}$/);
           assert.match(body.kdf_salt, /^[0-9a-f]{32}$/);
-          state.vault = body;
+          if (body.operation === 'rewrap_same_urk') assert.equal(body.expected_key_generation, state.keyGeneration);
+          const { operation, expected_key_generation, ...vault } = body;
+          state.vault = vault;
           return json(200, { ok: true });
         }
-        if (method === 'GET') return state.vault ? json(200, state.vault) : json(404, { error: 'fixture vault not initialized' });
+        if (method === 'GET') return state.vault ? json(200, { ...state.vault, ...(state.passkeysEnabled ? { account_id: passkeyMeta.account_id, key_generation: state.keyGeneration } : {}) }) : json(404, { error: 'fixture vault not initialized' });
       }
       if (method === 'POST' && path === '/api/self/github/vault') {
         if (state.vault || state.blobs.size) return json(409, { error: 'existing vault or memories must be preserved' });
