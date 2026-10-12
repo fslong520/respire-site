@@ -342,7 +342,8 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.secondToken);
     await page.waitForFunction(token => localStorage.getItem('rsrs.userToken') === token, FIXTURE.secondToken);
     await nav(page, 'keys');
-    await page.getByRole('button', { name: t('passkeyBind'), exact: true }).waitFor();
+    await page.getByRole('button', { name: t('passkeyBind'), exact: true }).and(page.locator(':enabled')).waitFor();
+    assert.equal(await page.getByRole('button', { name: t('passkeyBind'), exact: true }).isEnabled(), true);
     assert.equal(await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).count(), 0);
     await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.userToken);
     await page.waitForFunction(token => localStorage.getItem('rsrs.userToken') === token, FIXTURE.userToken);
