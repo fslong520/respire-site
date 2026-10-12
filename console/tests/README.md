@@ -95,3 +95,12 @@ by the paired Server's authenticator tests. A virtual authenticator passing is
 not evidence for iCloud Keychain, Google Password Manager, Windows Hello,
 1Password, Bitwarden, hardware keys, or any other real provider. Test those
 manually on the intended RP/origin before advertising compatibility.
+
+Commit-lifecycle regressions additionally cover a successful synthetic write
+with a failed confirmation response, cancellation before/after the write,
+automatic safe list reconciliation, an early empty list remaining unknown,
+explicit acknowledged retry, cancellation of a delayed retry refresh,
+authoritative key-generation changes, stale cross-instance responses, removal
+of a previously confirmed binding, and Memories-to-Diary route cancellation.
+The failed-confirmation fixture returns a synthetic 503 after storing the binding;
+it does not claim to reproduce every real network failure mode.

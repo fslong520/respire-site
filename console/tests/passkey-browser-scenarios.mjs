@@ -154,6 +154,143 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     assert.equal([...api.state.passkeys.values()][0].label, 'New attempt');
   });
 
+  await run('passkeys: accepted commit with failed confirmation refreshes list without retry or removal', async () => {
+    const { recovery, page } = await setup();
+    const original = structuredClone(api.state.vault);
+    api.state.passkeyCommitResponseLost = true;
+    await (await enroll(page, recovery, 'Lost confirmation')).waitFor({ state: 'hidden' });
+    await page.locator('.passkey-list').getByText('Lost confirmation', { exact: true }).waitFor();
+    await page.getByText(t('passkeyCommitFound'), { exact: true }).waitFor();
+    assert.equal(api.state.passkeys.size, 1);
+    assert.equal(api.requests.filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 1);
+    assert.equal(api.requests.filter(r => r.path.endsWith('/remove')).length, 0);
+    assert.deepEqual(api.state.vault, original);
+    await noRecoveryStorage(page, recovery);
+    await page.locator('.passkey-list').getByRole('button', { name: t('passkeyRemove'), exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: t('passkeyRemove'), exact: true }).click();
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    assert.equal(await page.getByText(t('passkeyCommitFound'), { exact: true }).count(), 0);
+  });
+
+  await run('passkeys: cancel after server commit refreshes binding and never reopens the dialog', async () => {
+    const { recovery, page } = await setup();
+    let release, stored;
+    api.state.passkeyCommitResponseGate = new Promise(resolve => { release = resolve; });
+    const accepted = new Promise(resolve => { stored = resolve; });
+    api.state.passkeyCommitStored = stored;
+    try {
+      const dialog = await enroll(page, recovery, 'Accepted before cancel');
+      await accepted;
+      await dialog.getByRole('button', { name: t('cancel'), exact: true }).click();
+      await dialog.waitFor({ state: 'hidden' });
+      await page.locator('.passkey-list').getByText('Accepted before cancel', { exact: true }).waitFor();
+      await page.getByText(t('passkeyCommitFound'), { exact: true }).waitFor();
+    } finally { release(); api.state.passkeyCommitResponseGate = null; }
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    assert.equal(api.state.passkeys.size, 1);
+    assert.equal(api.requests.filter(r => r.path.endsWith('/remove')).length, 0);
+  });
+
+  for (const interruption of ['cancel', 'navigate']) await run(`passkeys: ${interruption} after dispatch preserves uncertainty when refresh precedes commit`, async () => {
+    const { recovery, page } = await setup();
+    let release, started, stored;
+    api.state.passkeyCommitGate = new Promise(resolve => { release = resolve; });
+    const dispatched = new Promise(resolve => { started = resolve; });
+    const accepted = new Promise(resolve => { stored = resolve; });
+    api.state.passkeyCommitStarted = started;
+    api.state.passkeyCommitStored = stored;
+    try {
+      const dialog = await enroll(page, recovery, 'In-flight commit');
+      await dispatched;
+      if (interruption === 'cancel') await dialog.getByRole('button', { name: t('cancel'), exact: true }).click();
+      else await page.evaluate(() => { location.hash = '/security'; });
+      await dialog.waitFor({ state: 'hidden' });
+      if (interruption === 'navigate') await nav(page, 'keys');
+      await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).waitFor();
+      assert.equal(api.state.passkeys.size, 0, 'The first authoritative list precedes the in-flight write');
+      assert.equal(await page.getByRole('button', { name: t('passkeyBind'), exact: true }).isDisabled(), true);
+    } finally { release(); api.state.passkeyCommitGate = null; }
+    await accepted;
+    await page.getByRole('button', { name: t('passkeyRefresh'), exact: true }).click();
+    await page.locator('.passkey-list').getByText('In-flight commit', { exact: true }).waitFor();
+    await page.getByText(t('passkeyCommitFound'), { exact: true }).waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    assert.equal(api.requests.filter(r => r.path.endsWith('/remove')).length, 0);
+    assert.equal(api.requests.filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 1);
+    await noRecoveryStorage(page, recovery);
+  });
+
+  await run('passkeys: acknowledged retry refreshes first and preserves possibly successful credentials', async () => {
+    const { recovery, page } = await setup();
+    api.state.passkeyCommitRejected = true;
+    await (await enroll(page, recovery, 'Unconfirmed first attempt')).waitFor({ state: 'hidden' });
+    await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).waitFor();
+    await page.getByRole('button', { name: t('passkeyRetryUnknown'), exact: true }).click();
+    api.state.passkeyCommitRejected = false;
+    await page.getByRole('dialog').getByRole('button', { name: t('passkeyRetryConfirm'), exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel(t('labelSuperA3'), { exact: true }).fill(recovery);
+    await dialog.getByLabel(t('passkeyLabel'), { exact: true }).fill('Acknowledged retry');
+    await dialog.getByRole('button', { name: t('passkeyBind'), exact: true }).click();
+    await dialog.waitFor({ state: 'hidden' });
+    await page.locator('.passkey-list').getByText('Acknowledged retry', { exact: true }).waitFor();
+    assert.equal(api.requests.filter(r => r.path.endsWith('/remove')).length, 0);
+    assert.equal(api.requests.filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 2);
+  });
+
+  await run('passkeys: cancelling a delayed retry refresh never reopens enrollment', async () => {
+    const { recovery, page } = await setup();
+    api.state.passkeyCommitRejected = true;
+    await (await enroll(page, recovery, 'Unconfirmed')).waitFor({ state: 'hidden' });
+    await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).waitFor();
+    await page.getByRole('button', { name: t('passkeyRetryUnknown'), exact: true }).click();
+    let release, started;
+    api.state.passkeyListGate = new Promise(resolve => { release = resolve; });
+    const refreshing = new Promise(resolve => { started = resolve; });
+    api.state.passkeyListStarted = started;
+    try {
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('button', { name: t('passkeyRetryConfirm'), exact: true }).click();
+      await refreshing;
+      await dialog.getByRole('button', { name: t('cancel'), exact: true }).click();
+      await dialog.waitFor({ state: 'hidden' });
+    } finally { release(); api.state.passkeyListGate = null; }
+    await page.waitForLoadState('networkidle');
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    assert.equal(await page.evaluate(() => window.passkeyFixture.creates), 1);
+    assert.equal(await page.getByRole('button', { name: t('passkeyBind'), exact: true }).isDisabled(), true);
+    await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).waitFor();
+  });
+
+  await run('passkeys: authoritative generation change clears an old uncertainty fence', async () => {
+    const { recovery, page } = await setup();
+    api.state.passkeyCommitRejected = true;
+    await (await enroll(page, recovery, 'Old generation')).waitFor({ state: 'hidden' });
+    await page.locator('.key-panel .note').getByText(t('passkeyCommitUnknown'), { exact: true }).waitFor();
+    api.state.keyGeneration++;
+    api.state.vault = await wrapVaultV4(generateSecretKey());
+    await page.getByRole('button', { name: t('passkeyRefresh'), exact: true }).click();
+    await page.getByText(t('passkeyCommitChanged'), { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: t('passkeyBind'), exact: true }).isDisabled(), false);
+    assert.equal(api.requests.filter(r => r.path.endsWith('/remove')).length, 0);
+  });
+
+  await run('passkeys: Memories to Diary cancels a pending native unlock even with matching layout', async () => {
+    const { recovery, page } = await setup();
+    await (await enroll(page, recovery, 'Route-scoped')).waitFor({ state: 'hidden' });
+    await nav(page, 'memories');
+    await page.evaluate(() => { window.passkeyFixture.mode = 'delay'; });
+    await page.getByRole('button', { name: t('passkeyUnlock'), exact: true }).click();
+    await page.waitForFunction(() => !!window.passkeyFixture.resolve);
+    await nav(page, 'diary');
+    await page.evaluate(() => { window.passkeyFixture.resolve(); window.passkeyFixture.mode = 'normal'; });
+    await page.waitForLoadState('networkidle');
+    await page.locator('.locked-state').waitFor();
+    assert.equal(api.requests.filter(r => r.path.endsWith('/unlock/finish')).length, 0);
+    await page.getByRole('button', { name: t('passkeyUnlock'), exact: true }).click();
+    await page.locator('.locked-state').waitFor({ state: 'hidden' });
+  });
+
   await run('passkeys: an accepted memory session disables redundant passkey unlock and keeps syncing', async () => {
     const { recovery, page } = await setup();
     await (await enroll(page, recovery, 'Synthetic')).waitFor({ state: 'hidden' });

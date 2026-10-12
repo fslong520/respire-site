@@ -143,9 +143,35 @@ export function assertionOptions(envelope) {
     extensions: { prf: { eval: { first: decodeBase64url(envelope.prf_salt, 32) } } } };
 }
 
+// A missing credential in an immediate refresh is not proof that an in-flight
+// commit failed. Only a positive match in the authenticated list resolves it.
+export function passkeyCommitConfirmed(pending, config) {
+  return Boolean(pending && config?.enabled && pending.account_id === config.account_id
+    && pending.rp_id === config.rp_id && pending.key_generation === config.key_generation
+    && config.credentials?.some(credential => credential.credential_id === pending.credential_id
+      && credential.key_generation === pending.key_generation));
+}
+
+export function passkeyCommitContextChanged(pending, config) {
+  return Boolean(pending && config?.enabled && typeof config.account_id === 'string'
+    && Number.isSafeInteger(config.key_generation) && config.key_generation > 0
+    && (pending.account_id !== config.account_id || pending.key_generation !== config.key_generation));
+}
+
+export function reconcilePasskeyCommit(store, token, observed, config) {
+  // A read belongs to the exact record present when it was dispatched. An old
+  // component's response must never resolve a newer component's transaction.
+  if (store.get(token) !== observed) return 'stale';
+  if (!observed) return 'none';
+  if (passkeyCommitConfirmed(observed, config)) { store.delete(token); return 'confirmed'; }
+  if (passkeyCommitContextChanged(observed, config)) { store.delete(token); return 'changed'; }
+  return 'unknown';
+}
+
 export async function bindPasskey({ request, vault, config, superPass, secretKey, label, signal, isCurrent, credentials = globalThis.navigator?.credentials, onStage = () => {} }) {
   const current = () => assertPasskeyCurrent(signal, isCurrent);
   let urk, prf, reopenedPrf, roundtrip;
+  let commitDispatched = false;
   try {
     current();
     validatePasskeyContext(config, vault, config);
@@ -185,8 +211,16 @@ export async function bindPasskey({ request, vault, config, superPass, secretKey
     roundtrip = await unwrapPasskeyUrk(wrapper, reopenedPrf, reopen);
     current();
     if (roundtrip.length !== urk.length || roundtrip.some((byte, index) => byte !== urk[index])) throw fail('passkeyInvalidResponse');
+    onStage('passkeyCommitting', { account_id: reopen.account_id, rp_id: reopen.rp_id,
+      credential_id: reopen.credential_id, key_generation: reopen.key_generation });
+    commitDispatched = true;
     await request('/register/commit', { method: 'POST', body: { ceremony_id: reopen.ceremony_id, credential: reopenedCredential, wrapper }, signal });
     current();
+  } catch (error) {
+    // An abort/network error can race with a successful server write. Do not
+    // retry the commit, claim cancellation prevented binding, or auto-remove it.
+    if (commitDispatched) throw Object.assign(fail('passkeyCommitUnknown'), { cause: error });
+    throw error;
   } finally {
     urk?.fill(0); prf?.fill(0); reopenedPrf?.fill(0); roundtrip?.fill(0);
   }

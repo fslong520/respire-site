@@ -82,3 +82,17 @@ Recovery-code changes that preserve the same URK send `operation:
 rewrap_same_urk` plus `expected_key_generation`. Destructive new-root-key resets
 use `/api/self/vault/reset`, which atomically invalidates passkey bindings and
 in-flight ceremonies. Deploy the paired Server before enabling this feature.
+
+Once an enrollment commit is dispatched, cancellation or a missing response
+cannot prove that no binding was saved. The UI reports an unknown outcome and
+refreshes the authenticated binding list without retrying the commit or deleting
+credentials. Only a matching positive list entry confirms success; an early
+empty or failed read leaves uncertainty. Public pending metadata is scoped to
+the session token in page memory, survives navigation, and is cleared on logout.
+A key-generation change removes the old retry fence without asserting that no
+binding existed historically. Users can explicitly acknowledge a possible extra
+credential and start a new ceremony after another fresh list check. Cancelling
+that confirmation never resumes enrollment. Reconciliation is fenced to the exact
+pending record observed before the read, preventing an older component response
+from clearing a newer transaction. Previously confirmed notices are removed when
+a later authoritative list no longer contains the binding.

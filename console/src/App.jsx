@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Gate } from './Gate.jsx';
+import { clearPendingPasskeyCommit } from './Passkeys.jsx';
 import { Shell } from './Shell.jsx';
 import { CliAuthorization } from './CliAuthorization.jsx';
 import { GithubCallback } from './GithubCallback.jsx';
@@ -67,6 +68,7 @@ function Console({ admin }) {
     entryGeneration.current += 1;
     if (!admin && !value) {
       dropUnlockSession(previous);
+      clearPendingPasskeyCommit(previous);
       // Account-list cleanup cannot undo a successful logout.
       try { setAccounts(removeAccount(previous)); }
       catch { setHint(t('accountListFailed')); }

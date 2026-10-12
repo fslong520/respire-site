@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Key, Plus, Trash, X } from '@phosphor-icons/react';
 import { api, readToken, USER_KEY } from './api.js';
-import { bindPasskey, unlockWithPasskey, passkeyAvailable, validatePasskeyOrigin, assertPasskeyCurrent } from './passkeys.js';
+import { bindPasskey, unlockWithPasskey, passkeyAvailable, validatePasskeyOrigin, assertPasskeyCurrent, passkeyCommitConfirmed, reconcilePasskeyCommit } from './passkeys.js';
 import { Button, Note, useI18n } from './ui.jsx';
 import { t } from './i18n.js';
+
+// Public binding metadata only, retained across navigation within this page.
+// An early empty list must not erase an uncertain in-flight commit.
+const pendingCommits = new Map();
+export const clearPendingPasskeyCommit = token => pendingCommits.delete(token);
 
 function errorText(error) {
   if (error.name === 'NotAllowedError' || error.name === 'AbortError') return t('passkeyCancelled');
@@ -22,12 +27,36 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
   const [selected, setSelected] = useState('');
+  const [commitNotice, setCommitNotice] = useState(() => pendingCommits.has(token) ? 'passkeyCommitUnknown' : '');
+  const listGeneration = useRef(0);
+  const resolvedCommit = useRef(null);
   const active = useRef(null);
   const mounted = useRef(true);
   const request = (path, options = {}) => api(`/api/self/passkeys${path}`, { ...options, token });
   const load = async (signal) => {
+    const generation = ++listGeneration.current;
+    const observed = pendingCommits.get(token);
     const next = await request('', { signal });
-    if (signal?.aborted || !mounted.current || readToken(USER_KEY) !== token) return;
+    if (generation !== listGeneration.current || signal?.aborted || readToken(USER_KEY) !== token) return;
+    const outcome = reconcilePasskeyCommit(pendingCommits, token, observed, next);
+    if (outcome === 'stale') return;
+    let notice;
+    if (outcome === 'confirmed') {
+      resolvedCommit.current = observed;
+      notice = 'passkeyCommitFound';
+    } else if (outcome === 'changed') {
+      // Reset/account changes invalidate the old transaction's local fence.
+      // They do not prove whether a binding existed before that change.
+      notice = 'passkeyCommitChanged';
+    } else if (outcome === 'unknown') notice = 'passkeyCommitUnknown';
+    else if (resolvedCommit.current && !passkeyCommitConfirmed(resolvedCommit.current, next)) {
+      resolvedCommit.current = null;
+      notice = '';
+    }
+    // Even after navigation, the token-fenced read can safely reconcile public
+    // metadata. It never mutates an unmounted component or reopens its modal.
+    if (!mounted.current) return next;
+    if (notice !== undefined) setCommitNotice(notice);
     setConfig(next);
     setSelected(value => next.credentials?.some(c => c.credential_id === value) ? value : next.credentials?.[0]?.credential_id || '');
     return next;
@@ -40,6 +69,19 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
     });
     return () => { mounted.current = false; controller.abort(); active.current?.abort(); active.current = null; };
   }, [token]);
+  const refreshUnknown = operation => {
+    if (!operation.commitDispatched || operation.commitConfirmed || readToken(USER_KEY) !== token) return;
+    // A newer operation/list result owns the UI. Never restore an old record or
+    // show results for a switched account, or reopen a dismissed dialog.
+    if (pendingCommits.get(token) !== operation.commitRecord) return;
+    if (mounted.current) setCommitNotice('passkeyCommitUnknown');
+    // A fresh independent GET survives cancellation and navigation. Its own
+    // token fence prevents reading/updating a newly selected account's state.
+    if (!operation.refreshPromise) operation.refreshPromise = load()
+      .catch(() => { /* Keep uncertainty; manual refresh remains available. */ })
+      .finally(() => { operation.refreshPromise = null; });
+    if (!operation.unknownNotified) { operation.unknownNotified = true; notify(t('passkeyCommitUnknown')); }
+  };
   const begin = () => {
     active.current?.abort();
     const controller = new AbortController();
@@ -87,7 +129,7 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
     }
   }
   async function openBinding() {
-    if (busy) return;
+    if (busy || pendingCommits.has(token) || !mounted.current || readToken(USER_KEY) !== token) return;
     const operation = begin();
     setBusy(true); setError('');
     try {
@@ -103,24 +145,67 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
           ...(Number(vault.version) === 3 ? [{ name: 'secretKey', label: 'Secret Key', type: 'password' }] : []),
         ],
         submit: t('passkeyBind'),
-        onDismiss: () => { operation.controller.abort(); finish(operation); },
+        onDismiss: () => { refreshUnknown(operation); operation.controller.abort(); finish(operation); },
         onSubmit: async values => {
           operation.current();
+          if (operation.commitDispatched) throw new Error(t('passkeyCommitUnknown'));
           try {
             await bindPasskey({ request, vault, config: next, label: values.label.trim().slice(0, 80) || t('passkeyUnnamed'),
               superPass: values.superPass, secretKey: values.secretKey, signal: operation.signal,
-              isCurrent: operation.isCurrent, onStage: value => { operation.current(); setStage(value); } });
+              isCurrent: operation.isCurrent, onStage: (value, metadata) => {
+                operation.current();
+                if (value === 'passkeyCommitting') {
+                  operation.commitDispatched = true; operation.commitRecord = metadata;
+                  pendingCommits.set(token, metadata);
+                }
+                setStage(value);
+              } });
             operation.current();
+            operation.commitConfirmed = true;
+            if (pendingCommits.get(token) === operation.commitRecord) pendingCommits.delete(token);
+            setCommitNotice('');
+            notify(t('passkeyBound'));
             await load(operation.signal);
-            operation.current(); notify(t('passkeyBound'));
-          } catch (error) { throw new Error(errorText(error)); }
-          finally { values.superPass = ''; values.secretKey = ''; setStage(''); }
+            operation.current();
+          } catch (error) {
+            if (error.code === 'passkeyCommitUnknown') {
+              refreshUnknown(operation);
+              // Close the stale form; the authoritative list and persistent
+              // outcome notice now own recovery, without resubmitting a commit.
+              return true;
+            }
+            throw new Error(errorText(error));
+          } finally { values.superPass = ''; values.secretKey = ''; if (operation.isCurrent()) setStage(''); }
         },
       });
     } catch (error) {
       if (operation.isCurrent()) setError(errorText(error));
       finish(operation);
     }
+  }
+  function retryUnknown() {
+    const pending = pendingCommits.get(token);
+    if (!pending) return;
+    const controller = new AbortController();
+    let cancelled = false, continued = false;
+    const current = () => !cancelled && !controller.signal.aborted && mounted.current && readToken(USER_KEY) === token;
+    open({ title: t('passkeyRetryUnknown'), description: t('passkeyRetryWarning'), submit: t('passkeyRetryConfirm'),
+      onDismiss: () => { if (!continued) { cancelled = true; controller.abort(); } },
+      onSubmit: async () => {
+        const next = await load(controller.signal);
+        if (!current()) throw new DOMException('Retry cancelled or account changed', 'AbortError');
+        if (!next) throw new Error(t('passkeyChanged'));
+        if (passkeyCommitConfirmed(pending, next)) return; // Existing binding recovered; do not create another.
+        if (pendingCommits.get(token) === pending) pendingCommits.delete(token);
+        setCommitNotice('passkeyRetryAcknowledged');
+        continued = true;
+        // Explicitly acknowledged retry starts a new ceremony. It does not
+        // retry the old commit or delete a possibly successful credential.
+        window.setTimeout(() => {
+          if (current()) openBinding();
+        }, 0);
+      },
+    });
   }
   function remove(credential) {
     open({ title: t('passkeyRemove'), description: t('passkeyRemoveDescription', { label: credential.label || t('passkeyUnnamed') }),
@@ -145,6 +230,14 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
       {busy && <Button icon={X} onClick={cancel}>{t('cancel')}</Button>}
     </div>
     {stage && <p role="status">{t(stage)}</p>}
+    {commitNotice && <Note tone={commitNotice === 'passkeyCommitUnknown' ? 'amber' : ''}>{t(commitNotice)}</Note>}
+    {commitNotice && <Button onClick={() => load().catch(error => {
+      if (mounted.current && readToken(USER_KEY) === token) {
+        if (pendingCommits.has(token)) setCommitNotice('passkeyCommitUnknown');
+        else setError(errorText(error));
+      }
+    })}>{t('passkeyRefresh')}</Button>}
+    {pendingCommits.has(token) && <Button disabled={busy} onClick={retryUnknown}>{t('passkeyRetryUnknown')}</Button>}
     {error && <p role="alert" className="form-error">{error}</p>}
   </>;
   if (mode !== 'manage') return <div className="passkey-unlock">{controls}
@@ -162,7 +255,7 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
         <Button danger icon={Trash} disabled={busy} onClick={() => remove(credential)}>{t('passkeyRemove')}</Button>
       </li>)}
     </ul> : <p>{t('passkeyNoCredentials')}</p>}
-    <div className="key-actions"><Button icon={Plus} disabled={!canTry || !hasVault || busy} onClick={openBinding}>{t('passkeyBind')}</Button></div>
+    <div className="key-actions"><Button icon={Plus} disabled={!canTry || !hasVault || busy || pendingCommits.has(token)} onClick={openBinding}>{t('passkeyBind')}</Button></div>
     {controls}
   </section>;
 }

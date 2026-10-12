@@ -55,6 +55,14 @@ export async function startFixtureApi({ frontend } = {}) {
       passkeysEnabled: false,
       passkeys: new Map(),
       passkeyCeremonies: new Map(),
+      passkeyCommitGate: null,
+      passkeyCommitResponseGate: null,
+      passkeyCommitResponseLost: false,
+      passkeyCommitRejected: false,
+      passkeyListGate: null,
+      passkeyListStarted: null,
+      passkeyCommitStarted: null,
+      passkeyCommitStored: null,
       keyGeneration: 1,
       blobs: new Map(),
       revision: 0,
@@ -227,9 +235,13 @@ export async function startFixtureApi({ frontend } = {}) {
         if (pending.credential_id) assert.equal(body.credential.id, pending.credential_id);
         return pending;
       };
-      if (method === 'GET' && path === '/api/self/passkeys') return json(200, { enabled: state.passkeysEnabled,
+      if (method === 'GET' && path === '/api/self/passkeys') {
+        state.passkeyListStarted?.();
+        await state.passkeyListGate;
+        return json(200, { enabled: state.passkeysEnabled,
         ...(state.passkeysEnabled ? { ...passkeyMeta, origin } : {}),
         credentials: [...state.passkeys.values()].map(({ wrapper, ...credential }) => credential) });
+      }
       if (method === 'POST' && path.startsWith('/api/self/passkeys/')) {
         assert.equal(state.passkeysEnabled, true);
         if (path.endsWith('/register/start')) {
@@ -250,11 +262,18 @@ export async function startFixtureApi({ frontend } = {}) {
         }
         if (path.endsWith('/register/commit')) {
           const pending = takeCeremony('commit');
+          state.passkeyCommitStarted?.();
+          if (state.passkeyCommitRejected) return json(400, { error: 'Synthetic rejected commit' });
+          await state.passkeyCommitGate;
           assert.equal(body.wrapper.version, 1);
           assert.equal(Buffer.from(body.wrapper.wrapped_urk, 'base64url').length, 48);
           assert.equal(Buffer.from(body.wrapper.nonce, 'base64url').length, 12);
           state.passkeys.set(pending.credential_id, { ...passkeyMeta, credential_id: pending.credential_id, label: pending.label,
             prf_salt: pending.prf_salt, created_at: new Date().toISOString(), last_used_at: null, wrapper: body.wrapper });
+          state.passkeyCommitStored?.();
+          await state.passkeyCommitResponseGate;
+          // Successful write followed by an ambiguous confirmation failure.
+          if (state.passkeyCommitResponseLost) return json(503, { error: 'Synthetic confirmation lost after commit' });
           return json(200, { ok: true });
         }
         if (path.endsWith('/unlock/start')) {

@@ -4,7 +4,7 @@ import { pbkdf2Sync } from 'node:crypto';
 import {
   bindPasskey, unlockWithPasskey, wrapPasskeyUrk, unwrapPasskeyUrk,
   serializePasskeyCredential, encodeBase64url as b64, decodeBase64url,
-  validatePasskeyContext, validatePasskeyOrigin, creationOptions, assertionOptions,
+  validatePasskeyContext, validatePasskeyOrigin, creationOptions, assertionOptions, passkeyCommitConfirmed, passkeyCommitContextChanged, reconcilePasskeyCommit,
 } from '../src/passkeys.js';
 import { wrapVault, wrapVaultV4, unwrapUrk, deriveDataKeys, encryptItem, decryptItem, toHex } from '../src/crypto.js';
 
@@ -222,4 +222,71 @@ test('existing v1/v2 PBKDF2, v3 super+secret, v4 A3 recovery wrappers remain com
     assert.deepEqual(await unwrapUrk(superPass, secretKey, vault), URK);
     assert.deepEqual(await unwrapPasskeyUrk(h.committed, PRF, CONTEXT), URK);
   });
+});
+
+
+test('commit dispatch failure is outcome-unknown, never retried or automatically removed', async () => {
+  let serverAccepted = false;
+  const stages = [];
+  const h = harness({ onRequest: path => {
+    if (path === '/register/commit') { serverAccepted = true; throw new TypeError('Synthetic lost confirmation'); }
+  } });
+  await assert.rejects(bind(h, { onStage: (stage, metadata) => stages.push({ stage, metadata }) }), { code: 'passkeyCommitUnknown' });
+  assert.equal(serverAccepted, true);
+  assert.equal(h.sent.filter(x => x.path === '/register/commit').length, 1);
+  assert.equal(h.sent.some(x => x.path === '/remove'), false);
+  assert.deepEqual(stages.at(-1), { stage: 'passkeyCommitting', metadata: {
+    account_id: CONTEXT.account_id, rp_id: CONTEXT.rp_id, credential_id: CONTEXT.credential_id, key_generation: CONTEXT.key_generation,
+  } });
+  assert.ok(h.issued.filter(x => x.result).every(x => x.result.every(byte => byte === 0)));
+});
+
+test('cancelled or superseded successful commit response remains outcome-unknown', async t => {
+  for (const change of ['abort', 'account changed']) await t.test(change, async () => {
+    const controller = new AbortController();
+    let current = true;
+    const h = harness({ onRequest: path => {
+      if (path === '/register/commit') {
+        if (change === 'abort') controller.abort(); else current = false;
+      }
+    } });
+    await assert.rejects(bind(h, { signal: controller.signal, isCurrent: () => current }), { code: 'passkeyCommitUnknown' });
+    assert.ok(h.committed, 'The synthetic server committed despite the client cancellation');
+    assert.equal(h.sent.filter(x => x.path === '/register/commit').length, 1);
+    assert.equal(h.sent.some(x => x.path === '/remove'), false);
+  });
+});
+
+test('only a positive same-account/generation authoritative list resolves uncertain commit', () => {
+  assert.equal(passkeyCommitConfirmed(CONTEXT, CONFIG), true);
+  assert.equal(passkeyCommitConfirmed(CONTEXT, { ...CONFIG, credentials: [] }), false, 'Early empty list is still unknown');
+  assert.equal(passkeyCommitConfirmed(CONTEXT, undefined), false, 'Failed list read is still unknown');
+  for (const patch of [{ account_id: 'other-account' }, { rp_id: 'other.test' }, { key_generation: 8 }, { enabled: false },
+    { credentials: [{ ...CONTEXT, credential_id: b64(bytes(24, 19)) }] }, { credentials: [{ ...CONTEXT, key_generation: 8 }] }]) {
+    assert.equal(passkeyCommitConfirmed(CONTEXT, { ...CONFIG, ...patch }), false);
+  }
+});
+
+
+test('authoritative context change clears the local retry fence without claiming historic non-binding', () => {
+  assert.equal(passkeyCommitContextChanged(CONTEXT, CONFIG), false);
+  assert.equal(passkeyCommitContextChanged(CONTEXT, { ...CONFIG, credentials: [] }), false);
+  assert.equal(passkeyCommitContextChanged(CONTEXT, undefined), false);
+  assert.equal(passkeyCommitContextChanged(CONTEXT, { ...CONFIG, key_generation: 8 }), true);
+  assert.equal(passkeyCommitContextChanged(CONTEXT, { ...CONFIG, account_id: 'other-account' }), true);
+});
+
+
+test('a delayed old-component list cannot resolve a newer-generation pending commit', () => {
+  const old = { ...CONTEXT, key_generation: 1 };
+  const newer = { ...CONTEXT, key_generation: 2 };
+  const pending = new Map([['token', old]]);
+  const observedAtDispatch = pending.get('token');
+  pending.set('token', newer); // Remount/reset/new ceremony before the old GET returns.
+  assert.equal(reconcilePasskeyCommit(pending, 'token', observedAtDispatch, { ...CONFIG, key_generation: 1, credentials: [] }), 'stale');
+  assert.equal(pending.get('token'), newer);
+  assert.equal(reconcilePasskeyCommit(pending, 'token', newer, { ...CONFIG, key_generation: 2, credentials: [] }), 'unknown');
+  assert.equal(pending.get('token'), newer);
+  assert.equal(reconcilePasskeyCommit(pending, 'token', newer, { ...CONFIG, key_generation: 2, credentials: [newer] }), 'confirmed');
+  assert.equal(pending.has('token'), false);
 });

@@ -2,6 +2,17 @@ export const DEFAULT_LOCALE = 'en';
 const STORAGE = 'respire.uiLocale';
 
 const EN = {
+  passkeyRetryUnknown: 'Try binding again…',
+  passkeyRetryWarning: 'The previous binding may still succeed, even if the list is empty. We will refresh once more. If it is still missing, continue only if you accept a possible additional passkey entry. Existing bindings will not be removed.',
+  passkeyRetryConfirm: 'Refresh and continue',
+  passkeyRetryAcknowledged: 'You chose to try again. The previous attempt may still complete; any existing bindings are preserved.',
+  passkeyCommitChanged: 'The account or encryption-key generation changed. Check the current bindings before enrolling again. A previous attempt may have completed before that change.',
+
+  passkeyCommitting: 'Saving the verified passkey binding…',
+  passkeyCommitUnknown: 'The server may have saved this binding, but confirmation was interrupted. Refresh the list before trying again. If it is missing, the outcome is still unknown. Your recovery code still works.',
+  passkeyCommitFound: 'The refreshed list confirms this passkey is bound. Your recovery code still works.',
+  passkeyRefresh: 'Refresh passkey list',
+
   passkeyOffer: 'Set up passkey unlock',
   passkeyOfferDescription: 'Your recovery code is saved. You can now add a passkey for convenient memory unlock. Keep the same recovery code as your backup.',
   passkeyLater: 'Maybe later',
@@ -10,7 +21,7 @@ const EN = {
   passkeyDescription: "Bind a PRF-capable passkey to unlock this account’s existing memories in this browser. Account sign-in stays separate.",
   passkeyKeepRecovery: "Keep your same super password / recovery code safely. Binding adds an encrypted copy of the same root key. It does not replace your recovery code or re-encrypt memories.",
   passkeyBind: "Bind a passkey",
-  passkeyBindDescription: "Enter your current recovery code once. Your provider will ask you to create a passkey, then verify it twice to prove it can reopen the same key. Keep your original recovery code. Cancellation leaves recovery working; an unfinished passkey may remain in your provider and can be deleted there.",
+  passkeyBindDescription: "Enter your current recovery code once. Your provider will ask you to create a passkey, then verify it twice to prove it can reopen the same key. Keep your original recovery code. Cancellation leaves recovery working. Once saving starts, closing may not stop the binding; an unfinished passkey may remain in your provider and can be deleted there.",
   passkeyLabel: "Passkey name (optional)",
   passkeyCreating: "Create a passkey in your provider…",
   passkeyVerifying: "Verify with your passkey…",
@@ -586,6 +597,17 @@ const EN = {
 };
 
 const ZH = {
+  passkeyRetryUnknown: '再次尝试绑定……',
+  passkeyRetryWarning: '即使列表为空，之前的绑定仍可能成功。我们会再刷新一次。如果仍未显示，请仅在接受可能多出一个通行密钥条目的情况下继续。不会移除现有绑定。',
+  passkeyRetryConfirm: '刷新并继续',
+  passkeyRetryAcknowledged: '你已选择重试。之前的尝试仍可能完成；现有绑定将保留。',
+  passkeyCommitChanged: '账户或加密密钥代次已改变。请查看当前绑定后再重新绑定。之前的尝试可能已在变化前完成。',
+
+  passkeyCommitting: '正在保存已验证的通行密钥绑定……',
+  passkeyCommitUnknown: '服务器可能已经保存此绑定，但确认过程被中断。请先刷新列表再尝试。如果列表中尚未显示，提交结果仍未知。恢复码仍可使用。',
+  passkeyCommitFound: '刷新后的列表已确认此通行密钥绑定成功。恢复码仍可使用。',
+  passkeyRefresh: '刷新通行密钥列表',
+
   passkeyOffer: '设置通行密钥解锁',
   passkeyOfferDescription: '恢复码已确认保存。现在可添加通行密钥，方便解锁记忆。请继续保留同一个恢复码作为备份。',
   passkeyLater: '稍后再说',
@@ -594,7 +616,7 @@ const ZH = {
   passkeyDescription: "绑定支持 PRF 的通行密钥，以在浏览器中解锁此账户的现有记忆。账户登录仍单独进行。",
   passkeyKeepRecovery: "请妥善保留原有超级密码／恢复码。绑定仅增加同一根密钥的加密副本，不替换恢复码，也不会重新加密记忆。",
   passkeyBind: "绑定通行密钥",
-  passkeyBindDescription: "输入一次当前恢复码。提供商会要求创建通行密钥，然后验证两次，以确认能再次解锁同一密钥。请保留原恢复码。取消不会影响恢复功能；未完成的通行密钥可能仍留在提供商中，可在那里删除。",
+  passkeyBindDescription: "输入一次当前恢复码。提供商会要求创建通行密钥，然后验证两次，以确认能再次解锁同一密钥。请保留原恢复码。取消不会影响恢复功能。开始保存后，关闭窗口可能无法停止绑定；未完成的通行密钥可能仍留在提供商中，可在那里删除。",
   passkeyLabel: "通行密钥名称（可选）",
   passkeyCreating: "正在提供商中创建通行密钥……",
   passkeyVerifying: "正在通过通行密钥验证……",

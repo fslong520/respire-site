@@ -472,7 +472,7 @@ export function DashboardPages({
     },
     submit: t('saveEdit'),
   });
-  const passkeyControls = (mode = 'unlock') => <Passkeys key={`${token}:${tick}`} token={token} mode={mode} hasVault={hasVault} unlocked={keyStored} open={open} notify={notify}
+  const passkeyControls = (mode = 'unlock') => <Passkeys key={JSON.stringify([token, tick, page, memoryId])} token={token} mode={mode} hasVault={hasVault} unlocked={keyStored} open={open} notify={notify}
     beginUnlock={() => {
       const generation = ++unlockGeneration.current;
       return { generation, isCurrent: () => generation === unlockGeneration.current && readToken(USER_KEY) === token };
