@@ -17,7 +17,7 @@ const code = expected => error => error?.code === expected;
 // while sharing the same durable database.
 function idbHarness() {
   const engine = { stores: new Map(), transactions: [], connections: [], active: null,
-    failOpen: false, blocked: false, failWrites: false, transformRead: null, beforeCommit: null };
+    failOpen: false, blocked: false, failWrites: false, throwMethod: null, throwName: 'QuotaExceededError', transformRead: null, beforeCommit: null };
   const next = () => {
     if (engine.active) return;
     const tx = engine.transactions.shift();
@@ -48,7 +48,7 @@ function idbHarness() {
           queue.push({ req, writable, action: () => action(snapshot.get(name)) });
           return req;
         };
-        return {
+        const store = {
           get: key => request(data => {
             const result = clone(data.get(key));
             return name === 'keys' && engine.transformRead ? engine.transformRead(result) : result;
@@ -62,6 +62,12 @@ function idbHarness() {
           delete: key => request(data => { data.delete(key); }, true),
           clear: () => request(data => { data.clear(); }, true),
         };
+        return new Proxy(store, { get(target, key) {
+          return (...args) => {
+            if (name === 'keys' && engine.throwMethod === key) throw new DOMException('Synthetic synchronous IDB failure', engine.throwName);
+            return target[key](...args);
+          };
+        } });
       },
       abort() {
         if (finished) throw new DOMException('Finished transaction', 'InvalidStateError');
@@ -111,6 +117,7 @@ function idbHarness() {
         createObjectStore: name => { engine.stores.set(name, new Map()); },
         close() { db.closed = true; },
         transaction(names, mode) {
+          if (engine.throwMethod === 'transaction') throw new DOMException('Synthetic synchronous transaction failure', engine.throwName);
           if (db.closed) throw new DOMException('Closed', 'InvalidStateError');
           return makeTransaction(Array.isArray(names) ? names : [names], mode);
         },
@@ -462,4 +469,33 @@ test('listAll exposes only revision-bound public contexts for a pre-authenticate
   const controller = new AbortController(); controller.abort();
   await assert.rejects(store.listAll({ signal: controller.signal }), abortError);
   await assert.rejects(store.listAll({ isCurrent: () => false }), abortError);
+});
+
+
+test('synchronous IndexedDB throws inside async request callbacks use stable public errors', async t => {
+  const cases = {
+    add: store => store.create(context({ device_id: device(2) })),
+    get: store => store.read(context()),
+    getAll: store => store.list(context()),
+    put: store => store.markActive(context(), 'Q3JlZA'),
+    delete: store => store.remove(context()),
+    clear: store => store.clearAll(),
+    transaction: store => store.read(context()),
+  };
+  for (const [method, act] of Object.entries(cases)) await t.test(method, async () => {
+    const { store, engine } = harness(); await store.create(context());
+    engine.throwMethod = method;
+    await assert.rejects(act(store), error => error.code === 'trustedBrowserStorageUnavailable'
+      && error.cause?.name === 'QuotaExceededError' && typeof error.cause.code === 'number');
+  });
+});
+
+test('numeric WebCrypto DOMException codes are not mistaken for application errors', async () => {
+  const subtle = new Proxy(webcrypto.subtle, { get(target, method) {
+    if (method === 'encrypt') return async () => { throw new DOMException('Synthetic invalid key access', 'InvalidAccessError'); };
+    return target[method].bind(target);
+  } });
+  const { store, records } = harness({ crypto: { subtle, getRandomValues: webcrypto.getRandomValues.bind(webcrypto) } });
+  await assert.rejects(store.create(context()), code('trustedBrowserKeyInvalid'));
+  assert.equal(records().length, 0);
 });

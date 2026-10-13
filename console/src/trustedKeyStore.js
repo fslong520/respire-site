@@ -10,6 +10,9 @@ const fail = (code, cause) => Object.assign(new Error(code), { code, ...(cause ?
 const aborted = () => new DOMException('Trusted-browser operation superseded', 'AbortError');
 const unavailable = cause => fail('trustedBrowserStorageUnavailable', cause);
 const invalid = () => fail('trustedBrowserKeyInvalid');
+const errorCodes = new Set(['trustedBrowserStorageUnavailable', 'trustedBrowserKeyInvalid', 'trustedBrowserKeyExists', 'trustedCleanupFailed']);
+const ownError = error => typeof error?.code === 'string' && errorCodes.has(error.code);
+const storageError = error => error?.name === 'AbortError' || ownError(error) ? error : unavailable(error);
 const text = value => new TextEncoder().encode(value);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -179,6 +182,9 @@ export function createTrustedKeyStore({ indexedDB = globalThis.indexedDB, crypto
     return new Promise((resolve, reject) => {
       let tx, result, settled = false, requestedError;
       const tracked = { ...op, owner, cancel(error) {
+        // IDB methods may throw synchronously inside a request callback. DOM
+        // exceptions have numeric legacy codes, not our public error codes.
+        error = storageError(error);
         requestedError = error;
         try { tx?.abort(); } catch { /* Already complete; still reject stale use. */ }
         finish(error);
@@ -229,7 +235,7 @@ export function createTrustedKeyStore({ indexedDB = globalThis.indexedDB, crypto
             } catch (error) { tracked.cancel(error); }
           };
         }
-      } catch (error) { tracked.cancel(error?.code || error?.name === 'AbortError' ? error : unavailable(error)); }
+      } catch (error) { tracked.cancel(error); }
     });
   }
   const getRecord = (op, context) => transaction(op, 'readonly', (store, result) => {
@@ -250,7 +256,7 @@ export function createTrustedKeyStore({ indexedDB = globalThis.indexedDB, crypto
       op.current();
       if (reopened.length !== probe.length || reopened.some((value, index) => value !== probe[index])) throw invalid();
     } catch (error) {
-      if (error?.name === 'AbortError' || error?.code) throw error;
+      if (error?.name === 'AbortError' || ownError(error)) throw error;
       throw invalid();
     } finally { probe.fill(0); reopened?.fill(0); }
   }
