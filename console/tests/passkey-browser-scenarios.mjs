@@ -259,6 +259,38 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     assert.deepEqual(await localTrustedRecords(page), []);
   });
 
+  await run('trusted browser: a nonempty account-switch event never transfers the old account UUID', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery } = await setup({ 'rsrs.dashboard.accounts': JSON.stringify([
+      { user: FIXTURE.user, token: FIXTURE.userToken }, { user: FIXTURE.secondUser, token: FIXTURE.secondToken },
+    ]) });
+    await (await enroll(page, recovery, 'Account A before remote switch', true)).waitFor({ state: 'hidden' });
+    await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.secondToken);
+    await page.waitForFunction(token => localStorage.getItem('rsrs.userToken') === token, FIXTURE.secondToken);
+    await nav(page, 'keys');
+    await page.getByRole('button', { name: t('passkeyBind'), exact: true }).and(page.locator(':enabled')).waitFor();
+    await (await enroll(page, recovery, 'Account B before remote switch', true)).waitFor({ state: 'hidden' });
+    await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.userToken);
+    await page.waitForFunction(token => localStorage.getItem('rsrs.userToken') === token, FIXTURE.userToken);
+
+    const passive = await page.context().newPage(), passiveErrors = [];
+    passive.setDefaultTimeout(10000);
+    passive.on('pageerror', error => passiveErrors.push(error.message));
+    await passive.goto(new URL('/dashboard#/keys', page.url()).href);
+    await passive.getByRole('button', { name: t('passkeyBind'), exact: true }).and(passive.locator(':enabled')).waitFor();
+    await nav(passive, 'sessions'); // This tab knows A's UUID, but has never learned B's.
+    await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.secondToken);
+    await passive.locator('.workspace-switch strong').filter({ hasText: FIXTURE.secondUser }).waitFor();
+    assert.equal((await localTrustedRecords(passive)).length, 2);
+    await passive.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).click();
+    await passive.locator('.gate-form').waitFor(); await page.locator('.gate-form').waitFor();
+    // Unknown B must use the documented conservative originating fallback, not
+    // falsely clear only A and leave B's own trusted key behind after B logs out.
+    await passive.getByRole('status').filter({ hasText: t('trustedLogoutAll') }).waitFor();
+    await waitLocalCount(passive, 0);
+    assert.deepEqual(passiveErrors, []);
+  });
+
   await run('trusted browser: a delayed known-account logout event cannot delete a newer enrollment', async () => {
     api.state.trustedBrowserEnabled = true;
     const { page, recovery } = await setup();
@@ -289,10 +321,39 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     await page.getByRole('button', { name: t('passkeyBind'), exact: true }).and(page.locator(':enabled')).waitFor();
     await (await enroll(page, recovery, 'After delayed logout', true)).waitFor({ state: 'hidden' });
     const replacement = await waitLocalCount(page, 1);
-    await passive.evaluate(() => {
+    const cleanupWrites = await passive.evaluate(async () => {
+      const pending = new Set(), cleanupWrites = [];
+      const transaction = IDBDatabase.prototype.transaction, put = IDBObjectStore.prototype.put;
+      IDBDatabase.prototype.transaction = function (...args) {
+        const tx = transaction.apply(this, args);
+        if (this.name === 'respire-trusted-browser-v1') {
+          let done;
+          const settled = new Promise(resolve => { done = resolve; });
+          pending.add(settled);
+          const finish = () => { pending.delete(settled); done(); };
+          tx.addEventListener('complete', finish, { once: true });
+          tx.addEventListener('abort', finish, { once: true });
+        }
+        return tx;
+      };
+      IDBObjectStore.prototype.put = function (value, ...rest) {
+        if (this.name === 'epochs' && (value.id === 'global' || value.id.startsWith('account:'))) cleanupWrites.push(value.id);
+        return put.call(this, value, ...rest);
+      };
       window.holdLogoutEvents = false;
       for (const event of window.delayedLogoutEvents.splice(0)) window.dispatchEvent(new StorageEvent('storage', event));
+      // The receiving tab already opened this DB. Drain the handler's promise
+      // continuations and every native transaction it starts, including writes
+      // scheduled by a preceding transaction's completion. No arbitrary sleep.
+      const nextTask = () => new Promise(resolve => {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = () => { channel.port1.close(); channel.port2.close(); resolve(); };
+        channel.port2.postMessage(null);
+      });
+      do { await Promise.all([...pending]); await nextTask(); } while (pending.size);
+      return cleanupWrites;
     });
+    assert.deepEqual(cleanupWrites, [], 'A passive event must not even schedule another durable logout fence');
     assert.deepEqual(await localTrustedRecords(passive), replacement);
     assert.deepEqual(await localTrustedRecords(page), replacement);
     assert.deepEqual(passiveErrors, []);

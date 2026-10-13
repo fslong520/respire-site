@@ -130,7 +130,8 @@ The compiled React suite uses native IndexedDB with synthetic WebAuthn. It adds
 explicit default-off opt-in, non-PRF enrollment/reload unlock, storage denial/loss,
 cancelled and uncertain commits, account switching, logout/rotation, visible
 cleanup failures, two-tab account-isolated logout, quiet default-off logout with
-an empty key store, reset recovery delivery, and a key cleared during a delayed
+an empty key store, a cross-tab account switch that cannot inherit the old UUID,
+native transaction-drained delayed logout, reset recovery delivery, and a key cleared during a delayed
 first memory pull. The native CDP fixture additionally tests a PRF-disabled
 virtual authenticator in trusted-browser mode with a genuine browser reload and
 CryptoKey readback. These fixtures do not claim an actual Bitwarden extension

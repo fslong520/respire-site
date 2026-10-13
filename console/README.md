@@ -131,6 +131,11 @@ durable cleanup, which could otherwise delete a newer enrollment after a delay.
 Even an empty store receives a durable logout fence, so a metadata-only database
 may be opened without creating browser trust. Switching accounts and successful token
 rotation preserve independent account keys; no token-to-account mapping persists.
+An ordinary cross-tab token replacement does not prove same-account rotation:
+it can also be an account switch. Receiving tabs therefore never copy the old
+token's UUID to the new token. Until an authenticated vault/passkey response
+identifies the new token, an explicit logout in that tab uses the same conservative
+unknown-account cleanup (including after rotation on the Sessions page).
 The local Forget action locks memories and deletes the account's browser keys,
 while server bindings stay listed until explicitly removed. Deletion failures
 remain visible and do not prevent sign-out. Destructive reset independently
