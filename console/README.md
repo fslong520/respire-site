@@ -72,7 +72,7 @@ results, and missing output during an existing binding's unlock. They contain
 no PRF output, salts, credential IDs, or telemetry payload.
 
 The paired Server must explicitly enable the Dashboard RP and exact origin.
-Registration requires runtime PRF support, a fresh assertion to wrap the existing
+In the default PRF mode, registration requires runtime PRF support, a fresh assertion to wrap the existing
 URK, and another independently challenged assertion to reopen that wrapper
 before activation. Unsupported providers, missing PRF outputs, cancellation and
 stale sessions fail closed with recovery-code fallback. An abandoned enrollment
@@ -87,6 +87,60 @@ JavaScript cannot guarantee erasure of all engine or provider copies. Only deriv
 memory keys remain in the existing token-scoped in-memory unlock session. No PRF
 output, KEK, root key or recovery code is sent to the API or persisted in browser
 storage. Refreshing requires another unlock.
+
+### Optional trusted-browser mode (ordinary WebAuthn)
+
+The Server must separately enable `RSRS_TRUSTED_BROWSER_UNLOCK=1`; the setting
+and the enrollment choice are off by default. Each new enrollment initially
+selects PRF mode. A user may explicitly select **Trust this browser**, read the
+security explanation, and enter their existing recovery code once. No provider
+or user-agent detection silently selects this option.
+
+This mode supports ordinary user-verified WebAuthn credentials without requiring
+PRF output. It generates a fresh random, nonexportable AES-GCM-256 CryptoKey and
+persists it in `respire-trusted-browser-v1` IndexedDB. Independent committed
+readback and a cryptographic roundtrip must succeed before binding activation.
+The same recovered URK is wrapped with a separate KDF identifier and authenticated
+mode/account UUID/RP/credential/device UUID/key-generation metadata. Only that
+opaque wrapper goes to the Server; it is not stored locally. Two fresh
+user-verified assertions test enrollment before commit. A later unlock needs a
+fresh verified assertion before the Server releases the matching wrapper, plus
+the matching local CryptoKey to decrypt it. A signature is never treated as
+symmetric key material.
+
+Only the device CryptoKey and public identity/revision/epoch metadata persist
+locally. Neither plaintext URK, recovery code, PRF output, API token nor URK
+wrapper enters this IndexedDB. The existing token-scoped unlocked session still
+holds only derived memory keys. Refresh preserves browser trust but requires a
+fresh passkey assertion; another browser needs recovery-code setup of its own.
+Loss of site storage needs recovery-code setup again, even if the provider still
+holds the passkey.
+
+This is **browser/device trust, not hardware-bound protection**. Nonexportable
+means WebCrypto refuses key export; it does not protect against hostile same-
+origin script, browser compromise, malware, or all browser-profile access. Keep
+the recovery code. No real Bitwarden, iCloud, Windows Hello, Google Password
+Manager, hardware key, or other provider account was used by these fixtures.
+
+Signing out (including app-handled session expiry) immediately clears the
+unlocked session and deletes the verified account's local trusted keys. If the
+account UUID is unknown, the UI explicitly warns before/while conservatively
+clearing all locally trusted accounts. Switching accounts and successful token
+rotation preserve independent account keys; no token-to-account mapping persists.
+The local Forget action locks memories and deletes the account's browser keys,
+while server bindings stay listed until explicitly removed. Deletion failures
+remain visible and do not prevent sign-out. Destructive reset independently
+fences/cleans old generations; cleanup failure cannot hide the new recovery code.
+
+Durable account/global epochs and monotonic generation floors are checked in the
+same IndexedDB transaction as insertion, preventing late cross-tab writes from
+recreating forgotten trust. Exact-revision leases are checked after key crypto
+and immediately before accepting the first memory batch. Authoritative list
+reconciliation prunes only captured, revision-matched active records; pending
+same-generation keys survive an uncertain commit. Cancellation before commit
+removes this enrollment's local key. After commit dispatch, the existing unknown-
+outcome flow keeps the local key until safe reconciliation or explicit forgetting;
+it never retries the commit or automatically removes a potentially active binding.
 
 Recovery-code changes that preserve the same URK send `operation:
 rewrap_same_urk` plus `expected_key_generation`. Destructive new-root-key resets

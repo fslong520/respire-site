@@ -2,6 +2,25 @@ export const DEFAULT_LOCALE = 'en';
 const STORAGE = 'respire.uiLocale';
 
 const EN = {
+  trustedBrowserMode: 'Unlock method',
+  trustedBrowserPrfChoice: 'PRF passkey (no saved browser key)',
+  trustedBrowserChoice: 'Trust this browser (save a local encryption key)',
+  trustedBrowserConsent: 'Optional, off by default: trusted-browser mode works with ordinary passkey verification, including providers without PRF. It saves a nonexportable encryption key in this browser after you enter your recovery code once. This depends on browser and device security, not hardware protection. Signing out, clearing site data, or forgetting this browser requires recovery setup again. Another browser needs its own setup. Keep your recovery code.',
+  trustedBrowserSaving: 'Saving and testing this browser’s local encryption key…',
+  trustedBrowserDisabled: 'Trusted-browser unlock is not enabled. Use PRF mode or your recovery code.',
+  trustedKeyMissing: 'This browser’s trusted key is missing. Use your recovery code and set up this browser again. A passkey alone cannot restore its local key.',
+  trustedBrowserStorageUnavailable: 'This browser could not safely save or read its encryption key. Trusted-browser unlock is unavailable; use your recovery code.',
+  trustedBrowserKeyInvalid: 'This browser’s encryption key or binding metadata is invalid. Use your recovery code.',
+  trustedBrowserKeyExists: 'A local key already exists for this enrollment. Cancel and start a fresh setup.',
+  trustedCleanupFailed: 'Browser trust could not be fully forgotten. A local encryption key may remain. Clear this site’s browser data to remove it; keep your recovery code.',
+  trustedResetCleanupFailed: 'The reset completed, but obsolete local browser keys could not be cleared. Save your NEW recovery code, then clear this site’s browser data. Old server bindings are invalidated.',
+  trustedLogoutAll: 'The account identity was unavailable, so this browser’s saved unlock keys for all accounts are being forgotten.',
+  trustedBrowserHere: 'Trusted key in this browser',
+  trustedBrowserElsewhere: 'Trusted key not in this browser; recovery setup needed',
+  trustedForget: 'Forget this browser’s keys',
+  trustedForgetDescription: 'Delete this account’s local trusted-browser encryption keys and lock its memories here? Server bindings are left visible, but this browser will need your recovery code and a new setup to use trusted-browser unlock again.',
+  trustedForgotten: 'This account’s local browser trust was forgotten. Keep your recovery code.',
+
   passkeyRetryUnknown: 'Try binding again…',
   passkeyRetryWarning: 'The previous binding may still succeed, even if the list is empty. We will refresh once more. If it is still missing, continue only if you accept a possible additional passkey entry. Existing bindings will not be removed.',
   passkeyRetryConfirm: 'Refresh and continue',
@@ -19,7 +38,7 @@ const EN = {
 
   passkeyTitle: "Passkey memory unlock",
   passkeyDescription: "Bind a PRF-capable passkey to unlock this account’s existing memories in this browser. Account sign-in stays separate.",
-  passkeyPrfRequirement: "Memory unlock requires WebAuthn PRF support from your passkey provider. Ordinary passkey sign-in support alone is not enough.",
+  passkeyPrfRequirement: "PRF mode requires WebAuthn PRF support from your passkey provider. Ordinary passkey sign-in support alone is not enough for PRF mode.",
   passkeyPrfCompatibility: "Bitwarden browser extension 2026.9.1 does not return PRF results for this flow. An unsupported creation attempt may still leave an unused passkey in your provider.",
   passkeyPrfSource: "Versioned provider source",
   passkeyKeepRecovery: "Keep your same super password / recovery code safely. Binding adds an encrypted copy of the same root key. It does not replace your recovery code or re-encrypt memories.",
@@ -604,6 +623,25 @@ const EN = {
 };
 
 const ZH = {
+  trustedBrowserMode: '解锁方式',
+  trustedBrowserPrfChoice: 'PRF 通行密钥（不保存浏览器密钥）',
+  trustedBrowserChoice: '信任此浏览器（保存本地加密密钥）',
+  trustedBrowserConsent: '可选，默认关闭：可信浏览器模式使用普通通行密钥验证，可用于不支持 PRF 的提供商。首次输入一次恢复码后，会在此浏览器保存不可导出的加密密钥。此方式依赖浏览器与设备安全，不等同于硬件保护。退出登录、清除网站数据或忘记此浏览器后，需要恢复码重新设置。其他浏览器也需单独设置。请保留恢复码。',
+  trustedBrowserSaving: '正在保存并测试此浏览器的本地加密密钥……',
+  trustedBrowserDisabled: '尚未启用可信浏览器解锁。请使用 PRF 模式或恢复码。',
+  trustedKeyMissing: '此浏览器的可信密钥已丢失。请使用恢复码并重新设置此浏览器。仅凭通行密钥无法恢复本地密钥。',
+  trustedBrowserStorageUnavailable: '此浏览器无法安全保存或读取加密密钥，可信浏览器解锁不可用。请使用恢复码。',
+  trustedBrowserKeyInvalid: '此浏览器的加密密钥或绑定信息无效。请使用恢复码。',
+  trustedBrowserKeyExists: '此设置已有本地密钥。请取消并重新开始设置。',
+  trustedCleanupFailed: '未能完整清除浏览器信任。本地加密密钥可能仍然存在。请清除此网站的浏览器数据以移除，并妥善保留恢复码。',
+  trustedResetCleanupFailed: '重置已完成，但未能清除过期的本地浏览器密钥。请先保存新的恢复码，再清除此网站的浏览器数据。旧服务器绑定已失效。',
+  trustedLogoutAll: '无法确认账户身份，正在清除此浏览器为所有账户保存的解锁密钥。',
+  trustedBrowserHere: '此浏览器已保存可信密钥',
+  trustedBrowserElsewhere: '此浏览器没有可信密钥，需用恢复码设置',
+  trustedForget: '忘记此浏览器的密钥',
+  trustedForgetDescription: '删除此账户的本地可信浏览器加密密钥，并在此锁定记忆？服务器绑定仍会显示，但此浏览器需要恢复码重新设置后才能再次使用可信浏览器解锁。',
+  trustedForgotten: '已清除此账户在本地浏览器的信任。请保留恢复码。',
+
   passkeyRetryUnknown: '再次尝试绑定……',
   passkeyRetryWarning: '即使列表为空，之前的绑定仍可能成功。我们会再刷新一次。如果仍未显示，请仅在接受可能多出一个通行密钥条目的情况下继续。不会移除现有绑定。',
   passkeyRetryConfirm: '刷新并继续',
@@ -621,7 +659,7 @@ const ZH = {
 
   passkeyTitle: "通行密钥记忆解锁",
   passkeyDescription: "绑定支持 PRF 的通行密钥，以在浏览器中解锁此账户的现有记忆。账户登录仍单独进行。",
-  passkeyPrfRequirement: "记忆解锁要求通行密钥提供商支持 WebAuthn PRF。仅支持普通通行密钥登录还不够。",
+  passkeyPrfRequirement: "PRF 模式要求通行密钥提供商支持 WebAuthn PRF。仅支持普通通行密钥登录不足以使用 PRF 模式。",
   passkeyPrfCompatibility: "Bitwarden 浏览器扩展 2026.9.1 不会为此流程返回 PRF 结果。不支持的创建尝试仍可能在提供商中留下未使用的通行密钥。",
   passkeyPrfSource: "对应版本的提供商源码",
   passkeyKeepRecovery: "请妥善保留原有超级密码／恢复码。绑定仅增加同一根密钥的加密副本，不替换恢复码，也不会重新加密记忆。",

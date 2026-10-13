@@ -109,3 +109,26 @@ authoritative key-generation changes, stale cross-instance responses, removal
 of a previously confirmed binding, and Memories-to-Diary route cancellation.
 The failed-confirmation fixture returns a synthetic 503 after storing the binding;
 it does not claim to reproduce every real network failure mode.
+
+## Trusted-browser coverage
+
+`trusted-browser.test.mjs` exercises the distinct authenticated AES wrapper,
+same-URK/ciphertext compatibility, ordinary empty extension responses, two fresh
+UV assertions, local-store failure/readback, missing keys, cancellation/staleness,
+unknown commit retention, exact context checks, durable identity across token
+rotation, and verified-account versus unknown-identity logout cleanup.
+
+`trusted-key-store.test.mjs` uses real WebCrypto with a deliberately synthetic
+IndexedDB transaction fixture. It covers nonexportable key shape, persistent
+readback proof, write failures, blocked/versionchanged storage, durable cross-tab
+epoch and generation fencing, revision-safe reconciliation, final-delivery
+leases, and cleanup failures. It is not a native IndexedDB conformance test.
+
+The compiled React suite uses native IndexedDB with synthetic WebAuthn. It adds
+explicit default-off opt-in, non-PRF enrollment/reload unlock, storage denial/loss,
+cancelled and uncertain commits, account switching, logout/rotation, visible
+cleanup failures, reset recovery delivery, and a key cleared during a delayed
+first memory pull. The native CDP fixture additionally tests a PRF-disabled
+virtual authenticator in trusted-browser mode with a genuine browser reload and
+CryptoKey readback. These fixtures do not claim an actual Bitwarden extension
+or real provider/hardware test; signed verification remains in the Server suite.

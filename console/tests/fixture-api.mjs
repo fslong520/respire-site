@@ -53,9 +53,12 @@ export async function startFixtureApi({ frontend } = {}) {
       pendingEmail: '',
       vault: null,
       passkeysEnabled: false,
+      trustedBrowserEnabled: false,
       passkeys: new Map(),
       passkeyCeremonies: new Map(),
       passkeyCommitGate: null,
+      passkeyRemoveGate: null,
+      passkeyRemoveStarted: null,
       passkeyCommitResponseGate: null,
       passkeyCommitResponseLost: false,
       passkeyCommitRejected: false,
@@ -215,7 +218,7 @@ export async function startFixtureApi({ frontend } = {}) {
       if (method === 'GET' && /^\/api\/self\/cli-authorization\/[A-Fa-f0-9]{12}$/.test(path)) return json(404, { error: 'fixture authorization code not found' });
       // Synthetic protocol fixture only: signature/attestation verification is
       // covered by Server tests, not these browser UI regressions.
-      const passkeyMeta = { account_id: 'fixture-account-id', rp_id: new URL(origin).hostname, key_generation: state.keyGeneration };
+      const passkeyMeta = { account_id: second ? 'fixture-second-account-id' : 'fixture-account-id', rp_id: new URL(origin).hostname, key_generation: state.keyGeneration };
       const newCeremony = (stage, details = {}) => {
         const ceremony_id = crypto.randomUUID();
         const record = { ...passkeyMeta, ...details, ceremony_id, stage };
@@ -223,7 +226,7 @@ export async function startFixtureApi({ frontend } = {}) {
         return record;
       };
       const assertionOptions = pending => ({ ...passkeyMeta, ceremony_id: pending.ceremony_id,
-        credential_id: pending.credential_id, prf_salt: pending.prf_salt, public_key: { challenge: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url'),
+        credential_id: pending.credential_id, mode: pending.mode, device_id: pending.device_id, prf_salt: pending.prf_salt, public_key: { challenge: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url'),
         rpId: passkeyMeta.rp_id, userVerification: 'required', allowCredentials: [{ type: 'public-key', id: pending.credential_id }] } });
       const takeCeremony = stage => {
         const pending = state.passkeyCeremonies.get(body.ceremony_id);
@@ -233,20 +236,25 @@ export async function startFixtureApi({ frontend } = {}) {
         assert.equal(body.credential.rawId, body.credential.id);
         assert.equal(body.credential.clientExtensionResults?.prf?.results, undefined);
         if (pending.credential_id) assert.equal(body.credential.id, pending.credential_id);
+        if (pending.mode === 'trusted_browser') { assert.equal(body.mode, pending.mode); assert.equal(body.device_id, pending.device_id); }
         return pending;
       };
       if (method === 'GET' && path === '/api/self/passkeys') {
         state.passkeyListStarted?.();
         await state.passkeyListGate;
-        return json(200, { enabled: state.passkeysEnabled,
+        return json(200, { enabled: state.passkeysEnabled, trusted_browser_enabled: state.trustedBrowserEnabled,
         ...(state.passkeysEnabled ? { ...passkeyMeta, origin } : {}),
-        credentials: [...state.passkeys.values()].map(({ wrapper, ...credential }) => credential) });
+        credentials: [...state.passkeys.values()].filter(c => c.account_id === passkeyMeta.account_id).map(({ wrapper, ...credential }) => credential) });
       }
       if (method === 'POST' && path.startsWith('/api/self/passkeys/')) {
         assert.equal(state.passkeysEnabled, true);
         if (path.endsWith('/register/start')) {
           assert.ok(body.label.length > 0);
-          const pending = newCeremony('register', { label: body.label });
+          if (body.mode === 'trusted_browser') {
+            assert.equal(state.trustedBrowserEnabled, true);
+            assert.match(body.device_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+          }
+          const pending = newCeremony('register', { label: body.label, ...(body.mode === 'trusted_browser' ? { mode: body.mode, device_id: body.device_id } : {}) });
           return json(200, { ...pending, public_key: { challenge: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url'),
             rp: { id: passkeyMeta.rp_id, name: 'Synthetic Respire' }, user: { id: Buffer.from(passkeyMeta.account_id).toString('base64url'), name: FIXTURE.user, displayName: FIXTURE.user },
             pubKeyCredParams: [{ type: 'public-key', alg: -7 }], excludeCredentials: [...state.passkeys.values()].map(c => ({ type: 'public-key', id: c.credential_id })) } });
@@ -254,7 +262,7 @@ export async function startFixtureApi({ frontend } = {}) {
         if (path.endsWith('/register/finish')) {
           const pending = takeCeremony('register');
           return json(200, assertionOptions(newCeremony('test', { ...pending, credential_id: body.credential.id,
-            prf_salt: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url') })));
+            ...(pending.mode === 'trusted_browser' ? {} : { prf_salt: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url') }) })));
         }
         if (path.endsWith('/register/test')) {
           const pending = takeCeremony('test');
@@ -265,11 +273,13 @@ export async function startFixtureApi({ frontend } = {}) {
           state.passkeyCommitStarted?.();
           if (state.passkeyCommitRejected) return json(400, { error: 'Synthetic rejected commit' });
           await state.passkeyCommitGate;
+          if (pending.key_generation !== state.keyGeneration) return json(409, { error: 'Synthetic generation changed' });
           assert.equal(body.wrapper.version, 1);
+          assert.equal(body.wrapper.kdf, pending.mode === 'trusted_browser' ? 'trusted-browser-aes256gcm-v1' : 'webauthn-prf-hkdf-sha256-v1');
           assert.equal(Buffer.from(body.wrapper.wrapped_urk, 'base64url').length, 48);
           assert.equal(Buffer.from(body.wrapper.nonce, 'base64url').length, 12);
           state.passkeys.set(pending.credential_id, { ...passkeyMeta, credential_id: pending.credential_id, label: pending.label,
-            prf_salt: pending.prf_salt, created_at: new Date().toISOString(), last_used_at: null, wrapper: body.wrapper });
+            mode: pending.mode, device_id: pending.device_id, prf_salt: pending.prf_salt, created_at: new Date().toISOString(), last_used_at: null, wrapper: body.wrapper });
           state.passkeyCommitStored?.();
           await state.passkeyCommitResponseGate;
           // Successful write followed by an ambiguous confirmation failure.
@@ -278,7 +288,8 @@ export async function startFixtureApi({ frontend } = {}) {
         }
         if (path.endsWith('/unlock/start')) {
           const credential = state.passkeys.get(body.credential_id);
-          if (!credential) return json(404, { error: 'fixture passkey not found' });
+          if (!credential || credential.account_id !== passkeyMeta.account_id) return json(404, { error: 'fixture passkey not found' });
+          if (credential.mode === 'trusted_browser') { assert.equal(body.mode, credential.mode); assert.equal(body.device_id, credential.device_id); }
           return json(200, assertionOptions(newCeremony('unlock', credential)));
         }
         if (path.endsWith('/unlock/finish')) {
@@ -287,6 +298,8 @@ export async function startFixtureApi({ frontend } = {}) {
         }
         if (path.endsWith('/remove')) {
           state.passkeys.delete(body.credential_id);
+          state.passkeyRemoveStarted?.();
+          await state.passkeyRemoveGate;
           return json(200, { ok: true });
         }
       }

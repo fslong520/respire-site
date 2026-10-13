@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Key, Plus, Trash, X } from '@phosphor-icons/react';
 import { api, readToken, USER_KEY } from './api.js';
 import { bindPasskey, unlockWithPasskey, passkeyAvailable, validatePasskeyOrigin, assertPasskeyCurrent, passkeyCommitConfirmed, reconcilePasskeyCommit, movePasskeyCommit } from './passkeys.js';
+import { bindTrustedBrowser, unlockWithTrustedBrowser, rememberTrustedAccount } from './trustedBrowser.js';
+import { trustedKeyStore } from './trustedKeyStore.js';
 import { Button, Note, useI18n } from './ui.jsx';
 import { t } from './i18n.js';
 
@@ -28,6 +30,7 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
   const [selected, setSelected] = useState('');
+  const [localTrusted, setLocalTrusted] = useState([]);
   const [commitNotice, setCommitNotice] = useState(() => pendingCommits.has(token) ? 'passkeyCommitUnknown' : '');
   const listGeneration = useRef(0);
   const resolvedCommit = useRef(null);
@@ -37,10 +40,31 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
   const load = async (signal) => {
     const generation = ++listGeneration.current;
     const observed = pendingCommits.get(token);
+    let observedKeys;
+    try { observedKeys = await trustedKeyStore.listAll({ signal }); } catch { /* PRF still works without local trust. */ }
     const next = await request('', { signal });
     if (generation !== listGeneration.current || signal?.aborted || readToken(USER_KEY) !== token) return;
     const outcome = reconcilePasskeyCommit(pendingCommits, token, observed, next);
     if (outcome === 'stale') return;
+    rememberTrustedAccount(token, next.account_id);
+    let localKeys = [];
+    if (next.trusted_browser_enabled) {
+      const localGuard = { signal, isCurrent: () => readToken(USER_KEY) === token && generation === listGeneration.current };
+      try {
+        await trustedKeyStore.reconcile(next, next.credentials.filter(c => c.mode === 'trusted_browser').map(c => ({ ...next, ...c })),
+          { ...localGuard, observedRecords: observedKeys?.filter(key => key.account_id === next.account_id && key.rp_id === next.rp_id) });
+        // A positive server listing can resolve an interrupted commit without
+        // creating a local key or deleting keys whose outcome is still unknown.
+        for (const credential of next.credentials.filter(c => c.mode === 'trusted_browser')) {
+          const metadata = { ...next, ...credential };
+          if (await trustedKeyStore.read(metadata, localGuard)) await trustedKeyStore.markActive(metadata, credential.credential_id, localGuard);
+        }
+        localKeys = await trustedKeyStore.list(next, localGuard);
+      } catch (error) {
+        if (mounted.current && !signal?.aborted && readToken(USER_KEY) === token) setError(errorText(error));
+      }
+    }
+    if (generation !== listGeneration.current || signal?.aborted || readToken(USER_KEY) !== token) return;
     let notice;
     if (outcome === 'confirmed') {
       resolvedCommit.current = observed;
@@ -59,6 +83,7 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
     if (!mounted.current) return next;
     if (notice !== undefined) setCommitNotice(notice);
     setConfig(next);
+    setLocalTrusted(localKeys);
     setSelected(value => next.credentials?.some(c => c.credential_id === value) ? value : next.credentials?.[0]?.credential_id || '');
     return next;
   };
@@ -113,17 +138,19 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
     operation.controller.unlocking = true;
     const lease = beginUnlock();
     const isCurrent = () => operation.isCurrent() && lease.isCurrent();
-    let dataKey, delivered = false;
+    let dataKey, assertTrustedCurrent, delivered = false;
     setBusy(true); setError(''); setStage('passkeyVerifying');
     try {
       const next = await load(operation.signal);
       operation.current(); validatePasskeyOrigin(next);
       const vault = await api('/api/self/vault', { token, signal: operation.signal });
       assertPasskeyCurrent(operation.signal, isCurrent);
-      dataKey = await unlockWithPasskey({ request, vault, config: next, credentialId: selected,
-        signal: operation.signal, isCurrent });
+      const credential = next.credentials.find(c => c.credential_id === selected);
+      const unlockMethod = credential?.mode === 'trusted_browser' ? unlockWithTrustedBrowser : unlockWithPasskey;
+      dataKey = await unlockMethod({ request, vault, config: next, credentialId: selected, deviceId: credential?.device_id,
+        signal: operation.signal, isCurrent, onKeyLease: lease => { assertTrustedCurrent = lease.assertCurrent; } });
       assertPasskeyCurrent(operation.signal, isCurrent);
-      await onUnlock(dataKey, vault, { generation: lease.generation, isCurrent, signal: operation.signal, onAccept: () => { delivered = true; } });
+      await onUnlock(dataKey, vault, { generation: lease.generation, isCurrent, signal: operation.signal, assertTrustedCurrent, onAccept: () => { delivered = true; } });
       delivered = true;
     } catch (error) {
       if (operation.isCurrent()) setError(errorText(error));
@@ -143,8 +170,10 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
       const vault = await api('/api/self/vault', { token, signal: operation.signal });
       operation.current();
       open({
-        title: t('passkeyBind'), description: t('passkeyBindDescription'),
+        title: t('passkeyBind'), description: `${t('passkeyBindDescription')}${next.trusted_browser_enabled ? ` ${t('trustedBrowserConsent')}` : ''}`,
         fields: [
+          ...(next.trusted_browser_enabled ? [{ name: 'unlockMode', label: t('trustedBrowserMode'), value: 'prf',
+            options: [['prf', t('trustedBrowserPrfChoice')], ['trusted_browser', t('trustedBrowserChoice')]], hint: t('trustedBrowserConsent') }] : []),
           { name: 'label', label: t('passkeyLabel'), value: '', required: false },
           { name: 'superPass', label: Number(vault.version) >= 4 ? t('labelSuperA3') : t('labelSuperPass'), type: 'password' },
           ...(Number(vault.version) === 3 ? [{ name: 'secretKey', label: 'Secret Key', type: 'password' }] : []),
@@ -155,7 +184,8 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
           operation.current();
           if (operation.commitDispatched) throw new Error(t('passkeyCommitUnknown'));
           try {
-            await bindPasskey({ request, vault, config: next, label: values.label.trim().slice(0, 80) || t('passkeyUnnamed'),
+            const bindMethod = values.unlockMode === 'trusted_browser' ? bindTrustedBrowser : bindPasskey;
+            await bindMethod({ request, vault, config: next, label: values.label.trim().slice(0, 80) || t('passkeyUnnamed'),
               superPass: values.superPass, secretKey: values.secretKey, signal: operation.signal,
               isCurrent: operation.isCurrent, onStage: (value, metadata) => {
                 operation.current();
@@ -218,9 +248,21 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
     open({ title: t('passkeyRemove'), description: t('passkeyRemoveDescription', { label: credential.label || t('passkeyUnnamed') }),
       danger: true, submit: t('passkeyRemove'), onSubmit: async () => {
         const operation = begin();
+        const localContext = { ...config, ...credential };
+        // A confirmed trusted revoke locks its originating session immediately.
+        // Later navigation/account switches must not redirect this action.
+        if (credential.mode === 'trusted_browser') onCancelUnlock?.();
         try {
-          await request('/remove', { method: 'POST', body: { credential_id: credential.credential_id }, signal: operation.signal });
-          operation.current(); await load(operation.signal); operation.current(); notify(t('passkeyRemoved'));
+          // The explicit mutation may complete after its dialog is dismissed.
+          // Acknowledged local cleanup is therefore not tied to UI cancellation.
+          await request('/remove', { method: 'POST', body: { credential_id: credential.credential_id },
+            ...(credential.mode === 'trusted_browser' ? {} : { signal: operation.signal }) });
+          if (credential.mode === 'trusted_browser') {
+            try { await trustedKeyStore.remove(localContext); }
+            catch { notify(t('trustedCleanupFailed')); throw new Error(t('trustedCleanupFailed')); }
+          }
+          if (!operation.isCurrent() || operation.signal.aborted) return;
+          await load(operation.signal); operation.current(); notify(t('passkeyRemoved'));
         } finally { finish(operation); }
       },
     });
@@ -238,7 +280,7 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
     </div>
     {stage && <p role="status">{t(stage)}</p>}
     {commitNotice && <Note tone={commitNotice === 'passkeyCommitUnknown' ? 'amber' : ''}>{t(commitNotice)}</Note>}
-    {commitNotice && <Button onClick={() => load().catch(error => {
+    {mode === 'manage' && <Button onClick={() => load().catch(error => {
       if (mounted.current && readToken(USER_KEY) === token) {
         if (pendingCommits.has(token)) setCommitNotice('passkeyCommitUnknown');
         else setError(errorText(error));
@@ -253,16 +295,21 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
   return <section className="panel key-panel">
     <div className="section-top"><h2>{t('passkeyTitle')}</h2></div>
     <p>{t('passkeyDescription')}</p>
+    {config?.trusted_browser_enabled && <Note tone="amber">{t('trustedBrowserConsent')}</Note>}
     <Note>{t('passkeyKeepRecovery')}</Note>
     <Note tone="amber"><p>{t('passkeyPrfRequirement')}</p><p>{t('passkeyPrfCompatibility')} <a href="https://github.com/bitwarden/clients/blob/browser-v2026.9.1/apps/browser/src/autofill/fido2/utils/webauthn-utils.ts#L38-L40" target="_blank" rel="noopener noreferrer">{t('passkeyPrfSource')}</a></p></Note>
     {!available && <p>{t('passkeyUnavailable')}</p>}
     {config && !config.enabled && <p>{t('passkeyDisabled')}</p>}
     {config?.credentials?.length ? <ul className="passkey-list">
       {config.credentials.map(credential => <li key={credential.credential_id}>
-        <span>{credential.label || t('passkeyUnnamed')}</span>
+        <span>{credential.label || t('passkeyUnnamed')}{credential.mode === 'trusted_browser' && <small> · {t(localTrusted.some(k => k.device_id === credential.device_id && k.key_generation === credential.key_generation) ? 'trustedBrowserHere' : 'trustedBrowserElsewhere')}</small>}</span>
         <Button danger icon={Trash} disabled={busy} onClick={() => remove(credential)}>{t('passkeyRemove')}</Button>
       </li>)}
     </ul> : <p>{t('passkeyNoCredentials')}</p>}
+    {localTrusted.length > 0 && <Button disabled={busy} onClick={() => open({ title: t('trustedForget'), description: t('trustedForgetDescription'), submit: t('trustedForget'), danger: true, onSubmit: async () => {
+      active.current?.abort(); onCancelUnlock?.(); await trustedKeyStore.clearAccount(config.account_id);
+      if (mounted.current) setLocalTrusted([]); notify(t('trustedForgotten'));
+    } })}>{t('trustedForget')}</Button>}
     <div className="key-actions"><Button icon={Plus} disabled={!canTry || !hasVault || busy || pendingCommits.has(token)} onClick={openBinding}>{t('passkeyBind')}</Button></div>
     {controls}
   </section>;

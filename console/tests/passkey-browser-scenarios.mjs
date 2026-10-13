@@ -17,7 +17,7 @@ async function syntheticProvider(page) {
       // Provider-shaped outputs: enabled only exists on create. Bitwarden's
       // versioned provider implementation supplies no PRF extension at all.
       const extensions = registration ? (window.passkeyFixture.mode === 'unsupported' ? {} : { prf: { enabled: true } })
-        : { prf: missing ? {} : { results: { first: result.buffer } } };
+        : window.passkeyFixture.mode === 'unsupported' ? {} : { prf: missing ? {} : { results: { first: result.buffer } } };
       return { id: b64(id), rawId: id, type: 'public-key',
         response: { clientDataJSON: new Uint8Array(16).fill(1), ...(registration
           ? { attestationObject: new Uint8Array(64).fill(2), getTransports: () => ['internal'] }
@@ -37,11 +37,12 @@ async function syntheticProvider(page) {
     } });
   });
 }
-async function enroll(page, recovery, label) {
+async function enroll(page, recovery, label, trusted = false) {
   await page.getByRole('button', { name: t('passkeyBind'), exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel(t('labelSuperA3'), { exact: true }).fill(recovery);
   if (label) await dialog.getByLabel(t('passkeyLabel'), { exact: true }).fill(label);
+  if (trusted) await dialog.getByLabel(t('trustedBrowserMode'), { exact: true }).selectOption('trusted_browser');
   await dialog.getByRole('button', { name: t('passkeyBind'), exact: true }).click();
   return dialog;
 }
@@ -52,6 +53,36 @@ async function noRecoveryStorage(page, recovery) {
   assert.ok(!storage.includes(recovery));
   assert.ok(!storage.includes('wrapped_urk'));
   assert.ok(!storage.includes('prf_salt'));
+}
+
+async function localTrustedRecords(page, clear = false) {
+  return page.evaluate(clear => new Promise((resolve, reject) => {
+    const request = indexedDB.open('respire-trusted-browser-v1', 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('keys')) { db.close(); resolve([]); return; }
+      const tx = db.transaction('keys', clear ? 'readwrite' : 'readonly');
+      const store = tx.objectStore('keys');
+      const query = clear ? store.clear() : store.getAll();
+      let records = [];
+      query.onsuccess = () => { if (!clear) records = query.result.map(record => ({
+        account_id: record.account_id, device_id: record.device_id, key_generation: record.key_generation,
+        active: record.active, fields: Object.keys(record).sort(), extractable: record.key.extractable,
+        algorithm: record.key.algorithm.name, keyLength: record.key.algorithm.length,
+      })); };
+      tx.oncomplete = () => { db.close(); resolve(records); };
+      tx.onabort = () => { db.close(); reject(tx.error); };
+    };
+  }), clear);
+}
+async function waitLocalCount(page, count) {
+  for (let i = 0; i < 100; i++) {
+    const records = await localTrustedRecords(page);
+    if (records.length === count) return records;
+    await page.waitForTimeout(20);
+  }
+  assert.equal((await localTrustedRecords(page)).length, count);
 }
 
 export async function passkeyBrowserScenarios({ run, open, api }) {
@@ -67,6 +98,224 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     await page.getByRole('button', { name: t('passkeyBind'), exact: true }).waitFor();
     return { recovery, page, requests: () => api.requests.slice(requestStart) };
   };
+
+  await run('trusted browser: explicit opt-in accepts non-PRF passkeys and survives reload with only a local CryptoKey', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery, requests } = await setup();
+    const original = structuredClone(api.state.vault);
+    await page.evaluate(() => { window.passkeyFixture.mode = 'unsupported'; });
+    await page.getByRole('button', { name: t('passkeyBind'), exact: true }).click();
+    let dialog = page.getByRole('dialog');
+    assert.equal(await dialog.getByLabel(t('trustedBrowserMode'), { exact: true }).inputValue(), 'prf');
+    await dialog.getByRole('button', { name: t('cancel'), exact: true }).click();
+    await (await enroll(page, recovery, 'Ordinary provider with browser trust', true)).waitFor({ state: 'hidden' });
+    assert.equal(await page.evaluate(() => window.passkeyFixture.gets), 2);
+    const records = await waitLocalCount(page, 1);
+    assert.equal(records[0].extractable, false); assert.equal(records[0].algorithm, 'AES-GCM'); assert.equal(records[0].keyLength, 256);
+    assert.deepEqual(records[0].fields, ['account_id', 'active', 'credential_id', 'device_id', 'id', 'key', 'key_generation', 'revision', 'rp_id']);
+    assert.deepEqual(api.state.vault, original);
+    await page.reload(); await syntheticProvider(page);
+    await page.evaluate(() => { window.passkeyFixture.mode = 'unsupported'; });
+    await nav(page, 'memories');
+    await page.getByRole('button', { name: t('passkeyUnlock'), exact: true }).and(page.locator(':enabled')).click();
+    await page.locator('.empty-guide').waitFor();
+    assert.equal(requests().filter(r => r.method === 'POST' && r.path.endsWith('/unlock/finish')).length, 1);
+    const sent = JSON.stringify(requests().filter(r => r.path.startsWith('/api/self/passkeys')).map(r => r.body));
+    assert.equal(sent.includes('results'), false); assert.equal(sent.includes('"key"'), false);
+    await noRecoveryStorage(page, recovery);
+  });
+
+  await run('trusted browser: lost local key needs recovery without another native prompt', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery, requests } = await setup();
+    await page.evaluate(() => { window.passkeyFixture.mode = 'unsupported'; });
+    await (await enroll(page, recovery, 'Storage loss', true)).waitFor({ state: 'hidden' });
+    await localTrustedRecords(page, true);
+    await nav(page, 'memories');
+    await page.getByRole('button', { name: t('passkeyUnlock'), exact: true }).and(page.locator(':enabled')).click();
+    await page.getByRole('alert').filter({ hasText: t('trustedKeyMissing') }).waitFor();
+    assert.equal(await page.evaluate(() => window.passkeyFixture.gets), 2);
+    assert.equal(requests().filter(r => r.method === 'POST' && r.path.includes('/unlock/')).length, 0);
+    assert.equal(api.state.passkeys.size, 1);
+  });
+
+  await run('trusted browser: IndexedDB write failure cannot activate a binding', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery, requests } = await setup();
+    await page.evaluate(() => {
+      window.passkeyFixture.mode = 'unsupported';
+      const original = IDBObjectStore.prototype.add;
+      IDBObjectStore.prototype.add = function (...args) {
+        if (this.name === 'keys') throw new DOMException('Synthetic storage denied', 'QuotaExceededError');
+        return original.apply(this, args);
+      };
+    });
+    const dialog = await enroll(page, recovery, 'Storage rejected', true);
+    await dialog.getByRole('alert').filter({ hasText: t('trustedBrowserStorageUnavailable') }).waitFor();
+    assert.equal(await page.evaluate(() => window.passkeyFixture.gets), 0);
+    assert.equal(requests().filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 0);
+    assert.equal(api.state.passkeys.size, 0); await waitLocalCount(page, 0);
+    await dialog.getByRole('button', { name: t('cancel'), exact: true }).click();
+  });
+
+  await run('trusted browser: pre-commit cancellation deletes local pending key and ignores late native result', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery, requests } = await setup();
+    await page.evaluate(() => { window.passkeyFixture.mode = 'delay'; });
+    const dialog = await enroll(page, recovery, 'Cancelled local setup', true);
+    await page.waitForFunction(() => !!window.passkeyFixture.resolve);
+    await waitLocalCount(page, 1);
+    await dialog.getByRole('button', { name: t('cancel'), exact: true }).click();
+    await page.evaluate(() => window.passkeyFixture.resolve());
+    await waitLocalCount(page, 0);
+    assert.equal(api.state.passkeys.size, 0);
+    assert.equal(requests().filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 0);
+  });
+
+  await run('trusted browser: uncertain accepted commit retains and reconciles the local key', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery, requests } = await setup();
+    api.state.passkeyCommitResponseLost = true;
+    await page.evaluate(() => { window.passkeyFixture.mode = 'unsupported'; });
+    await (await enroll(page, recovery, 'Unknown local setup', true)).waitFor({ state: 'hidden' });
+    await page.getByText(t('passkeyCommitFound'), { exact: true }).waitFor();
+    const records = await waitLocalCount(page, 1); assert.equal(records[0].active, true);
+    assert.equal(requests().filter(r => r.method === 'POST' && r.path.endsWith('/register/commit')).length, 1);
+    assert.equal(requests().filter(r => r.method === 'POST' && r.path.endsWith('/remove')).length, 0);
+    await noRecoveryStorage(page, recovery);
+  });
+
+  await run('trusted browser: account switching isolates durable keys and logout clears only verified account', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery } = await setup({ 'rsrs.dashboard.accounts': JSON.stringify([
+      { user: FIXTURE.user, token: FIXTURE.userToken }, { user: FIXTURE.secondUser, token: FIXTURE.secondToken },
+    ]) });
+    await (await enroll(page, recovery, 'Account A', true)).waitFor({ state: 'hidden' });
+    await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.secondToken);
+    await page.waitForFunction(token => localStorage.getItem('rsrs.userToken') === token, FIXTURE.secondToken);
+    await nav(page, 'keys');
+    await page.getByRole('button', { name: t('passkeyBind'), exact: true }).and(page.locator(':enabled')).waitFor();
+    assert.equal(await page.locator('.passkey-list li').count(), 0);
+    await (await enroll(page, recovery, 'Account B', true)).waitFor({ state: 'hidden' });
+    const records = await waitLocalCount(page, 2);
+    assert.deepEqual(records.map(r => r.account_id).sort(), ['fixture-account-id', 'fixture-second-account-id']);
+    await page.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).click();
+    await page.locator('.gate-form').waitFor();
+    const remaining = await waitLocalCount(page, 1); assert.equal(remaining[0].account_id, 'fixture-account-id');
+  });
+
+  await run('trusted browser: revoke locks the accepted session and navigation cannot skip acknowledged local cleanup', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery } = await setup();
+    await (await enroll(page, recovery, 'Revoked trusted browser', true)).waitFor({ state: 'hidden' });
+    await nav(page, 'memories');
+    await page.getByRole('button', { name: t('passkeyUnlock'), exact: true }).and(page.locator(':enabled')).click();
+    await page.locator('.empty-guide').waitFor();
+    await nav(page, 'keys');
+    let release, started;
+    api.state.passkeyRemoveGate = new Promise(resolve => { release = resolve; });
+    const dispatched = new Promise(resolve => { started = resolve; });
+    api.state.passkeyRemoveStarted = started;
+    try {
+      await page.locator('.passkey-list li').getByRole('button', { name: t('passkeyRemove'), exact: true }).click();
+      await page.getByRole('dialog').getByRole('button', { name: t('passkeyRemove'), exact: true }).click();
+      await dispatched;
+      await page.evaluate(() => { location.hash = '/memories'; });
+      await page.getByRole('dialog').waitFor({ state: 'hidden' });
+      await page.locator('.locked-state').waitFor();
+      assert.equal(await page.locator('.empty-guide').count(), 0);
+    } finally { release(); api.state.passkeyRemoveGate = null; }
+    await waitLocalCount(page, 0); assert.equal(api.state.passkeys.size, 0);
+  });
+
+  await run('trusted browser: unknown logout identity clears local trust with a visible fallback warning', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery } = await setup();
+    await (await enroll(page, recovery, 'Forgotten identity', true)).waitFor({ state: 'hidden' });
+    await nav(page, 'sessions');
+    await page.reload(); // No Passkeys component or authenticated UUID lookup on this route.
+    await page.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).click();
+    await page.locator('.gate-form').waitFor();
+    await page.getByRole('status').filter({ hasText: t('trustedLogoutAll') }).waitFor();
+    await waitLocalCount(page, 0);
+  });
+
+  await run('trusted browser: failed local cleanup never prevents logout and remains visible', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery } = await setup();
+    await (await enroll(page, recovery, 'Cleanup failure', true)).waitFor({ state: 'hidden' });
+    await page.evaluate(() => {
+      const original = IDBObjectStore.prototype.delete;
+      IDBObjectStore.prototype.delete = function (...args) {
+        if (this.name === 'keys') throw new DOMException('Synthetic deletion denied', 'UnknownError');
+        return original.apply(this, args);
+      };
+    });
+    await page.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).click();
+    await page.locator('.gate-form').waitFor();
+    await page.getByRole('status').filter({ hasText: t('trustedCleanupFailed') }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('rsrs.userToken')), '');
+    await waitLocalCount(page, 1);
+  });
+
+  for (const cleanupFails of [false, true]) await run(`trusted browser: destructive reset invalidates trust and delivers recovery with cleanup failure=${cleanupFails}`, async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery } = await setup();
+    await (await enroll(page, recovery, 'Before destructive reset', true)).waitFor({ state: 'hidden' });
+    if (cleanupFails) await page.evaluate(() => {
+      const original = IDBObjectStore.prototype.delete;
+      IDBObjectStore.prototype.delete = function (...args) {
+        if (this.name === 'keys') throw new DOMException('Synthetic deletion denied', 'UnknownError');
+        return original.apply(this, args);
+      };
+    });
+    await page.locator('.setting-row').filter({ has: page.getByRole('heading', { name: t('resetKeysH3'), exact: true }) })
+      .getByRole('button', { name: t('reset'), exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel(t('typeConfirmReset'), { exact: true }).fill(t('confirmResetWord'));
+    await dialog.getByRole('button', { name: t('confirmResetAbandon'), exact: true }).click();
+    await page.getByRole('dialog').getByRole('heading', { name: t('copySuperNowTitle'), exact: true }).waitFor();
+    const replacement = await page.getByRole('dialog').locator('.secret-result code').textContent();
+    assert.notEqual(replacement, recovery);
+    assert.equal((await unwrapUrk(replacement, undefined, api.state.vault)).length, 32);
+    assert.equal(api.state.keyGeneration, 2); assert.equal(api.state.passkeys.size, 0);
+    if (cleanupFails) await page.getByRole('dialog').getByText(t('trustedResetCleanupFailed'), { exact: true }).waitFor();
+    else await waitLocalCount(page, 0);
+  });
+
+  await run('trusted browser: token rotation preserves stable local identity and native unlock', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery } = await setup();
+    await (await enroll(page, recovery, 'Rotated account', true)).waitFor({ state: 'hidden' });
+    const before = await localTrustedRecords(page);
+    await nav(page, 'sessions');
+    await page.getByRole('button', { name: t('rotateToken'), exact: true }).click();
+    await page.waitForFunction(() => localStorage.getItem('rsrs.userToken') === 'fixture-rotated-token');
+    await nav(page, 'memories');
+    await page.getByRole('button', { name: t('passkeyUnlock'), exact: true }).and(page.locator(':enabled')).click();
+    await page.locator('.empty-guide').waitFor();
+    assert.deepEqual(await localTrustedRecords(page), before);
+    await page.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).click();
+    await page.locator('.gate-form').waitFor(); await waitLocalCount(page, 0);
+  });
+
+  await run('trusted browser: local-key deletion during first memory pull cannot deliver an unlock', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery } = await setup();
+    await (await enroll(page, recovery, 'Delayed memory acceptance', true)).waitFor({ state: 'hidden' });
+    let release;
+    api.state.memoriesGate = new Promise(resolve => { release = resolve; });
+    try {
+      await nav(page, 'memories');
+      const pull = page.waitForRequest(r => new URL(r.url()).pathname === '/api/self/memories');
+      await page.getByRole('button', { name: t('passkeyUnlock'), exact: true }).and(page.locator(':enabled')).click();
+      await pull;
+      await localTrustedRecords(page, true); // Independent real IndexedDB connection.
+    } finally { release(); api.state.memoriesGate = null; }
+    await page.waitForLoadState('networkidle');
+    await page.locator('.locked-state').waitFor();
+    assert.equal(await page.locator('.empty-guide').count(), 0);
+  });
 
   await run('passkeys: two verified gets, multiple bindings, reload unlock, removal and recovery', async () => {
     const { recovery, page, requests } = await setup();

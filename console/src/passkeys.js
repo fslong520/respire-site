@@ -149,7 +149,9 @@ export function passkeyCommitConfirmed(pending, config) {
   return Boolean(pending && config?.enabled && pending.account_id === config.account_id
     && pending.rp_id === config.rp_id && pending.key_generation === config.key_generation
     && config.credentials?.some(credential => credential.credential_id === pending.credential_id
-      && credential.key_generation === pending.key_generation));
+      && credential.key_generation === pending.key_generation
+      && (pending.mode === 'trusted_browser' ? credential.mode === 'trusted_browser' && credential.device_id === pending.device_id
+        : credential.mode === undefined || credential.mode === 'prf')));
 }
 
 export function passkeyCommitContextChanged(pending, config) {

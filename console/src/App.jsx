@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { forgetTrustedAccount, moveTrustedAccount, rememberTrustedAccount } from './trustedBrowser.js';
 import { Gate } from './Gate.jsx';
 import { clearPendingPasskeyCommit, movePendingPasskeyCommit } from './Passkeys.jsx';
 import { Shell } from './Shell.jsx';
@@ -66,9 +67,12 @@ function Console({ admin }) {
     const previous = readToken(key);
     if (!writeToken(key, value)) throw new Error(t('sessionStorageFailed'));
     entryGeneration.current += 1;
-    if (!admin && !value) {
+    if (!admin && !value && previous) {
       dropUnlockSession(previous);
       clearPendingPasskeyCommit(previous);
+      const forgotten = forgetTrustedAccount(previous);
+      if (forgotten.allAccounts) setHint(t('trustedLogoutAll'));
+      forgotten.completion.catch(() => setHint(t('trustedCleanupFailed')));
       // Account-list cleanup cannot undo a successful logout.
       try { setAccounts(removeAccount(previous)); }
       catch { setHint(t('accountListFailed')); }
@@ -85,6 +89,7 @@ function Console({ admin }) {
     let dataKey;
     if (superPass) {
       vault = await api('/api/self/vault', { token: value });
+      if (generation === entryGeneration.current && readToken(key) === previous) rememberTrustedAccount(value, vault.account_id);
       const urk = await unwrapUrk(superPass, secretKey, vault);
       try { dataKey = await deriveDataKeys(urk, vault.wrapped_urk.startsWith('rsrs:v1:')); }
       finally { urk.fill(0); }
@@ -120,6 +125,11 @@ function Console({ admin }) {
     const changed = (event) => {
       if (event.key === USER_KEY) {
         clearUnlockSessions();
+        if (!event.newValue && event.oldValue) {
+          const forgotten = forgetTrustedAccount(event.oldValue);
+          if (forgotten.allAccounts) setHint(t('trustedLogoutAll'));
+          forgotten.completion.catch(() => setHint(t('trustedCleanupFailed')));
+        }
         entryGeneration.current += 1;
         setSwitching(false);
         setChecked(false);
@@ -219,6 +229,7 @@ function Console({ admin }) {
           // This callback is used only by authenticated same-account rotation.
           // setToken must succeed before public pending metadata can move.
           movePendingPasskeyCommit(token, value);
+          moveTrustedAccount(token, value, readToken(USER_KEY));
         }
       }}
       onLogout={() => { try { setToken(''); } catch (error) { setHint(error.message); } }}
