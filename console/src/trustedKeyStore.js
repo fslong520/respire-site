@@ -144,12 +144,15 @@ export function createTrustedKeyStore({ indexedDB = globalThis.indexedDB, crypto
       catch (error) { finish(unavailable(error)); return; }
       request.onblocked = () => finish(unavailable());
       request.onerror = () => finish(unavailable(request.error));
+      const abortUpgrade = () => {
+        try { request.transaction?.abort(); } catch { /* It may already have aborted or finished. */ }
+      };
       request.onupgradeneeded = () => {
-        if (settled) { request.transaction?.abort(); return; }
+        if (settled) { abortUpgrade(); return; }
         try {
           if (!request.result.objectStoreNames.contains(STORE)) request.result.createObjectStore(STORE, { keyPath: 'id' });
           if (!request.result.objectStoreNames.contains(EPOCHS)) request.result.createObjectStore(EPOCHS, { keyPath: 'id' });
-        } catch (error) { request.transaction?.abort(); finish(unavailable(error)); }
+        } catch (error) { abortUpgrade(); finish(unavailable(error)); }
       };
       request.onsuccess = () => {
         const db = request.result;
@@ -294,9 +297,12 @@ export function createTrustedKeyStore({ indexedDB = globalThis.indexedDB, crypto
           op.current(true);
           const cleanup = operation(context);
           cleanup.durable = op.durable;
-          await transaction(cleanup, 'readwrite', store => {
+          await transaction(cleanup, 'readwrite', (store, result, reject) => {
             const request = store.get(idOf(context));
-            request.onsuccess = () => { if (request.result?.revision === revision) store.delete(idOf(context)); };
+            request.onsuccess = () => {
+              try { if (request.result?.revision === revision) store.delete(idOf(context)); }
+              catch (error) { reject(error); }
+            };
           });
         } catch (cleanupError) {
           // A newer logout/revocation owns cleanup after an epoch change.
@@ -437,8 +443,10 @@ export function createTrustedKeyStore({ indexedDB = globalThis.indexedDB, crypto
           epochs.put({ id: accountEpochId(account_id), value: randomMarker() });
           const request = store.getAll();
           request.onsuccess = () => {
-            for (const record of request.result) if (record.account_id === account_id) store.delete(record.id);
-            result();
+            try {
+              for (const record of request.result) if (record.account_id === account_id) store.delete(record.id);
+              result();
+            } catch (error) { reject(error); }
           };
         });
         if (state.clearOwner === clearOwner) state.blocked = false;

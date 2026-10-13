@@ -17,7 +17,7 @@ const code = expected => error => error?.code === expected;
 // while sharing the same durable database.
 function idbHarness() {
   const engine = { stores: new Map(), transactions: [], connections: [], active: null,
-    failOpen: false, blocked: false, failWrites: false, throwMethod: null, throwName: 'QuotaExceededError', transformRead: null, beforeCommit: null };
+    callbackErrors: [], failOpen: false, blocked: false, failWrites: false, throwMethod: null, throwName: 'QuotaExceededError', transformRead: null, beforeCommit: null };
   const next = () => {
     if (engine.active) return;
     const tx = engine.transactions.shift();
@@ -33,6 +33,15 @@ function idbHarness() {
   function makeTransaction(names, mode) {
     let snapshot, finished = false, started = false, committing = false;
     const queue = [];
+    // Browser event dispatch reports uncaught listener exceptions globally. It
+    // does not turn a thrown onsuccess callback into a request.onerror event.
+    const dispatch = (target, event) => {
+      try { target[event]?.(); }
+      catch (error) {
+        engine.callbackErrors.push(error);
+        if (!finished) { tx.error = new DOMException('Uncaught request callback', 'AbortError'); tx.abort(); }
+      }
+    };
     const tx = { mode, error: null, mutated: false,
       start() {
         if (finished) { complete(tx); return; }
@@ -72,7 +81,7 @@ function idbHarness() {
       abort() {
         if (finished) throw new DOMException('Finished transaction', 'InvalidStateError');
         finished = true;
-        setImmediate(() => tx.onabort?.());
+        setImmediate(() => dispatch(tx, 'onabort'));
         complete(tx);
       },
     };
@@ -80,6 +89,7 @@ function idbHarness() {
       if (finished || !started || committing) return;
       const item = queue.shift();
       if (item) {
+        let failed = false;
         try {
           if (item.writable) {
             if (mode !== 'readwrite') throw new DOMException('Read only', 'ReadOnlyError');
@@ -87,12 +97,13 @@ function idbHarness() {
             tx.mutated = true;
           }
           item.req.result = item.action();
-          item.req.onsuccess?.();
         } catch (error) {
+          failed = true;
           item.req.error = tx.error = error;
-          item.req.onerror?.();
-          if (!finished) { tx.onerror?.(); if (!finished) tx.abort(); }
+          dispatch(item.req, 'onerror');
+          if (!finished) { dispatch(tx, 'onerror'); if (!finished) tx.abort(); }
         }
+        if (!failed) dispatch(item.req, 'onsuccess');
         setImmediate(tick);
         return;
       }
@@ -101,7 +112,7 @@ function idbHarness() {
       if (finished) return;
       if (mode === 'readwrite') for (const [name, data] of snapshot) engine.stores.set(name, data);
       finished = true;
-      tx.oncomplete?.();
+      dispatch(tx, 'oncomplete');
       complete(tx);
     }
     engine.transactions.push(tx); next();
@@ -487,6 +498,66 @@ test('synchronous IndexedDB throws inside async request callbacks use stable pub
     engine.throwMethod = method;
     await assert.rejects(act(store), error => error.code === 'trustedBrowserStorageUnavailable'
       && error.cause?.name === 'QuotaExceededError' && typeof error.cause.code === 'number');
+    assert.deepEqual(engine.callbackErrors, [], 'Handled storage failures must not escape event dispatch');
+  });
+});
+
+test('synchronous deletion failures in later read callbacks abort without global exceptions', async t => {
+  for (const cleanup of ['account', 'old-generation', 'reconcile']) await t.test(cleanup, async () => {
+    const { store, engine, records } = harness();
+    await store.create(context()); await store.markActive(context(), 'credential_A');
+    await store.create(context({ account_id: 'account-b' }));
+    const observedRecords = await store.list(context());
+    engine.throwMethod = 'delete'; engine.throwName = 'UnknownError';
+    const pending = cleanup === 'account' ? store.clearAccount('account-a')
+      : cleanup === 'old-generation' ? store.clearAccountOlderGenerations('account-a', 2)
+        : store.reconcile(context(), [], { observedRecords });
+    await assert.rejects(pending, error => error.code === 'trustedBrowserStorageUnavailable' && error.cause?.name === 'UnknownError');
+    assert.deepEqual(engine.callbackErrors, [], 'Deletion must be caught before returning to browser event dispatch');
+    assert.equal(records().length, 2, 'Failed cleanup must roll back, never claim deletion');
+    if (cleanup === 'account') await assert.rejects(store.read(context()), code('trustedBrowserStorageUnavailable'));
+    engine.throwMethod = null;
+    await store.clearAccount('account-a');
+    assert.deepEqual(records().map(record => record.account_id), ['account-b']);
+  });
+});
+
+test('synchronous failed-enrollment rollback deletion reports cleanup failure without global exceptions', async () => {
+  const { store, engine, records } = harness();
+  const different = await webcrypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  engine.transformRead = record => {
+    if (record) engine.throwMethod = 'delete';
+    return record && { ...record, key: different };
+  };
+  await assert.rejects(store.create(context()), error => error.code === 'trustedCleanupFailed'
+    && error.cleanupCause?.code === 'trustedBrowserStorageUnavailable'
+    && error.cleanupCause.cause?.name === 'QuotaExceededError');
+  assert.deepEqual(engine.callbackErrors, [], 'Rollback deletion must not escape event dispatch');
+  assert.equal(records().length, 1);
+  engine.transformRead = null; engine.throwMethod = null;
+  await store.clearAccount('account-a');
+  assert.equal(records().length, 0);
+});
+
+test('upgrade abort failures never escape or hide the original open failure', async t => {
+  for (const alreadySettled of [false, true]) await t.test(alreadySettled ? 'late upgrade after blocked' : 'failed schema creation', async () => {
+    let request, closed = false, aborts = 0;
+    const schemaError = new DOMException('Synthetic schema failure', 'QuotaExceededError');
+    const db = { objectStoreNames: { contains: () => false }, createObjectStore() { throw schemaError; }, close() { closed = true; } };
+    const indexedDB = { open() {
+      request = { result: db, transaction: { abort() { aborts++; throw new DOMException('Already finished', 'InvalidStateError'); } } };
+      return request;
+    } };
+    const store = createTrustedKeyStore({ indexedDB, crypto: webcrypto });
+    const pending = store.read(context());
+    const rejected = assert.rejects(pending, error => error.code === 'trustedBrowserStorageUnavailable'
+      && (alreadySettled ? !error.cause : error.cause === schemaError));
+    if (alreadySettled) request.onblocked();
+    assert.doesNotThrow(() => request.onupgradeneeded());
+    await rejected;
+    assert.equal(aborts, 1);
+    assert.doesNotThrow(() => request.onsuccess());
+    assert.equal(closed, true, 'A late open must not retain a connection after failure');
   });
 });
 
