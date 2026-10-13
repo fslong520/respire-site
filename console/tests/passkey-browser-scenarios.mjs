@@ -9,11 +9,15 @@ import { FIXTURE } from './fixture-api.mjs';
 // fulfilled through Playwright; all API calls reach the loopback fixture server.
 async function syntheticProvider(page) {
   await page.evaluate(() => {
-    window.passkeyFixture = { mode: 'normal', creates: 0, gets: 0, resolve: null };
+    window.passkeyFixture = { mode: 'normal', creates: 0, gets: 0, ceremonyGets: 0, resolve: null };
     const b64 = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     const credential = (id, registration) => {
       const result = new Uint8Array(32).fill(91);
-      const extensions = { prf: { enabled: true, ...(registration || window.passkeyFixture.mode === 'missing' ? {} : { results: { first: result.buffer } }) } };
+      const missing = window.passkeyFixture.mode === 'missing' || (window.passkeyFixture.mode === 'missingSecond' && window.passkeyFixture.ceremonyGets === 2);
+      // Provider-shaped outputs: enabled only exists on create. Bitwarden's
+      // versioned provider implementation supplies no PRF extension at all.
+      const extensions = registration ? (window.passkeyFixture.mode === 'unsupported' ? {} : { prf: { enabled: true } })
+        : { prf: missing ? {} : { results: { first: result.buffer } } };
       return { id: b64(id), rawId: id, type: 'public-key',
         response: { clientDataJSON: new Uint8Array(16).fill(1), ...(registration
           ? { attestationObject: new Uint8Array(64).fill(2), getTransports: () => ['internal'] }
@@ -22,9 +26,9 @@ async function syntheticProvider(page) {
         toJSON() { throw new Error('Unsafe credential serializer called'); } };
     };
     Object.defineProperty(navigator, 'credentials', { configurable: true, value: {
-      create: async () => { window.passkeyFixture.creates++; return credential(new Uint8Array(24).fill(window.passkeyFixture.creates), true); },
+      create: async () => { window.passkeyFixture.creates++; window.passkeyFixture.ceremonyGets = 0; return credential(new Uint8Array(24).fill(window.passkeyFixture.creates), true); },
       get: async ({ publicKey }) => {
-        window.passkeyFixture.gets++;
+        window.passkeyFixture.gets++; window.passkeyFixture.ceremonyGets++;
         if (window.passkeyFixture.mode === 'cancel') throw new DOMException('Synthetic cancellation', 'NotAllowedError');
         const value = credential(new Uint8Array(publicKey.allowCredentials[0].id), false);
         if (window.passkeyFixture.mode === 'delay') return new Promise(resolve => { window.passkeyFixture.resolve = () => resolve(value); });
@@ -95,11 +99,38 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     assert.ok(!sent.includes('results'));
   });
 
+  for (const [mode, code, gets, stages] of [
+    ['unsupported', 'passkeyPrfCreateUnavailable', 0, ['/register/start']],
+    ['missingSecond', 'passkeyPrfReopenMissing', 2, ['/register/start', '/register/finish', '/register/test']],
+  ]) await run(`passkeys: ${mode} identifies the PRF stage without activation`, async () => {
+    const { recovery, page, requests } = await setup();
+    const original = structuredClone(api.state.vault);
+    await page.getByText(t('passkeyPrfRequirement'), { exact: true }).waitFor();
+    await page.getByText(t('passkeyPrfCompatibility'), { exact: false }).waitFor();
+    assert.equal(await page.getByRole('link', { name: t('passkeyPrfSource'), exact: true }).getAttribute('href'),
+      'https://github.com/bitwarden/clients/blob/browser-v2026.9.1/apps/browser/src/autofill/fido2/utils/webauthn-utils.ts#L38-L40');
+    await page.evaluate(mode => { window.passkeyFixture.mode = mode; }, mode);
+    const dialog = await enroll(page, recovery, 'Synthetic provider capability');
+    await dialog.getByRole('alert').filter({ hasText: t(code) }).waitFor();
+    assert.equal(await dialog.getByRole('alert').textContent(), t(code));
+    assert.equal(await page.evaluate(() => window.passkeyFixture.gets), gets);
+    assert.deepEqual(requests().filter(r => r.method === 'POST' && r.path.startsWith('/api/self/passkeys'))
+      .map(r => r.path.slice('/api/self/passkeys'.length)), stages);
+    assert.equal(api.state.passkeys.size, 0);
+    assert.deepEqual(api.state.vault, original);
+    assert.equal((await unwrapUrk(recovery, undefined, api.state.vault)).length, 32);
+    await noRecoveryStorage(page, recovery);
+    await dialog.getByRole('button', { name: t('cancel'), exact: true }).click();
+  });
+
   await run('passkeys: missing PRF fails closed, cancellation retries, late modal result cannot commit', async () => {
     const { recovery, page, requests } = await setup();
     await page.evaluate(() => { window.passkeyFixture.mode = 'missing'; });
     const dialog = await enroll(page, recovery, 'Unsupported');
-    await dialog.getByRole('alert').waitFor();
+    await dialog.getByRole('alert').filter({ hasText: t('passkeyPrfFirstMissing') }).waitFor();
+    assert.equal(await dialog.getByRole('alert').textContent(), t('passkeyPrfFirstMissing'));
+    assert.deepEqual(requests().filter(r => r.method === 'POST' && r.path.startsWith('/api/self/passkeys'))
+      .map(r => r.path.slice('/api/self/passkeys'.length)), ['/register/start', '/register/finish']);
     assert.equal(api.state.passkeys.size, 0);
     await dialog.getByRole('button', { name: t('cancel'), exact: true }).click();
     await page.evaluate(() => { window.passkeyFixture.mode = 'delay'; });
@@ -110,6 +141,22 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     await (await enroll(page, recovery, 'Retry')).waitFor({ state: 'hidden' });
     assert.equal(api.state.passkeys.size, 1);
     assert.equal([...api.state.passkeys.values()][0].label, 'Retry');
+    await noRecoveryStorage(page, recovery);
+  });
+
+  await run('passkeys: unlock missing PRF reports unchanged existing binding', async () => {
+    const { recovery, page, requests } = await setup();
+    await (await enroll(page, recovery, 'Synthetic existing binding')).waitFor({ state: 'hidden' });
+    const binding = structuredClone([...api.state.passkeys.values()][0]);
+    await nav(page, 'memories');
+    await page.locator('.locked-state').waitFor();
+    await page.evaluate(() => { window.passkeyFixture.mode = 'missing'; });
+    await page.getByRole('button', { name: t('passkeyUnlock'), exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: t('passkeyPrfUnlockMissing') }).waitFor();
+    assert.equal(await page.getByRole('alert').textContent(), t('passkeyPrfUnlockMissing'));
+    assert.deepEqual([...api.state.passkeys.values()], [binding]);
+    assert.equal(requests().filter(r => r.method === 'POST' && r.path === '/api/self/passkeys/unlock/finish').length, 0);
+    await page.locator('.locked-state').waitFor();
     await noRecoveryStorage(page, recovery);
   });
 

@@ -79,7 +79,12 @@ The normal unit suite includes `passkeys.test.mjs`: exact same-URK and mixed
 legacy/current ciphertext compatibility (recovery wrappers v1–v4), AEAD metadata
 and ciphertext tampering, secret-free credential serialization, two independent
 assertion PRF outputs before activation, missing/unstable PRF, cancellation,
-retries, and stale account/unlock fencing. These are synthetic WebCrypto tests.
+retries, and stale account/unlock fencing. Tests separately assert creation,
+first/second assertion, and unlock failure messages. An empty-extension creation
+response modeled after Bitwarden browser extension 2026.9.1 proves that no
+assertion prompt or registration finish/commit request follows. Assertion mocks
+omit the registration-only `enabled` field. These are synthetic WebCrypto tests,
+not an execution of the Bitwarden extension or hardware-provider validation.
 
 The existing compiled-UI fixture suite also includes passkey management, multiple
 bindings, memory unlock after reload, removal, recovery preservation, missing PRF,

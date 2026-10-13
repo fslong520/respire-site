@@ -111,11 +111,11 @@ function registrationPrfEnabled(credential) {
   byteView(result?.results?.second)?.fill(0);
   return result?.enabled === true;
 }
-function prfResult(credential) {
+function prfResult(credential, missingCode) {
   const result = credential?.getClientExtensionResults?.()?.prf?.results;
   const bytes = byteView(result?.first);
   byteView(result?.second)?.fill(0);
-  if (!bytes || bytes.length !== 32) { bytes?.fill(0); throw fail('passkeyNoPrf'); }
+  if (!bytes || bytes.length !== 32) { bytes?.fill(0); throw fail(missingCode); }
   return bytes;
 }
 function descriptors(list) {
@@ -194,7 +194,7 @@ export async function bindPasskey({ request, vault, config, superPass, secretKey
     const registered = await credentials.create({ publicKey: creationOptions(start), signal });
     const enabled = registrationPrfEnabled(registered);
     current();
-    if (!enabled) throw fail('passkeyNoPrf');
+    if (!enabled) throw fail('passkeyPrfCreateUnavailable');
     const registration = serializePasskeyCredential(registered, true, enabled);
     const verify = await request('/register/finish', { method: 'POST', body: { ceremony_id: start.ceremony_id, credential: registration }, signal });
     current(); validatePasskeyContext(verify, vault, config, registration.id);
@@ -202,7 +202,7 @@ export async function bindPasskey({ request, vault, config, superPass, secretKey
     // Even a successful create is insufficient. Prove a fresh get can return the
     // PRF secret and decrypt the same URK before making this credential active.
     const assertion = await credentials.get({ publicKey: assertionOptions(verify), signal });
-    prf = prfResult(assertion);
+    prf = prfResult(assertion, 'passkeyPrfFirstMissing');
     current();
     const serialized = serializePasskeyCredential(assertion);
     if (serialized.id !== verify.credential_id) throw fail('passkeyChanged');
@@ -215,7 +215,7 @@ export async function bindPasskey({ request, vault, config, superPass, secretKey
     prf.fill(0);
     onStage('passkeyReopening');
     const reopened = await credentials.get({ publicKey: assertionOptions(reopen), signal });
-    reopenedPrf = prfResult(reopened);
+    reopenedPrf = prfResult(reopened, 'passkeyPrfReopenMissing');
     current();
     const reopenedCredential = serializePasskeyCredential(reopened);
     if (reopenedCredential.id !== verify.credential_id) throw fail('passkeyChanged');
@@ -246,7 +246,7 @@ export async function unlockWithPasskey({ request, vault, config, credentialId, 
     const start = await request('/unlock/start', { method: 'POST', body: { credential_id: credentialId }, signal });
     current(); validatePasskeyContext(start, vault, config, credentialId);
     const assertion = await credentials.get({ publicKey: assertionOptions(start), signal });
-    prf = prfResult(assertion);
+    prf = prfResult(assertion, 'passkeyPrfUnlockMissing');
     current();
     const serialized = serializePasskeyCredential(assertion);
     if (serialized.id !== credentialId) throw fail('passkeyChanged');

@@ -116,7 +116,7 @@ try {
             await p.bindPasskey({ request, vault, config, superPass: recovery, label: 'Synthetic only', isCurrent: () => true });
             ensure(supported, 'Unsupported PRF must not bind');
           } catch (error) {
-            if (supported || error.code !== 'passkeyNoPrf') throw error;
+            if (supported || error.code !== 'passkeyPrfCreateUnavailable') throw error;
           }
           if (!supported) {
             ensure(commits === 0 && registrationPosts === 0, 'Unsupported credential reached enrollment');

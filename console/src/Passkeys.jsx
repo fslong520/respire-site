@@ -254,6 +254,7 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
     <div className="section-top"><h2>{t('passkeyTitle')}</h2></div>
     <p>{t('passkeyDescription')}</p>
     <Note>{t('passkeyKeepRecovery')}</Note>
+    <Note tone="amber"><p>{t('passkeyPrfRequirement')}</p><p>{t('passkeyPrfCompatibility')} <a href="https://github.com/bitwarden/clients/blob/browser-v2026.9.1/apps/browser/src/autofill/fido2/utils/webauthn-utils.ts#L38-L40" target="_blank" rel="noopener noreferrer">{t('passkeyPrfSource')}</a></p></Note>
     {!available && <p>{t('passkeyUnavailable')}</p>}
     {config && !config.enabled && <p>{t('passkeyDisabled')}</p>}
     {config?.credentials?.length ? <ul className="passkey-list">

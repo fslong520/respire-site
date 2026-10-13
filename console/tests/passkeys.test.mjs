@@ -17,7 +17,7 @@ const CONFIG = { enabled: true, origin: 'https://dashboard.example.test', ...CON
 const vaultV4 = async () => ({ ...await wrapVaultV4(RECOVERY, URK), account_id: CONTEXT.account_id, key_generation: CONTEXT.key_generation });
 function credential({ registration = false, enabled = true, prf = PRF, id = CONTEXT.credential_id } = {}) {
   const result = prf === null ? undefined : prf.slice();
-  const extensions = { prf: { enabled, ...(result ? { results: { first: result.buffer } } : {}) }, unexpected: 'must not serialize' };
+  const extensions = { prf: { ...(registration ? { enabled } : {}), ...(result ? { results: { first: result.buffer } } : {}) }, unexpected: 'must not serialize' };
   return { id, rawId: decodeBase64url(id), type: 'public-key', extraSecret: 'must not serialize',
     response: { clientDataJSON: bytes(12, 1), ...(registration ? { attestationObject: bytes(32, 2), getTransports: () => ['internal', 'secret-transport'] }
       : { authenticatorData: bytes(37, 3), signature: bytes(64, 4), userHandle: bytes(16, 5) }), extraSecret: 'must not serialize' },
@@ -133,15 +133,20 @@ test('binding requires create then TWO separately challenged gets before committ
 
 test('missing PRF enabled/result, wrong-sized PRF, and unstable provider output fail closed', async t => {
   const cases = {
-    unsupported: { onCreate: () => credential({ registration: true, enabled: false, prf: null }) },
-    missingFirst: { onGet: () => credential({ prf: null }) },
-    missingSecond: { onGet: count => credential({ prf: count === 2 ? null : PRF }) },
-    wrongSize: { onGet: () => credential({ prf: bytes(31, 1) }) },
+    unsupported: { onCreate: () => credential({ registration: true, enabled: false, prf: null }), code: 'passkeyPrfCreateUnavailable' },
+    emptyExtensions: { onCreate: () => ({ ...credential({ registration: true, prf: null }), getClientExtensionResults: () => ({}) }),
+      onGet: () => { assert.fail('Unsupported registration must never request verification'); }, code: 'passkeyPrfCreateUnavailable' },
+    missingFirst: { onGet: () => credential({ prf: null }), code: 'passkeyPrfFirstMissing' },
+    missingSecond: { onGet: count => credential({ prf: count === 2 ? null : PRF }), code: 'passkeyPrfReopenMissing' },
+    wrongSize: { onGet: () => credential({ prf: bytes(31, 1) }), code: 'passkeyPrfFirstMissing' },
     unstable: { onGet: count => credential({ prf: count === 2 ? bytes(32, 99) : PRF }) },
   };
   for (const [name, overrides] of Object.entries(cases)) await t.test(name, async () => {
     const h = harness(overrides), vault = await vaultV4();
-    await assert.rejects(bind(h, { vault }));
+    await assert.rejects(bind(h, { vault }), overrides.code ? { code: overrides.code } : { name: 'OperationError' });
+    if (overrides.onCreate) assert.deepEqual(h.sent.map(x => x.path), ['/register/start']);
+    if (name === 'missingFirst' || name === 'wrongSize') assert.deepEqual(h.sent.map(x => x.path), ['/register/start', '/register/finish']);
+    if (name === 'missingSecond') assert.deepEqual(h.sent.map(x => x.path), ['/register/start', '/register/finish', '/register/test']);
     assert.equal(h.sent.some(x => x.path === '/register/commit'), false);
     assert.deepEqual(await unwrapUrk(RECOVERY, undefined, vault), URK);
   });
@@ -183,7 +188,7 @@ test('unlock missing PRF or stale generation cannot obtain or activate keys', as
   const vault = await vaultV4();
   const wrapper = await wrapPasskeyUrk(URK, PRF, CONTEXT);
   const noPrf = harness({ wrapper, onGet: () => credential({ prf: null }) });
-  await assert.rejects(unlockWithPasskey({ ...noPrf, vault, config: CONFIG, credentialId: CONTEXT.credential_id }), { code: 'passkeyNoPrf' });
+  await assert.rejects(unlockWithPasskey({ ...noPrf, vault, config: CONFIG, credentialId: CONTEXT.credential_id }), { code: 'passkeyPrfUnlockMissing' });
   assert.equal(noPrf.sent.some(x => x.path === '/unlock/finish'), false);
   let current = true;
   const stale = harness({ wrapper, onRequest: path => { if (path === '/unlock/finish') current = false; } });

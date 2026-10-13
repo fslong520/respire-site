@@ -61,6 +61,16 @@ entering their current recovery material once. Sign-in remains independent of
 memory decryption. Keep the same recovery code: binding leaves the existing URK,
 recovery wrapper, derived data keys, and memory ciphertext unchanged.
 
+Passkey sign-in support alone does not imply PRF-based memory decryption support.
+The [Bitwarden browser extension 2026.9.1 provider implementation](https://github.com/bitwarden/clients/blob/browser-v2026.9.1/apps/browser/src/autofill/fido2/utils/webauthn-utils.ts#L38-L40)
+forwards only `credProps`, returns only `credProps` at creation, and returns empty
+assertion extensions. This is a limitation of that version's PRF provider path,
+not a claim that ordinary Bitwarden passkey authentication fails or that future
+versions cannot add PRF. The UI explains this before enrollment. Error messages
+separately identify unsupported creation, missing first/second verification
+results, and missing output during an existing binding's unlock. They contain
+no PRF output, salts, credential IDs, or telemetry payload.
+
 The paired Server must explicitly enable the Dashboard RP and exact origin.
 Registration requires runtime PRF support, a fresh assertion to wrap the existing
 URK, and another independently challenged assertion to reopen that wrapper
