@@ -134,8 +134,12 @@ rotation preserve independent account keys; no token-to-account mapping persists
 An ordinary cross-tab token replacement does not prove same-account rotation:
 it can also be an account switch. Receiving tabs therefore never copy the old
 token's UUID to the new token. Until an authenticated vault/passkey response
-identifies the new token, an explicit logout in that tab uses the same conservative
-unknown-account cleanup (including after rotation on the Sessions page).
+identifies the new token, that identity remains unknown. After a token storage
+event, the receiving tab makes a bounded (five-second) authenticated vault lookup
+before its controls become interactive. It records only that response's account
+UUID, fenced to the saved token, entry generation, and current effect lifetime.
+Failure, timeout, or missing identity retains the conservative unknown-account
+logout fallback. Optional lookup errors cannot trigger an unfenced global signout.
 The local Forget action locks memories and deletes the account's browser keys,
 while server bindings stay listed until explicitly removed. Deletion failures
 remain visible and do not prevent sign-out. Destructive reset independently

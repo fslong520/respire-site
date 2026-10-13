@@ -98,6 +98,30 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     await page.getByRole('button', { name: t('passkeyBind'), exact: true }).waitFor();
     return { recovery, page, requests: () => api.requests.slice(requestStart) };
   };
+  const twoTrustedAccounts = async () => {
+    api.state.trustedBrowserEnabled = true;
+    const fixture = await setup({ 'rsrs.dashboard.accounts': JSON.stringify([
+      { user: FIXTURE.user, token: FIXTURE.userToken }, { user: FIXTURE.secondUser, token: FIXTURE.secondToken },
+    ]) });
+    const { page, recovery } = fixture;
+    await (await enroll(page, recovery, 'Account A identity fixture', true)).waitFor({ state: 'hidden' });
+    await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.secondToken);
+    await page.waitForFunction(token => localStorage.getItem('rsrs.userToken') === token, FIXTURE.secondToken);
+    await nav(page, 'keys');
+    await page.getByRole('button', { name: t('passkeyBind'), exact: true }).and(page.locator(':enabled')).waitFor();
+    await (await enroll(page, recovery, 'Account B identity fixture', true)).waitFor({ state: 'hidden' });
+    await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.userToken);
+    await page.waitForFunction(token => localStorage.getItem('rsrs.userToken') === token, FIXTURE.userToken);
+    await nav(page, 'sessions');
+    return fixture;
+  };
+  const receivingSessionsTab = async page => {
+    const passive = await page.context().newPage(), errors = [];
+    passive.setDefaultTimeout(10000); passive.on('pageerror', error => errors.push(error.message));
+    await passive.goto(new URL('/dashboard#/sessions', page.url()).href);
+    await passive.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).waitFor();
+    return { passive, errors };
+  };
 
   await run('trusted browser: explicit opt-in accepts non-PRF passkeys and survives reload with only a local CryptoKey', async () => {
     api.state.trustedBrowserEnabled = true;
@@ -259,7 +283,7 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     assert.deepEqual(await localTrustedRecords(page), []);
   });
 
-  await run('trusted browser: a nonempty account-switch event never transfers the old account UUID', async () => {
+  await run('trusted browser: a nonempty account switch resolves the new UUID instead of transferring the old one', async () => {
     api.state.trustedBrowserEnabled = true;
     const { page, recovery } = await setup({ 'rsrs.dashboard.accounts': JSON.stringify([
       { user: FIXTURE.user, token: FIXTURE.userToken }, { user: FIXTURE.secondUser, token: FIXTURE.secondToken },
@@ -284,11 +308,111 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     assert.equal((await localTrustedRecords(passive)).length, 2);
     await passive.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).click();
     await passive.locator('.gate-form').waitFor(); await page.locator('.gate-form').waitFor();
-    // Unknown B must use the documented conservative originating fallback, not
-    // falsely clear only A and leave B's own trusted key behind after B logs out.
+    // The new token's authoritative UUID selects B; neither an inferred A nor
+    // an unnecessary all-account fallback may delete A's independent trust.
+    const remaining = await waitLocalCount(passive, 1);
+    assert.equal(remaining[0].account_id, 'fixture-account-id');
+    assert.equal(await passive.getByRole('status').filter({ hasText: t('trustedLogoutAll') }).count(), 0);
+    assert.deepEqual(passiveErrors, []);
+  });
+
+  await run('trusted browser: remote same-account rotation resolves UUID before logout and preserves account B', async () => {
+    const { page } = await twoTrustedAccounts();
+    const { passive, errors } = await receivingSessionsTab(page);
+    const identified = passive.waitForResponse(r => new URL(r.url()).pathname === '/api/self/vault'
+      && r.request().headers().authorization === 'Bearer fixture-rotated-token');
+    await page.getByRole('button', { name: t('rotateToken'), exact: true }).click();
+    assert.equal((await identified).status(), 200);
+    await passive.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).click();
+    await passive.locator('.gate-form').waitFor(); await page.locator('.gate-form').waitFor();
+    const remaining = await waitLocalCount(passive, 1);
+    assert.equal(remaining[0].account_id, 'fixture-second-account-id');
+    assert.equal(await passive.getByRole('status').filter({ hasText: t('trustedLogoutAll') }).count(), 0);
+    assert.deepEqual(errors, []);
+  });
+
+  await run('trusted browser: failed remote identity lookup retains warned conservative logout', async () => {
+    const { page } = await twoTrustedAccounts();
+    const { passive, errors } = await receivingSessionsTab(page);
+    api.state.vaultFailures.set(FIXTURE.secondToken, { status: 503, error: 'Synthetic optional identity failure' });
+    await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.secondToken);
+    await passive.locator('.workspace-switch strong').filter({ hasText: FIXTURE.secondUser }).waitFor();
+    await passive.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).click();
+    await passive.locator('.gate-form').waitFor();
     await passive.getByRole('status').filter({ hasText: t('trustedLogoutAll') }).waitFor();
     await waitLocalCount(passive, 0);
-    assert.deepEqual(passiveErrors, []);
+    assert.deepEqual(errors, []);
+  });
+
+  for (const interruption of ['switch', 'logout', 'same-token-reentry']) await run(`trusted browser: late identity reply cannot override ${interruption}`, async () => {
+    const { page } = await twoTrustedAccounts();
+    const { passive, errors } = await receivingSessionsTab(page);
+    let release, started;
+    api.state.vaultGates.set(FIXTURE.secondToken, new Promise(resolve => { release = resolve; }));
+    const requested = new Promise(resolve => { started = resolve; });
+    api.state.vaultStarted.set(FIXTURE.secondToken, started);
+    if (interruption === 'same-token-reentry') api.state.vaultFailures.set(FIXTURE.secondToken, { status: 401, error: 'Synthetic stale identity response' });
+    try {
+      await page.evaluate(token => localStorage.setItem('rsrs.userToken', token), FIXTURE.secondToken);
+      await requested;
+      await passive.getByText(t('checkingLogin'), { exact: true }).waitFor();
+      assert.equal(await passive.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).count(), 0);
+      api.state.vaultGates.delete(FIXTURE.secondToken); api.state.vaultFailures.delete(FIXTURE.secondToken);
+      api.state.vaultStarted.delete(FIXTURE.secondToken);
+      if (interruption === 'logout') {
+        await page.evaluate(() => localStorage.setItem('rsrs.userToken', ''));
+        await passive.locator('.gate-form').waitFor();
+      } else if (interruption === 'same-token-reentry') {
+        const fresh = passive.waitForResponse(r => new URL(r.url()).pathname === '/api/self/vault'
+          && r.request().headers().authorization === `Bearer ${FIXTURE.secondToken}` && r.status() === 200);
+        await page.evaluate(token => { localStorage.setItem('rsrs.userToken', ''); localStorage.setItem('rsrs.userToken', token); }, FIXTURE.secondToken);
+        await fresh;
+        await passive.locator('.workspace-switch strong').filter({ hasText: FIXTURE.secondUser }).waitFor();
+      } else {
+        await page.evaluate(token => localStorage.setItem('rsrs.userToken', token), FIXTURE.userToken);
+        await passive.locator('.workspace-switch strong').filter({ hasText: FIXTURE.user }).waitFor();
+      }
+    } finally { release(); api.state.vaultGates.clear(); api.state.vaultFailures.clear(); api.state.vaultStarted.clear(); }
+    await passive.waitForLoadState('networkidle');
+    if (interruption === 'logout') await passive.locator('.gate-form').waitFor();
+    else {
+      const expected = interruption === 'switch' ? FIXTURE.user : FIXTURE.secondUser;
+      await passive.locator('.workspace-switch strong').filter({ hasText: expected }).waitFor();
+      await passive.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).click();
+      await passive.locator('.gate-form').waitFor();
+      const remaining = await waitLocalCount(passive, 1);
+      assert.equal(remaining[0].account_id, interruption === 'switch' ? 'fixture-second-account-id' : 'fixture-account-id');
+    }
+    assert.deepEqual(errors, []);
+  });
+
+  await run('identity probe: dismissing a GitHub callback restarts a delayed same-token login check', async () => {
+    let release;
+    api.state.selfGates.set(FIXTURE.userToken, new Promise(resolve => { release = resolve; }));
+    const page = await open('/dashboard?state=synthetic-cancelled-grant&error=access_denied', { 'rsrs.userToken': FIXTURE.userToken });
+    try {
+      const restarted = page.waitForRequest(r => new URL(r.url()).pathname === '/api/self' && r.method() === 'GET');
+      await page.getByRole('button', { name: t('backToLogin'), exact: true }).click();
+      await restarted;
+    } finally { api.state.selfGates.delete(FIXTURE.userToken); release(); }
+    await page.locator('.workspace-switch strong').filter({ hasText: FIXTURE.user }).waitFor();
+    assert.equal(await page.getByText(t('checkingLogin'), { exact: true }).count(), 0);
+  });
+
+  await run('identity probe: an expired old token cannot cancel entry to a valid different account', async () => {
+    const page = await open('/dashboard/sessions', { 'rsrs.userToken': FIXTURE.userToken,
+      'rsrs.dashboard.accounts': JSON.stringify([
+        { user: FIXTURE.user, token: FIXTURE.userToken }, { user: FIXTURE.secondUser, token: FIXTURE.secondToken },
+      ]) });
+    await page.locator('.workspace-switch strong').filter({ hasText: FIXTURE.user }).waitFor();
+    await page.waitForLoadState('networkidle');
+    const start = api.requests.length;
+    api.state.rotatedToken = 'fixture-expired-account-a-token';
+    await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.secondToken);
+    await page.locator('.workspace-switch strong').filter({ hasText: FIXTURE.secondUser }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('rsrs.userToken')), FIXTURE.secondToken);
+    assert.equal(api.requests.slice(start).filter(r => r.method === 'GET' && r.path === '/api/self'
+      && r.headers.authorization === `Bearer ${FIXTURE.userToken}`).length, 0);
   });
 
   await run('trusted browser: a delayed known-account logout event cannot delete a newer enrollment', async () => {

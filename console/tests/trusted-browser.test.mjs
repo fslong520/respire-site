@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { pbkdf2Sync } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { bindTrustedBrowser, unlockWithTrustedBrowser, wrapTrustedUrk, unwrapTrustedUrk, rememberTrustedAccount, moveTrustedAccount, forgetTrustedAccount } from '../src/trustedBrowser.js';
+import { bindTrustedBrowser, unlockWithTrustedBrowser, wrapTrustedUrk, unwrapTrustedUrk, rememberTrustedAccount, resolveTrustedAccount, moveTrustedAccount, forgetTrustedAccount } from '../src/trustedBrowser.js';
 import { encodeBase64url as b64, passkeyCommitConfirmed } from '../src/passkeys.js';
 import { wrapVaultV4, wrapVault, toHex, deriveDataKeys, encryptItem, decryptItem, unwrapUrk } from '../src/crypto.js';
 
@@ -228,4 +228,148 @@ test('trusted binding preserves legacy recovery wrappers v1 through v3 and their
     const sent = JSON.stringify(h.requests);
     assert.equal(sent.includes(superPass), false); if (secretKey) assert.equal(sent.includes(secretKey), false);
   });
+});
+
+function accountLookupHarness() {
+  const cleared = [];
+  const keyStore = {
+    clearAccount: async accountId => { cleared.push(accountId); return { clearedRecords: 1 }; },
+    clearAll: async () => { cleared.push('ALL'); return { clearedRecords: 0 }; },
+  };
+  const forget = async token => {
+    const result = forgetTrustedAccount(token, keyStore);
+    await result.completion;
+    return result.allAccounts;
+  };
+  return { cleared, forget };
+}
+function deferredLookup() {
+  let resolve, reject;
+  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
+}
+const flushLookup = () => new Promise(resolve => setImmediate(resolve));
+
+test('identity lookup associates only the exact token with the authenticated returned account', async () => {
+  const h = accountLookupHarness(), token = 'lookup-success-token', accountId = '11223344-1122-4122-8122-112233445566';
+  let received;
+  assert.equal(await resolveTrustedAccount({ token, isCurrent: () => true, request: async (path, options) => {
+    received = { path, options };
+    return { account_id: accountId, wrapped_urk: 'not-cached', unrelated: 'not-cached' };
+  } }), true);
+  assert.equal(received.path, '/api/self/vault');
+  assert.equal(received.options.token, token);
+  assert.equal(received.options.notifyUnauthorized, false);
+  assert.ok(received.options.signal instanceof AbortSignal);
+  assert.equal(await h.forget(token), false);
+  assert.deepEqual(h.cleared, [accountId]);
+  assert.equal(await h.forget('lookup-success-other-token'), true);
+  assert.deepEqual(h.cleared, [accountId, 'ALL']);
+});
+
+test('real account switch resolves its own account and never inherits an older token mapping', async () => {
+  const h = accountLookupHarness();
+  rememberTrustedAccount('lookup-switch-token-a', 'account-a');
+  assert.equal(await resolveTrustedAccount({ token: 'lookup-switch-token-b', isCurrent: () => true,
+    request: async () => ({ account_id: 'account-b' }) }), true);
+  assert.equal(await h.forget('lookup-switch-token-b'), false);
+  assert.equal(await h.forget('lookup-switch-token-a'), false);
+  assert.deepEqual(h.cleared, ['account-b', 'account-a']);
+  rememberTrustedAccount('lookup-switch-source', 'source-account');
+  assert.equal(await resolveTrustedAccount({ token: 'lookup-switch-failed', isCurrent: () => true,
+    request: async () => { throw new Error('optional lookup unavailable'); } }), false);
+  assert.equal(await h.forget('lookup-switch-failed'), true);
+  assert.equal(await h.forget('lookup-switch-source'), false);
+  assert.deepEqual(h.cleared.slice(-2), ['ALL', 'source-account']);
+});
+
+test('identity lookup rejects stale token, stale entry generation and token ABA continuations', async t => {
+  for (const stale of ['token', 'generation', 'token-aba']) await t.test(stale, async () => {
+    const h = accountLookupHarness(), token = `lookup-stale-${stale}`, pending = deferredLookup();
+    let activeToken = token, entryGeneration = 1;
+    const result = resolveTrustedAccount({ token, isCurrent: () => activeToken === token && entryGeneration === 1,
+      request: () => pending.promise });
+    if (stale === 'token') activeToken = 'another-token';
+    else if (stale === 'generation') entryGeneration++;
+    else { activeToken = 'another-token'; entryGeneration++; activeToken = token; }
+    pending.resolve({ account_id: 'must-not-map' });
+    assert.equal(await result, false);
+    assert.equal(await h.forget(token), true);
+    assert.deepEqual(h.cleared, ['ALL']);
+  });
+});
+
+test('canceled identity lookup resolves false even when the request ignores abort and later succeeds', async () => {
+  const h = accountLookupHarness(), pending = deferredLookup(), controller = new AbortController();
+  const token = 'lookup-aborted-token'; let requestSignal;
+  const result = resolveTrustedAccount({ token, signal: controller.signal, isCurrent: () => true,
+    request: (path, options) => { requestSignal = options.signal; return pending.promise; } });
+  controller.abort();
+  assert.equal(await result, false);
+  assert.equal(requestSignal.aborted, true);
+  assert.equal(await h.forget(token), true);
+  pending.resolve({ account_id: 'late-aborted-account' }); await flushLookup();
+  assert.equal(await h.forget(token), true);
+  assert.deepEqual(h.cleared, ['ALL', 'ALL']);
+});
+
+test('identity lookup timeout is independent of ignored abort and permanently fences a late response', async () => {
+  const h = accountLookupHarness(), pending = deferredLookup();
+  const token = 'lookup-timeout-token'; let requestSignal;
+  const result = resolveTrustedAccount({ token, timeoutMs: 5, isCurrent: () => true,
+    request: (path, options) => { requestSignal = options.signal; return pending.promise; } });
+  assert.equal(await result, false);
+  assert.equal(requestSignal.aborted, true);
+  assert.equal(await h.forget(token), true);
+  pending.resolve({ account_id: 'late-timeout-account' }); await flushLookup();
+  assert.equal(await h.forget(token), true);
+  assert.deepEqual(h.cleared, ['ALL', 'ALL']);
+});
+
+test('optional identity failures and malformed public IDs keep conservative cleanup fallback', async t => {
+  const badIds = [undefined, null, '', ' ', ' leading', 'trailing ', 'middle space', 'control\u0000id', 'delete\u007fid', 'a'.repeat(257), 123, {}];
+  for (let index = 0; index < badIds.length; index++) await t.test(`malformed ${index}`, async () => {
+    const h = accountLookupHarness(), token = `lookup-malformed-${index}`;
+    assert.equal(await resolveTrustedAccount({ token, isCurrent: () => true,
+      request: async () => ({ account_id: badIds[index] }) }), false);
+    assert.equal(await h.forget(token), true); assert.deepEqual(h.cleared, ['ALL']);
+  });
+  for (const kind of ['sync', 'async', 'unauthorized', 'malformed-getter']) await t.test(kind, async () => {
+    const h = accountLookupHarness(), token = `lookup-error-${kind}`;
+    const request = kind === 'sync' ? () => { throw new Error('request failed'); }
+      : kind === 'malformed-getter' ? async () => ({ get account_id() { throw new Error('malformed response'); } })
+        : async () => { throw Object.assign(new Error('lookup rejected'), { status: kind === 'unauthorized' ? 401 : 500 }); };
+    assert.equal(await resolveTrustedAccount({ token, isCurrent: () => true, request }), false);
+    assert.equal(await h.forget(token), true); assert.deepEqual(h.cleared, ['ALL']);
+  });
+});
+
+test('identity lookup checks initial cancellation/current guard and suppresses the request when stale', async () => {
+  const controller = new AbortController(); controller.abort();
+  let calls = 0;
+  const request = async () => { calls++; return { account_id: 'must-not-map' }; };
+  for (const options of [{ signal: controller.signal, isCurrent: () => true }, { isCurrent: () => false },
+    { isCurrent: () => { throw new Error('unmounted'); } }, {}]) {
+    assert.equal(await resolveTrustedAccount({ token: 'lookup-pre-stale', request, ...options }), false);
+  }
+  assert.equal(calls, 0);
+  const h = accountLookupHarness(); assert.equal(await h.forget('lookup-pre-stale'), true);
+});
+
+test('late rejected ignored-abort requests do not create an unhandled rejection or mapping', async () => {
+  const pending = deferredLookup(), token = 'lookup-late-rejection', h = accountLookupHarness();
+  assert.equal(await resolveTrustedAccount({ token, isCurrent: () => true, timeoutMs: 1, request: () => pending.promise }), false);
+  pending.reject(new Error('late request failure')); await flushLookup();
+  assert.equal(await h.forget(token), true);
+});
+
+test('identity response after its deadline cannot map while the timeout callback is still queued', async () => {
+  const token = 'lookup-blocked-loop-deadline', h = accountLookupHarness();
+  assert.equal(await resolveTrustedAccount({ token, timeoutMs: 3, isCurrent: () => true, request: () => {
+    const until = performance.now() + 10;
+    while (performance.now() < until) { /* Simulate a delayed event loop before timer delivery. */ }
+    return { account_id: 'too-late-account' };
+  } }), false);
+  assert.equal(await h.forget(token), true);
+  assert.deepEqual(h.cleared, ['ALL']);
 });

@@ -43,6 +43,9 @@ export async function startFixtureApi({ frontend } = {}) {
       failures: new Map(),
       rotatedToken: null,
       selfGates: new Map(),
+      vaultGates: new Map(),
+      vaultFailures: new Map(),
+      vaultStarted: new Map(),
       memoriesGate: null,
       userTotp: false,
       adminTotp: false,
@@ -322,7 +325,14 @@ export async function startFixtureApi({ frontend } = {}) {
           state.vault = vault;
           return json(200, { ok: true });
         }
-        if (method === 'GET') return state.vault ? json(200, { ...state.vault, ...(state.passkeysEnabled ? { account_id: passkeyMeta.account_id, key_generation: state.keyGeneration } : {}) }) : json(404, { error: 'fixture vault not initialized' });
+        if (method === 'GET') {
+          const vault = state.vault ? { ...state.vault, ...(state.passkeysEnabled ? { account_id: passkeyMeta.account_id, key_generation: state.keyGeneration } : {}) } : null;
+          const failure = state.vaultFailures.get(expectedToken), gate = state.vaultGates.get(expectedToken);
+          state.vaultStarted.get(expectedToken)?.();
+          await gate;
+          if (failure) return json(failure.status, { error: failure.error });
+          return vault ? json(200, vault) : json(404, { error: 'fixture vault not initialized' });
+        }
       }
       if (method === 'POST' && path === '/api/self/github/vault') {
         if (state.vault || state.blobs.size) return json(409, { error: 'existing vault or memories must be preserved' });

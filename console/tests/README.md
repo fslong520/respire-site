@@ -117,7 +117,9 @@ same-URK/ciphertext compatibility, ordinary empty extension responses, two fresh
 UV assertions, local-store failure/readback, missing keys, cancellation/staleness,
 unknown commit retention, exact context checks, durable identity across token
 rotation, verified-account versus unknown-identity logout cleanup, and passive
-tabs that cannot repeat durable cleanup or delete a newer enrollment.
+tabs that cannot repeat durable cleanup or delete a newer enrollment. Optional
+authoritative identity lookup tests cover exact response ownership, token/entry
+generation changes, cancellation, deadline expiry, and late ignored-abort results.
 
 `trusted-key-store.test.mjs` uses real WebCrypto with a deliberately synthetic
 IndexedDB transaction fixture. It covers nonexportable key shape, persistent
@@ -131,7 +133,9 @@ explicit default-off opt-in, non-PRF enrollment/reload unlock, storage denial/lo
 cancelled and uncertain commits, account switching, logout/rotation, visible
 cleanup failures, two-tab account-isolated logout, quiet default-off logout with
 an empty key store, a cross-tab account switch that cannot inherit the old UUID,
-native transaction-drained delayed logout, reset recovery delivery, and a key cleared during a delayed
+remote rotation preserving other accounts, failed/stale identity lookup and
+same-token re-entry, native transaction-drained delayed logout, reset recovery
+delivery, and a key cleared during a delayed
 first memory pull. The native CDP fixture additionally tests a PRF-disabled
 virtual authenticator in trusted-browser mode with a genuine browser reload and
 CryptoKey readback. These fixtures do not claim an actual Bitwarden extension

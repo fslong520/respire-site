@@ -165,6 +165,49 @@ export async function unlockWithTrustedBrowser({ request, vault, config, credent
 // This association is authenticated, page-memory-only bookkeeping for logout.
 // Durable keys are always scoped by immutable account ID, never an API token.
 const tokenAccounts = new Map();
+// Resolve the exact authenticated token's public identity before enabling
+// logout on routes that do not otherwise load the vault. This optional lookup
+// never inherits another token's mapping and never changes global auth state.
+export function resolveTrustedAccount({ token, request, signal, isCurrent, timeoutMs = 5000 }) {
+  return new Promise(resolve => {
+    const controller = new AbortController();
+    let settled = false, timer, deadline = Infinity;
+    const now = () => globalThis.performance.now();
+    const current = () => {
+      try { return typeof isCurrent === 'function' && isCurrent() === true && !settled && !signal?.aborted && now() < deadline; }
+      catch { return false; }
+    };
+    const finish = success => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      if (!success) controller.abort();
+      resolve(success);
+    };
+    const onAbort = () => finish(false);
+    if (typeof token !== 'string' || !token || typeof request !== 'function' || !current()) { finish(false); return; }
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const delay = Number.isFinite(timeoutMs) && timeoutMs >= 0 && timeoutMs <= 2147483647 ? timeoutMs : 5000;
+    deadline = now() + delay;
+    timer = setTimeout(() => finish(false), delay);
+    // The separate deadline resolves even when a request ignores its signal.
+    // Every terminal path fences the continuation before attempting to abort.
+    void (async () => {
+      try {
+        if (!current()) { finish(false); return; }
+        const vault = await request('/api/self/vault', { token, signal: controller.signal, notifyUnauthorized: false });
+        const accountId = vault?.account_id;
+        if (!current() || typeof accountId !== 'string' || !accountId || accountId.length > 256
+          || /[\s\u0000-\u001f\u007f]/u.test(accountId)) { finish(false); return; }
+        // No asynchronous work between the final token/generation guard and
+        // this page-memory-only association.
+        tokenAccounts.set(token, accountId);
+        finish(true);
+      } catch { finish(false); }
+    })();
+  });
+}
 export function rememberTrustedAccount(token, accountId) {
   if (token && typeof accountId === 'string' && accountId.length > 0 && accountId.length <= 256) tokenAccounts.set(token, accountId);
 }
