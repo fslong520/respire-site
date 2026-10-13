@@ -183,6 +183,30 @@ test('logout targets only a verified account, unknown identity falls back to all
   assert.equal(cleared.at(-1), 'stable-account');
 });
 
+test('passive logout never deletes durable keys, even for known identities after reenrollment', async () => {
+  const cleared = [];
+  const store = {
+    clearAccount: async account => { cleared.push(account); return { clearedRecords: 1 }; },
+    clearAll: async () => { cleared.push('ALL'); return { clearedRecords: 2 }; },
+  };
+  const passive = forgetTrustedAccount('unknown-passive-token', store, { passive: true });
+  assert.equal(passive.allAccounts, false);
+  assert.deepEqual(await passive.completion, { clearedRecords: 0 });
+  assert.deepEqual(cleared, []);
+  rememberTrustedAccount('known-passive-token', 'account-a');
+  const newEnrollment = { account_id: 'account-a', device_id: 'new-device' };
+  store.clearAccount = async account => { cleared.push(account); newEnrollment.deleted = true; return { clearedRecords: 1 }; };
+  const known = forgetTrustedAccount('known-passive-token', store, { passive: true });
+  assert.equal(known.allAccounts, false);
+  assert.deepEqual(await known.completion, { clearedRecords: 0 });
+  assert.deepEqual(cleared, []);
+  assert.equal(newEnrollment.deleted, undefined);
+  const initiating = forgetTrustedAccount('unknown-initiating-token', store);
+  assert.equal(initiating.allAccounts, true);
+  assert.deepEqual(await initiating.completion, { clearedRecords: 2 });
+  assert.deepEqual(cleared, ['ALL']);
+});
+
 
 test('trusted binding preserves legacy recovery wrappers v1 through v3 and their existing URK', async t => {
   for (const version of [1, 2, 3]) await t.test(`v${version}`, async () => {

@@ -63,6 +63,7 @@ function idbHarness() {
             return name === 'keys' && engine.transformRead ? engine.transformRead(result) : result;
           }),
           getAll: () => request(data => [...data.values()].map(clone)),
+          count: () => request(data => data.size),
           add: value => request(data => {
             if (data.has(value.id)) throw new DOMException('Duplicate key', 'ConstraintError');
             data.set(value.id, clone(value)); return value.id;
@@ -264,7 +265,8 @@ test('independent page-local stores cannot insert after another tab logs out', a
     const logoutTab = createTrustedKeyStore({ indexedDB: db.newFactory(), crypto: webcrypto });
     const pending = oldTab.create(context()); const rejected = assert.rejects(pending, abortError);
     await delay.entered.promise;
-    if (all) await logoutTab.clearAll(); else await logoutTab.clearAccount('account-a');
+    const cleanup = all ? await logoutTab.clearAll() : await logoutTab.clearAccount('account-a');
+    assert.deepEqual(cleanup, { clearedRecords: 0 }, 'Zero-record cleanup must still fence another tab’s older enrollment');
     delay.release.resolve();
     await rejected;
     assert.equal(db.records().length, 0);
@@ -488,6 +490,7 @@ test('synchronous IndexedDB throws inside async request callbacks use stable pub
     add: store => store.create(context({ device_id: device(2) })),
     get: store => store.read(context()),
     getAll: store => store.list(context()),
+    count: store => store.clearAll(),
     put: store => store.markActive(context(), 'Q3JlZA'),
     delete: store => store.remove(context()),
     clear: store => store.clearAll(),
@@ -569,4 +572,46 @@ test('numeric WebCrypto DOMException codes are not mistaken for application erro
   const { store, records } = harness({ crypto: { subtle, getRandomValues: webcrypto.getRandomValues.bind(webcrypto) } });
   await assert.rejects(store.create(context()), code('trustedBrowserKeyInvalid'));
   assert.equal(records().length, 0);
+});
+
+test('cleanup returns the committed number of deleted keys and preserves other accounts', async () => {
+  const { store, records } = harness();
+  assert.deepEqual(await store.clearAccount('account-a'), { clearedRecords: 0 });
+  assert.deepEqual(await store.clearAll(), { clearedRecords: 0 });
+  await store.create(context());
+  await store.create(context({ device_id: device(2) }));
+  await store.create(context({ account_id: 'account-b' }));
+  assert.deepEqual(await store.clearAccount('account-a'), { clearedRecords: 2 });
+  assert.deepEqual(records().map(record => record.account_id), ['account-b']);
+  assert.deepEqual(await store.clearAccount('account-a'), { clearedRecords: 0 });
+  assert.deepEqual(await store.clearAll(), { clearedRecords: 1 });
+  assert.equal(records().length, 0);
+  assert.deepEqual(await store.clearAll(), { clearedRecords: 0 });
+});
+
+test('cleanup count is not delivered before commit or after failed deletion', async () => {
+  for (const all of [false, true]) {
+    const { store, engine, records } = harness();
+    await store.create(context());
+    const entered = defer(), release = defer();
+    engine.beforeCommit = tx => {
+      if (tx.mode === 'readwrite') { entered.resolve(); return release.promise; }
+    };
+    let resolved = false;
+    const pending = (all ? store.clearAll() : store.clearAccount('account-a')).then(result => { resolved = true; return result; });
+    await entered.promise;
+    assert.equal(resolved, false);
+    assert.equal(records().length, 1, 'Uncommitted cleanup must not mutate durable records');
+    release.resolve();
+    assert.deepEqual(await pending, { clearedRecords: 1 });
+    engine.beforeCommit = null;
+    await store.create(context());
+    engine.throwMethod = all ? 'clear' : 'delete';
+    let delivered = false;
+    const failed = (all ? store.clearAll() : store.clearAccount('account-a')).then(result => { delivered = true; return result; });
+    await assert.rejects(failed, code('trustedBrowserStorageUnavailable'));
+    assert.equal(delivered, false, 'Failed deletion must reject instead of returning a cleanup count');
+    assert.equal(records().length, 1);
+    assert.deepEqual(engine.callbackErrors, []);
+  }
 });

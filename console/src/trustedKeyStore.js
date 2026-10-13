@@ -439,17 +439,21 @@ export function createTrustedKeyStore({ indexedDB = globalThis.indexedDB, crypto
     return (async () => {
       try {
         const op = operation({ account_id }, {}, clearOwner);
-        await transaction(op, 'readwrite', (store, result, reject, epochs) => {
+        const cleanup = await transaction(op, 'readwrite', (store, result, reject, epochs) => {
           epochs.put({ id: accountEpochId(account_id), value: randomMarker() });
           const request = store.getAll();
           request.onsuccess = () => {
             try {
-              for (const record of request.result) if (record.account_id === account_id) store.delete(record.id);
-              result();
+              let clearedRecords = 0;
+              for (const record of request.result) if (record.account_id === account_id) {
+                store.delete(record.id); clearedRecords++;
+              }
+              result({ clearedRecords });
             } catch (error) { reject(error); }
           };
         });
         if (state.clearOwner === clearOwner) state.blocked = false;
+        return cleanup;
       } catch (error) { if (state.clearOwner === clearOwner) state.blocked = true; throw error; }
       finally { if (state.clearOwner === clearOwner) state.clearOwner = null; }
     })();
@@ -461,14 +465,25 @@ export function createTrustedKeyStore({ indexedDB = globalThis.indexedDB, crypto
     shared.clearOwner = clearOwner;
     return (async () => {
       try {
-        await transaction(operation(null, {}, clearOwner), 'readwrite', (store, result, reject, epochs) => {
+        const cleanup = await transaction(operation(null, {}, clearOwner), 'readwrite', (store, result, reject, epochs) => {
+          // Count and deletion are atomic with the fence. Even an empty store
+          // gets a new epoch so an older in-flight enrollment cannot repopulate it.
           epochs.put({ id: 'global', value: randomMarker() });
-          store.clear();
+          const request = store.count();
+          request.onsuccess = () => {
+            try {
+              const clearedRecords = request.result;
+              if (!Number.isSafeInteger(clearedRecords) || clearedRecords < 0) throw invalid();
+              store.clear();
+              result({ clearedRecords });
+            } catch (error) { reject(error); }
+          };
         });
         if (shared.clearOwner === clearOwner) {
           shared.blocked = false;
           for (const state of shared.accounts.values()) state.blocked = false;
         }
+        return cleanup;
       } catch (error) { if (shared.clearOwner === clearOwner) shared.blocked = true; throw error; }
       finally { if (shared.clearOwner === clearOwner) shared.clearOwner = null; }
     })();

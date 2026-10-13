@@ -173,8 +173,11 @@ export function moveTrustedAccount(from, to, activeToken) {
   if (tokenAccounts.has(from)) tokenAccounts.set(to, tokenAccounts.get(from));
   tokenAccounts.delete(from);
 }
-export function forgetTrustedAccount(token, keyStore = trustedKeyStore) {
+export function forgetTrustedAccount(token, keyStore = trustedKeyStore, { passive = false } = {}) {
   const accountId = tokenAccounts.get(token);
   tokenAccounts.delete(token);
+  // Only the initiating logout owns durable cleanup. A receiving tab may have
+  // no UUID mapping, or process this event after a newer enrollment has finished.
+  if (passive) return { allAccounts: false, completion: Promise.resolve({ clearedRecords: 0 }) };
   return { allAccounts: !accountId, completion: accountId ? keyStore.clearAccount(accountId) : keyStore.clearAll() };
 }

@@ -63,6 +63,14 @@ function Console({ admin }) {
     window.addEventListener('hashchange', changed);
     return () => window.removeEventListener('hashchange', changed);
   }, []);
+  const forgetBrowserTrust = (previous, passive = false) => {
+    const forgotten = forgetTrustedAccount(previous, undefined, { passive });
+    forgotten.completion.then(({ clearedRecords }) => {
+      // The count is from the same committed transaction as the logout fence.
+      // An empty store still needs that fence, but no trust-removal warning.
+      if (forgotten.allAccounts && clearedRecords > 0) setHint(t('trustedLogoutAll'));
+    }).catch(() => setHint(t('trustedCleanupFailed')));
+  };
   const setToken = (value) => {
     const previous = readToken(key);
     if (!writeToken(key, value)) throw new Error(t('sessionStorageFailed'));
@@ -70,9 +78,7 @@ function Console({ admin }) {
     if (!admin && !value && previous) {
       dropUnlockSession(previous);
       clearPendingPasskeyCommit(previous);
-      const forgotten = forgetTrustedAccount(previous);
-      if (forgotten.allAccounts) setHint(t('trustedLogoutAll'));
-      forgotten.completion.catch(() => setHint(t('trustedCleanupFailed')));
+      forgetBrowserTrust(previous);
       // Account-list cleanup cannot undo a successful logout.
       try { setAccounts(removeAccount(previous)); }
       catch { setHint(t('accountListFailed')); }
@@ -126,9 +132,8 @@ function Console({ admin }) {
       if (event.key === USER_KEY) {
         clearUnlockSessions();
         if (!event.newValue && event.oldValue) {
-          const forgotten = forgetTrustedAccount(event.oldValue);
-          if (forgotten.allAccounts) setHint(t('trustedLogoutAll'));
-          forgotten.completion.catch(() => setHint(t('trustedCleanupFailed')));
+          clearPendingPasskeyCommit(event.oldValue);
+          forgetBrowserTrust(event.oldValue, true);
         }
         entryGeneration.current += 1;
         setSwitching(false);

@@ -204,6 +204,100 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     const remaining = await waitLocalCount(page, 1); assert.equal(remaining[0].account_id, 'fixture-account-id');
   });
 
+  await run('trusted browser: a reloaded passive sessions tab cannot expand account A logout to account B', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery } = await setup({ 'rsrs.dashboard.accounts': JSON.stringify([
+      { user: FIXTURE.user, token: FIXTURE.userToken }, { user: FIXTURE.secondUser, token: FIXTURE.secondToken },
+    ]) });
+    await (await enroll(page, recovery, 'Account A across tabs', true)).waitFor({ state: 'hidden' });
+    await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.secondToken);
+    await page.waitForFunction(token => localStorage.getItem('rsrs.userToken') === token, FIXTURE.secondToken);
+    await nav(page, 'keys');
+    await page.getByRole('button', { name: t('passkeyBind'), exact: true }).and(page.locator(':enabled')).waitFor();
+    await (await enroll(page, recovery, 'Account B across tabs', true)).waitFor({ state: 'hidden' });
+    await page.getByLabel(t('switchAccount'), { exact: true }).selectOption(FIXTURE.userToken);
+    await page.waitForFunction(token => localStorage.getItem('rsrs.userToken') === token, FIXTURE.userToken);
+    await nav(page, 'keys'); await page.reload();
+    await page.getByRole('button', { name: t('passkeyBind'), exact: true }).and(page.locator(':enabled')).waitFor();
+    assert.equal((await waitLocalCount(page, 2)).length, 2);
+
+    const passive = await page.context().newPage(), passiveErrors = [];
+    passive.setDefaultTimeout(10000);
+    passive.on('pageerror', error => passiveErrors.push(error.message));
+    await passive.goto(new URL('/dashboard#/sessions', page.url()).href);
+    await passive.reload(); // The sessions route never looks up the stable account UUID.
+    await passive.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).waitFor();
+    await page.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).click();
+    await page.locator('.gate-form').waitFor(); await passive.locator('.gate-form').waitFor();
+    const remaining = await waitLocalCount(page, 1);
+    assert.equal(remaining[0].account_id, 'fixture-second-account-id');
+    assert.deepEqual(await localTrustedRecords(passive), remaining);
+    assert.equal(await passive.getByRole('status').filter({ hasText: t('trustedLogoutAll') }).count(), 0);
+    assert.deepEqual(passiveErrors, []);
+  });
+
+  await run('trusted browser: default-off logout with no trusted keys is quiet but commits its durable fence', async () => {
+    assert.equal(api.state.trustedBrowserEnabled, false);
+    const page = await open('/dashboard/sessions', { 'rsrs.userToken': FIXTURE.userToken });
+    await page.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).waitFor();
+    await page.evaluate(() => {
+      window.trustedCleanupCommits = 0;
+      const original = IDBDatabase.prototype.transaction;
+      IDBDatabase.prototype.transaction = function (...args) {
+        const tx = original.apply(this, args);
+        if (this.name === 'respire-trusted-browser-v1' && args[1] === 'readwrite') {
+          tx.addEventListener('complete', () => { window.trustedCleanupCommits++; });
+        }
+        return tx;
+      };
+    });
+    await page.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).click();
+    await page.locator('.gate-form').waitFor();
+    await page.waitForFunction(() => window.trustedCleanupCommits > 0);
+    assert.equal(await page.getByRole('status').filter({ hasText: t('trustedLogoutAll') }).count(), 0);
+    assert.equal(await page.getByRole('status').filter({ hasText: t('trustedCleanupFailed') }).count(), 0);
+    assert.deepEqual(await localTrustedRecords(page), []);
+  });
+
+  await run('trusted browser: a delayed known-account logout event cannot delete a newer enrollment', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { page, recovery } = await setup();
+    await (await enroll(page, recovery, 'Before delayed logout', true)).waitFor({ state: 'hidden' });
+    const passive = await page.context().newPage(), passiveErrors = [];
+    passive.setDefaultTimeout(10000);
+    passive.on('pageerror', error => passiveErrors.push(error.message));
+    await passive.goto(new URL('/dashboard#/keys', page.url()).href);
+    await passive.getByRole('button', { name: t('passkeyBind'), exact: true }).and(passive.locator(':enabled')).waitFor();
+    await passive.evaluate(() => {
+      window.delayedLogoutEvents = [];
+      window.holdLogoutEvents = true;
+      window.addEventListener('storage', event => {
+        if (window.holdLogoutEvents && event.key === 'rsrs.userToken' && !event.newValue && event.oldValue) {
+          event.stopImmediatePropagation();
+          window.delayedLogoutEvents.push({ key: event.key, oldValue: event.oldValue, newValue: event.newValue, url: event.url, storageArea: event.storageArea });
+        }
+      }, true);
+    });
+    await page.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).click();
+    await page.locator('.gate-form').waitFor(); await waitLocalCount(page, 0);
+    await passive.waitForFunction(() => window.delayedLogoutEvents.length === 1);
+    await page.getByLabel(t('username'), { exact: true }).fill(FIXTURE.user);
+    await page.getByLabel(t('loginPassword'), { exact: true }).fill(FIXTURE.password);
+    await page.locator('.gate-form form').getByRole('button', { name: t('login'), exact: true }).click();
+    await page.locator('.sidebar-bottom').getByRole('button', { name: t('signOut'), exact: true }).waitFor();
+    await nav(page, 'keys');
+    await page.getByRole('button', { name: t('passkeyBind'), exact: true }).and(page.locator(':enabled')).waitFor();
+    await (await enroll(page, recovery, 'After delayed logout', true)).waitFor({ state: 'hidden' });
+    const replacement = await waitLocalCount(page, 1);
+    await passive.evaluate(() => {
+      window.holdLogoutEvents = false;
+      for (const event of window.delayedLogoutEvents.splice(0)) window.dispatchEvent(new StorageEvent('storage', event));
+    });
+    assert.deepEqual(await localTrustedRecords(passive), replacement);
+    assert.deepEqual(await localTrustedRecords(page), replacement);
+    assert.deepEqual(passiveErrors, []);
+  });
+
   await run('trusted browser: revoke locks the accepted session and navigation cannot skip acknowledged local cleanup', async () => {
     api.state.trustedBrowserEnabled = true;
     const { page, recovery } = await setup();

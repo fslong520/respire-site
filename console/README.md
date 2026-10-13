@@ -124,8 +124,12 @@ Manager, hardware key, or other provider account was used by these fixtures.
 
 Signing out (including app-handled session expiry) immediately clears the
 unlocked session and deletes the verified account's local trusted keys. If the
-account UUID is unknown, the UI explicitly warns before/while conservatively
-clearing all locally trusted accounts. Switching accounts and successful token
+account UUID is unknown, the initiating tab conservatively clears all locally
+trusted accounts and shows a notice only when that committed cleanup removed
+keys. Passive tabs clear their sessions and pending metadata without repeating
+durable cleanup, which could otherwise delete a newer enrollment after a delay.
+Even an empty store receives a durable logout fence, so a metadata-only database
+may be opened without creating browser trust. Switching accounts and successful token
 rotation preserve independent account keys; no token-to-account mapping persists.
 The local Forget action locks memories and deletes the account's browser keys,
 while server bindings stay listed until explicitly removed. Deletion failures
