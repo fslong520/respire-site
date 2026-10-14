@@ -323,7 +323,7 @@ export default function GraphView({ items, onOpen }) {
       </div>
       {graph.pages > 1 && <p className="graph-window-hint">{t('graphWindowHint')}</p>}
       <div className="memory-graph" ref={boxRef}>
-      <svg aria-label={t('memoryGraph')}
+      <svg aria-label={t('memoryGraph')} aria-busy={alphaRef.current > ALPHA_MIN}
         role="group"
         ref={svgRef}
         onPointerDown={onPointerDown}

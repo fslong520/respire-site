@@ -20,10 +20,12 @@ page.on('pageerror', error => errors.push(error.message));
 const nodes = n => Array.from({ length: n }, (_, i) => ({ id: String(i).padStart(5, '0'), parent_id: i ? String(i - 1).padStart(5, '0') : '', title: `Synthetic ${i}`, importance: 'important', kind: 'context' }));
 const transform = () => page.locator('.memory-graph svg > g').getAttribute('transform');
 async function settled() {
-  await page.waitForTimeout(2500);
+  // Wait for actual simulation completion, not a runner-dependent frame rate.
+  await page.waitForTimeout(100);
+  await page.locator('.memory-graph svg[aria-busy="false"]').waitFor({ timeout: 15000 });
   const before = await page.locator('.memory-graph svg').innerHTML();
   await page.waitForTimeout(250);
-  assert.equal(await page.locator('.memory-graph svg').innerHTML(), before, 'Settled simulation must stop');
+  assert.ok(await page.locator('.memory-graph svg').innerHTML() === before, 'Settled simulation must stop');
 }
 try {
   await page.goto(`${origin}tests/graph-harness.html`);
@@ -67,7 +69,7 @@ try {
   await page.evaluate(items => window.setGraph(items), nodes(10000).reverse());
   await page.waitForTimeout(150);
   assert.deepEqual(await page.locator('.graph-node').evaluateAll(es => es.map(e => e.dataset.node)), ids);
-  assert.equal(await svg.innerHTML(), beforePoll, 'Equivalent polling snapshots must not reheat');
+  assert.ok(await svg.innerHTML() === beforePoll, 'Equivalent polling snapshots must not reheat');
   await page.locator('[data-node="00299"]').focus();
   await page.locator('.graph-external summary').click();
   await page.locator('.graph-external button').filter({ hasText: 'Synthetic 300' }).click();
