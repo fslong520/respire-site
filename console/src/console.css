@@ -409,23 +409,38 @@ tr.selected,tbody tr:hover { background:var(--soft); }
 
 /* Card-view kind difference (final): each kind tints the card with its accent
    at 10%, on top of the tone-colored badge + kind icon. One hue per kind,
-   brighter accents under the dark theme so the 10% mix stays visible. */
-.memory-card { --card-accent:var(--muted); }
-.memory-card[data-kind='context'] { --card-accent:#3d7085; }
-.memory-card[data-kind='decision'] { --card-accent:#6d5a9c; }
-.memory-card[data-kind='task'] { --card-accent:#4a6d9c; }
-.memory-card[data-kind='skill'] { --card-accent:#39735a; }
-.memory-card[data-kind='preference'] { --card-accent:#b07a3a; }
-.memory-card[data-kind='emotion'] { --card-accent:#b05a5a; }
-.memory-card[data-kind='time'] { --card-accent:#8a8275; }
+   brighter accents under the dark theme so the 10% mix stays visible. The
+   same tokens color graph nodes via --card-accent. */
+.memory-card, .graph-node { --card-accent:var(--muted); }
+.memory-card[data-kind='context'], .graph-node[data-kind='context'] { --card-accent:#3d7085; }
+.memory-card[data-kind='decision'], .graph-node[data-kind='decision'] { --card-accent:#6d5a9c; }
+.memory-card[data-kind='task'], .graph-node[data-kind='task'] { --card-accent:#4a6d9c; }
+.memory-card[data-kind='skill'], .graph-node[data-kind='skill'] { --card-accent:#39735a; }
+.memory-card[data-kind='preference'], .graph-node[data-kind='preference'] { --card-accent:#b07a3a; }
+.memory-card[data-kind='emotion'], .graph-node[data-kind='emotion'] { --card-accent:#b05a5a; }
+.memory-card[data-kind='time'], .graph-node[data-kind='time'] { --card-accent:#8a8275; }
 .memory-card { background:color-mix(in srgb, var(--card-accent) 10%, var(--panel)); }
-html[data-theme=dark] .memory-card[data-kind='context'] { --card-accent:#6fa8bd; }
-html[data-theme=dark] .memory-card[data-kind='decision'] { --card-accent:#a08ed1; }
-html[data-theme=dark] .memory-card[data-kind='task'] { --card-accent:#7d9cc9; }
-html[data-theme=dark] .memory-card[data-kind='skill'] { --card-accent:#7aa88f; }
-html[data-theme=dark] .memory-card[data-kind='preference'] { --card-accent:#cf9f66; }
-html[data-theme=dark] .memory-card[data-kind='emotion'] { --card-accent:#cf8484; }
-html[data-theme=dark] .memory-card[data-kind='time'] { --card-accent:#a9a197; }
+html[data-theme=dark] .memory-card[data-kind='context'], html[data-theme=dark] .graph-node[data-kind='context'] { --card-accent:#6fa8bd; }
+html[data-theme=dark] .memory-card[data-kind='decision'], html[data-theme=dark] .graph-node[data-kind='decision'] { --card-accent:#a08ed1; }
+html[data-theme=dark] .memory-card[data-kind='task'], html[data-theme=dark] .graph-node[data-kind='task'] { --card-accent:#7d9cc9; }
+html[data-theme=dark] .memory-card[data-kind='skill'], html[data-theme=dark] .graph-node[data-kind='skill'] { --card-accent:#7aa88f; }
+html[data-theme=dark] .memory-card[data-kind='preference'], html[data-theme=dark] .graph-node[data-kind='preference'] { --card-accent:#cf9f66; }
+html[data-theme=dark] .memory-card[data-kind='emotion'], html[data-theme=dark] .graph-node[data-kind='emotion'] { --card-accent:#cf8484; }
+html[data-theme=dark] .memory-card[data-kind='time'], html[data-theme=dark] .graph-node[data-kind='time'] { --card-accent:#a9a197; }
+
+/* Graph view: force-directed parent_id network in SVG. Every color rides on
+   theme variables, so dark mode needs no extra rules here. */
+.memory-graph { position:relative; height:480px; touch-action:none; }
+.memory-graph svg { display:block; width:100%; height:100%; cursor:grab; }
+.memory-graph svg:active { cursor:grabbing; }
+.graph-link { stroke:var(--line); stroke-width:1; transition:opacity .15s; }
+.graph-node { stroke:var(--panel); stroke-width:1.5; cursor:pointer; transition:opacity .15s; }
+.graph-node:hover { stroke:var(--text); }
+.graph-node.dimmed, .graph-link.dimmed { opacity:0.15; }
+.graph-label { font-family:var(--font-sans); font-size:0.6875rem; fill:var(--text); paint-order:stroke; stroke:var(--panel); stroke-width:3px; stroke-linejoin:round; pointer-events:none; }
+.memory-graph.is-empty { display:flex; align-items:center; justify-content:center; }
+.graph-empty { margin:0; font-family:var(--font-serif); color:var(--muted); }
+@media(max-width:760px) { .memory-graph { height:340px; } }
 
 .account-switch-controls { padding: 0 16px 12px; }
 .account-switch-controls label { display: grid; gap: 6px; }
@@ -437,6 +452,18 @@ html[data-theme=dark] .memory-card[data-kind='time'] { --card-accent:#a9a197; }
 .passkey-list { list-style: none; padding: 0; }
 .passkey-list li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .65rem 0; }
 .passkey-list li > span { overflow-wrap: anywhere; }
+
+.graph-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem; }
+.graph-controls p { margin:0; }
+.graph-controls nav { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.graph-window-hint { color:var(--muted); font-size:.85rem; }
+.graph-node[data-external] { stroke-dasharray:3 2; }
+.graph-node:focus { outline:none; stroke:var(--text); stroke-width:3; }
+.graph-external { max-height:12rem; overflow:auto; }
+.graph-external button { overflow-wrap:anywhere; text-align:left; }
+
+.graph-relations-picker { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+.graph-relations-picker select { max-width:100%; min-width:0; }
 
 .passkey-panel .button.primary { background: var(--text); color: var(--panel); border-color: var(--text); }
 .passkey-panel .button.primary:not(:disabled):hover { opacity: .85; }

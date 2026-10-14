@@ -174,3 +174,13 @@ that confirmation never resumes enrollment. Reconciliation is fenced to the exac
 pending record observed before the read, preventing an older component response
 from clearing a newer transaction. Previously confirmed notices are removed when
 a later authoritative list no longer contains the binding.
+
+## Memory graph
+
+The graph shows non-trivial memories and their parent links. To bound main-thread
+layout and SVG rendering, large collections use stable ID-sorted pages of 300
+nodes. Counts describe all loaded non-trivial memories, not only the current
+page. Dashed nodes have cross-page links; hover or focus one to list and open
+its off-page parents/children below the graph. These relations are not treated
+as missing parents. Search still covers every loaded memory. Node size uses
+unique reachable descendants, including cycle members, with a visual radius cap.
