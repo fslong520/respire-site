@@ -464,3 +464,33 @@ html[data-theme=dark] .memory-card[data-kind='time'], html[data-theme=dark] .gra
 
 .graph-relations-picker { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
 .graph-relations-picker select { max-width:100%; min-width:0; }
+
+.passkey-panel .button.primary { background: var(--text); color: var(--panel); border-color: var(--text); }
+.passkey-panel .button.primary:not(:disabled):hover { opacity: .85; }
+
+/* Encryption settings share one readable body scale and consistent gutters. */
+.memory-key-panel, .passkey-panel { margin-bottom: 16px; padding: 0; }
+.memory-key-panel > p, .passkey-panel > p { margin: 0; padding: 16px 25px; font-size: .8125rem; line-height: 1.7; color: var(--muted); }
+.memory-key-panel .section-top h2, .passkey-panel .section-top h2 { font-family: var(--font-sans); font-size: 1rem; line-height: 1.5; }
+.memory-key-panel .section-top, .passkey-panel .section-top { padding: 20px 25px; }
+.passkey-panel > p + p { padding-top: 0; }
+.passkey-panel .passkey-list { margin: 0; padding: 0 25px; font-size: .8125rem; }
+.passkey-panel .passkey-list li { border-bottom: 1px solid var(--line); }
+.passkey-panel .passkey-list small { display: block; color: var(--muted); font-size: .75rem; line-height: 1.5; }
+.passkey-panel > .key-actions { margin: 0; padding: 8px 25px 16px; }
+.passkey-panel > .button { margin: 12px 25px; }
+.passkey-controls { padding: 0 25px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.passkey-controls .key-actions { margin: 0; padding: 0; }
+.passkey-controls > .field, .passkey-controls > p, .passkey-controls > .note { flex-basis: 100%; margin: 0; font-size: .8125rem; }
+.passkey-controls > .field { max-width: 30rem; }
+@media (max-width: 600px) {
+  .key-hero { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: start; }
+  .key-hero > .badge { grid-column: 2; margin-left: 0; justify-self: start; }
+  .memory-key-panel .section-top, .passkey-panel .section-top { padding: 18px; }
+  .memory-key-panel > p, .passkey-panel > p { padding: 14px 18px; }
+  .passkey-panel .passkey-list { padding: 0 18px; }
+  .passkey-panel > .key-actions { padding: 8px 18px 16px; }
+  .passkey-controls { padding: 0 18px 18px; align-items: stretch; }
+  .passkey-panel .button { white-space: normal; text-align: center; }
+  .passkey-panel .passkey-list li { align-items: flex-start; }
+}

@@ -169,16 +169,20 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
       operation.current(); validatePasskeyOrigin(next);
       const vault = await api('/api/self/vault', { token, signal: operation.signal });
       operation.current();
+      let prfFailed = false;
       open({
-        title: t('passkeyBind'), description: `${t('passkeyBindDescription')}${next.trusted_browser_enabled ? ` ${t('trustedBrowserConsent')}` : ''}`,
+        title: t('passkeyBind'), description: `${t('passkeyBindDescription')}${next.trusted_browser_enabled ? '' : ` ${t('passkeyPrfRequirement')}`}`,
         fields: [
           ...(next.trusted_browser_enabled ? [{ name: 'unlockMode', label: t('trustedBrowserMode'), value: 'prf',
-            options: [['prf', t('trustedBrowserPrfChoice')], ['trusted_browser', t('trustedBrowserChoice')]], hint: t('trustedBrowserConsent') }] : []),
+            options: [['prf', t('trustedBrowserPrfChoice')], ['trusted_browser', t('trustedBrowserChoice')]], hint: values => t(values.unlockMode === 'trusted_browser' ? 'trustedBrowserConsent' : 'passkeyPrfRequirement') }] : []),
           { name: 'label', label: t('passkeyLabel'), value: '', required: false },
           { name: 'superPass', label: Number(vault.version) >= 4 ? t('labelSuperA3') : t('labelSuperPass'), type: 'password' },
           ...(Number(vault.version) === 3 ? [{ name: 'secretKey', label: 'Secret Key', type: 'password' }] : []),
         ],
         submit: t('passkeyBind'),
+        submitDisabled: (_failure, values) => prfFailed && values.unlockMode !== 'trusted_browser',
+        errorAction: (_failure, values) => next.trusted_browser_enabled && values.unlockMode !== 'trusted_browser' && prfFailed
+          ? { label: t('trustedBrowserSwitch'), values: { ...values, unlockMode: 'trusted_browser', superPass: '', secretKey: '' } } : null,
         onDismiss: () => { refreshUnknown(operation); operation.controller.abort(); finish(operation); },
         onSubmit: async values => {
           operation.current();
@@ -209,7 +213,8 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
               // outcome notice now own recovery, without resubmitting a commit.
               return true;
             }
-            throw new Error(errorText(error));
+            if (['passkeyPrfCreateUnavailable', 'passkeyPrfFirstMissing', 'passkeyPrfReopenMissing'].includes(error.code)) prfFailed = true;
+            throw Object.assign(new Error(errorText(error)), { code: error.code });
           } finally { values.superPass = ''; values.secretKey = ''; if (operation.isCurrent()) setStage(''); }
         },
       });
@@ -292,12 +297,9 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
   if (mode !== 'manage') return <div className="passkey-unlock">{controls}
     {config && (!canTry || !selected) && <small>{t(!available ? 'passkeyUnavailable' : !config.enabled ? 'passkeyDisabled' : 'passkeyNoCredentials')}</small>}
   </div>;
-  return <section className="panel key-panel">
+  return <section className="panel key-panel passkey-panel">
     <div className="section-top"><h2>{t('passkeyTitle')}</h2></div>
     <p>{t('passkeyDescription')}</p>
-    {config?.trusted_browser_enabled && <Note tone="amber">{t('trustedBrowserConsent')}</Note>}
-    <Note>{t('passkeyKeepRecovery')}</Note>
-    <Note tone="amber"><p>{t('passkeyPrfRequirement')}</p><p>{t('passkeyPrfCompatibility')} <a href="https://github.com/bitwarden/clients/blob/browser-v2026.9.1/apps/browser/src/autofill/fido2/utils/webauthn-utils.ts#L38-L40" target="_blank" rel="noopener noreferrer">{t('passkeyPrfSource')}</a></p></Note>
     {!available && <p>{t('passkeyUnavailable')}</p>}
     {config && !config.enabled && <p>{t('passkeyDisabled')}</p>}
     {config?.credentials?.length ? <ul className="passkey-list">
@@ -305,12 +307,12 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
         <span>{credential.label || t('passkeyUnnamed')}{credential.mode === 'trusted_browser' && <small> · {t(localTrusted.some(k => k.device_id === credential.device_id && k.key_generation === credential.key_generation) ? 'trustedBrowserHere' : 'trustedBrowserElsewhere')}</small>}</span>
         <Button danger icon={Trash} disabled={busy} onClick={() => remove(credential)}>{t('passkeyRemove')}</Button>
       </li>)}
-    </ul> : <p>{t('passkeyNoCredentials')}</p>}
+    </ul> : <p>{t('passkeyEmpty')}</p>}
     {localTrusted.length > 0 && <Button disabled={busy} onClick={() => open({ title: t('trustedForget'), description: t('trustedForgetDescription'), submit: t('trustedForget'), danger: true, onSubmit: async () => {
       active.current?.abort(); onCancelUnlock?.(); await trustedKeyStore.clearAccount(config.account_id);
       if (mounted.current) setLocalTrusted([]); notify(t('trustedForgotten'));
     } })}>{t('trustedForget')}</Button>}
-    <div className="key-actions"><Button icon={Plus} disabled={!canTry || !hasVault || busy || pendingCommits.has(token)} onClick={openBinding}>{t('passkeyBind')}</Button></div>
-    {controls}
+    <div className="key-actions passkey-enroll"><Button primary icon={Plus} disabled={!canTry || !hasVault || busy || pendingCommits.has(token)} onClick={openBinding}>{t('passkeyBind')}</Button></div>
+    <div className="passkey-controls">{controls}</div>
   </section>;
 }

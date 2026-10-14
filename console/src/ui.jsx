@@ -111,6 +111,7 @@ export function Modal({
   const optionLabel = option => Array.isArray(option) ? option[1] : option?.label ?? option;
   const [values, setValues] = useState(Object.fromEntries((config.fields || []).map(f => [f.name, f.value ?? (f.options?.length ? optionValue(f.options[0]) : '')])));
   const [error, setError] = useState('');
+  const [failure, setFailure] = useState(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     const el = ref.current;
@@ -127,7 +128,7 @@ export function Modal({
   }, []);
   async function submit(e) {
     e.preventDefault();
-    if (!alive.current || busy) return;
+    if (!alive.current || busy || config.submitDisabled?.(failure, values)) return;
     setError('');
     const err = config.validate?.(values);
     if (err) {
@@ -139,11 +140,12 @@ export function Modal({
       const keep = await config.onSubmit?.(values);
       if (alive.current && keep !== false) dismiss();
     } catch (e) {
-      if (alive.current) setError(e.message);
+      if (alive.current) { setError(e.message); setFailure(e); }
     } finally {
       if (alive.current) setBusy(false);
     }
   }
+  const recoveryAction = config.errorAction?.(failure, values);
   return <dialog ref={ref} className={`modal ${config.wide ? 'wide' : ''} ${config.danger ? 'danger' : ''}`} onCancel={e => {
     e.preventDefault();
     dismiss();
@@ -160,7 +162,7 @@ export function Modal({
         })} /> : <input aria-label={f.label} autoFocus={f.autofocus} type={f.type || 'text'} required={f.required !== false} placeholder={f.placeholder} value={values[f.name]} onChange={e => setValues({
           ...values,
           [f.name]: e.target.value
-        })} autoComplete="off" minLength={f.minLength} />}{f.hint && <small>{f.hint}</small>}</label>)}{error && <p role="alert" className="form-error"><WarningCircle size={18} />{error}</p>}<div className="modal-footer"><Button type="button" onClick={dismiss}>{config.cancel || t('cancel')}</Button><Button type="submit" primary={!config.danger} danger={config.danger} className={config.danger ? 'purge' : ''} disabled={busy}>{busy ? t('working') : config.submit || t('confirm')}</Button></div></form></dialog>;
+        })} autoComplete="off" minLength={f.minLength} />}{f.hint && <small>{typeof f.hint === 'function' ? f.hint(values) : f.hint}</small>}</label>)}{error && <p role="alert" className="form-error"><WarningCircle size={18} />{error}</p>}{recoveryAction && <Button type="button" disabled={busy} onClick={() => { setValues(recoveryAction.values); setError(''); }}>{recoveryAction.label}</Button>}<div className="modal-footer"><Button type="button" onClick={dismiss}>{config.cancel || t('cancel')}</Button><Button type="submit" primary={!config.danger} danger={config.danger} className={config.danger ? 'purge' : ''} disabled={busy || config.submitDisabled?.(failure, values)}>{busy ? t('working') : config.submit || t('confirm')}</Button></div></form></dialog>;
 }
 
 /** Account purge requires two confirmations: explain the effects, then verify the username and confirmation phrase. */

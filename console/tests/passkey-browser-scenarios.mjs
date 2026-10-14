@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { generateSecretKey, wrapVaultV4, unwrapUrk } from '../src/crypto.js';
-import { t } from '../src/i18n.js';
+import { t, setLocale } from '../src/i18n.js';
+import { mkdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { FIXTURE } from './fixture-api.mjs';
 
 // Deliberately synthetic navigator.credentials implementation. This tests the
@@ -98,6 +100,90 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
     await page.getByRole('button', { name: t('passkeyBind'), exact: true }).waitFor();
     return { recovery, page, requests: () => api.requests.slice(requestStart) };
   };
+  for (const locale of ['en', 'zh']) for (const width of [1440, 390]) {
+    await run(`passkey settings: ${locale} at ${width}px stays compact and opts in explicitly`, async () => {
+      api.state.trustedBrowserEnabled = true;
+      const { page, requests } = await setup();
+      await page.setViewportSize({ width, height: 1000 });
+      if (locale === 'zh') await page.getByRole('button', { name: '中文', exact: true }).click();
+      setLocale(locale);
+      try {
+        const panel = page.locator('.passkey-panel');
+        await panel.getByRole('heading', { name: t('passkeyTitle'), exact: true }).waitFor();
+        assert.equal(await panel.getByText(t('trustedBrowserConsent'), { exact: true }).count(), 0);
+        assert.equal(await panel.getByText(t('passkeyPrfRequirement'), { exact: true }).count(), 0);
+        assert.equal(await panel.getByRole('link').count(), 0);
+        assert.ok(!(await panel.textContent()).includes('Bitwarden'));
+        assert.equal(await panel.locator('.button.primary').count(), 1);
+        const sizes = await page.locator('.memory-key-panel > p, .passkey-panel > p').evaluateAll(nodes => nodes.map(n => getComputedStyle(n).fontSize));
+        assert.ok(sizes.length >= 2 && sizes.every(size => size === sizes[0]));
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+        if (process.env.RSRS_UI_SCREENSHOTS) {
+          await mkdir(process.env.RSRS_UI_SCREENSHOTS, { recursive: true });
+          await page.screenshot({ path: resolve(process.env.RSRS_UI_SCREENSHOTS, `passkey-${locale}-${width}.png`), fullPage: true });
+        }
+        await panel.getByRole('button', { name: t('passkeyBind'), exact: true }).click();
+        const dialog = page.getByRole('dialog');
+        const select = dialog.getByLabel(t('trustedBrowserMode'), { exact: true });
+        assert.equal(await select.inputValue(), 'prf');
+        await dialog.getByText(t('passkeyPrfRequirement'), { exact: true }).waitFor();
+        assert.equal(await dialog.getByText(t('trustedBrowserConsent'), { exact: true }).count(), 0);
+        await select.selectOption('trusted_browser');
+        await dialog.getByText(t('trustedBrowserConsent'), { exact: true }).waitFor();
+        assert.equal(await dialog.getByText(t('passkeyPrfRequirement'), { exact: true }).count(), 0);
+        assert.equal(await page.evaluate(() => window.passkeyFixture.creates), 0);
+        assert.equal(await dialog.evaluate(el => el.scrollWidth > el.clientWidth), false);
+        if (process.env.RSRS_UI_SCREENSHOTS) await page.screenshot({ path: resolve(process.env.RSRS_UI_SCREENSHOTS, `passkey-consent-${locale}-${width}.png`) });
+        await dialog.getByRole('button', { name: t('cancel'), exact: true }).click();
+        await dialog.waitFor({ state: 'hidden' });
+        await panel.getByRole('button', { name: t('passkeyBind'), exact: true }).click();
+        assert.equal(await page.getByRole('dialog').getByLabel(t('trustedBrowserMode'), { exact: true }).inputValue(), 'prf');
+        await page.getByRole('dialog').getByRole('button', { name: t('closeDialog'), exact: true }).click();
+        assert.equal(requests().filter(r => r.method === 'POST' && r.path.includes('/passkeys')).length, 0);
+        assert.equal((await localTrustedRecords(page)).length, 0);
+      } finally { setLocale('en'); }
+    });
+  }
+  await run('passkeys: unsupported PRF offers an explicit trusted-browser switch without an automatic retry', async () => {
+    api.state.trustedBrowserEnabled = true;
+    const { recovery, page, requests } = await setup();
+    await page.evaluate(() => { window.passkeyFixture.mode = 'unsupported'; });
+    const dialog = await enroll(page, recovery, 'Unsupported provider');
+    await dialog.getByRole('alert').filter({ hasText: t('passkeyPrfCreateUnavailable') }).waitFor();
+    assert.equal(api.state.passkeys.size, 0);
+    assert.equal(await page.evaluate(() => window.passkeyFixture.creates), 1);
+    assert.equal(await dialog.getByRole('button', { name: t('passkeyBind'), exact: true }).isDisabled(), true);
+    await dialog.getByRole('button', { name: t('trustedBrowserSwitch'), exact: true }).click();
+    await dialog.getByText(t('trustedBrowserConsent'), { exact: true }).waitFor();
+    assert.equal(await dialog.getByLabel(t('labelSuperA3'), { exact: true }).inputValue(), '');
+    assert.equal(await page.evaluate(() => window.passkeyFixture.creates), 1);
+    assert.equal(api.state.passkeys.size, 0);
+    await dialog.getByLabel(t('trustedBrowserMode'), { exact: true }).selectOption('prf');
+    assert.equal(await dialog.getByRole('button', { name: t('passkeyBind'), exact: true }).isDisabled(), true);
+    await dialog.getByRole('button', { name: t('cancel'), exact: true }).click();
+    assert.equal((await localTrustedRecords(page)).length, 0);
+    await page.getByRole('button', { name: t('passkeyBind'), exact: true }).click();
+    assert.equal(await page.getByRole('dialog').getByLabel(t('trustedBrowserMode'), { exact: true }).inputValue(), 'prf');
+    await page.getByRole('dialog').getByRole('button', { name: t('cancel'), exact: true }).click();
+    // A fresh user-started attempt may recheck PRF; no failure path retries it.
+    const next = await enroll(page, recovery, 'Explicit browser trust');
+    await next.getByRole('alert').filter({ hasText: t('passkeyPrfCreateUnavailable') }).waitFor();
+    await next.getByRole('button', { name: t('trustedBrowserSwitch'), exact: true }).click();
+    await next.getByLabel(t('labelSuperA3'), { exact: true }).fill(generateSecretKey());
+    await next.getByRole('button', { name: t('passkeyBind'), exact: true }).click();
+    await next.getByRole('alert').waitFor();
+    await next.getByLabel(t('trustedBrowserMode'), { exact: true }).selectOption('prf');
+    assert.equal(await next.getByRole('button', { name: t('passkeyBind'), exact: true }).isDisabled(), true);
+    assert.equal(await page.evaluate(() => window.passkeyFixture.creates), 2);
+    await next.getByRole('button', { name: t('trustedBrowserSwitch'), exact: true }).click();
+    await next.getByLabel(t('labelSuperA3'), { exact: true }).fill(recovery);
+    await next.getByRole('button', { name: t('passkeyBind'), exact: true }).click();
+    await next.waitFor({ state: 'hidden' });
+    assert.equal(api.state.passkeys.size, 1);
+    assert.equal([...api.state.passkeys.values()][0].mode, 'trusted_browser');
+    assert.equal(await page.evaluate(() => window.passkeyFixture.creates), 3);
+    assert.ok(requests().some(r => r.method === 'POST' && r.path.endsWith('/register/start') && r.body?.mode === 'trusted_browser'));
+  });
   const twoTrustedAccounts = async () => {
     api.state.trustedBrowserEnabled = true;
     const fixture = await setup({ 'rsrs.dashboard.accounts': JSON.stringify([
@@ -633,10 +719,6 @@ export async function passkeyBrowserScenarios({ run, open, api }) {
   ]) await run(`passkeys: ${mode} identifies the PRF stage without activation`, async () => {
     const { recovery, page, requests } = await setup();
     const original = structuredClone(api.state.vault);
-    await page.getByText(t('passkeyPrfRequirement'), { exact: true }).waitFor();
-    await page.getByText(t('passkeyPrfCompatibility'), { exact: false }).waitFor();
-    assert.equal(await page.getByRole('link', { name: t('passkeyPrfSource'), exact: true }).getAttribute('href'),
-      'https://github.com/bitwarden/clients/blob/browser-v2026.9.1/apps/browser/src/autofill/fido2/utils/webauthn-utils.ts#L38-L40');
     await page.evaluate(mode => { window.passkeyFixture.mode = mode; }, mode);
     const dialog = await enroll(page, recovery, 'Synthetic provider capability');
     await dialog.getByRole('alert').filter({ hasText: t(code) }).waitFor();

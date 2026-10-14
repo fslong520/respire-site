@@ -880,7 +880,7 @@ export function DashboardPages({
         {!hasVault && vaultInfo !== undefined ? (
           <Note icon={WarningCircle} tone="amber">{t('noWrap')}</Note>
         ) : null}
-        <section className="panel key-panel">
+        <section className="panel key-panel memory-key-panel">
           <div className="section-top"><h2>{t('memoryOnlyKeys')}</h2><Badge tone={keyStored ? 'green' : 'amber'}>{keyStored ? t('pageUnlocked') : t('pageLocked')}</Badge></div>
           <p>{t('memoryOnlyDescription')}</p>
           {legacyRecovery ? <>
