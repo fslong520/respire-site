@@ -1172,8 +1172,8 @@ export async function startMemoryPointCloud(
       while (physAcc >= CFG.PHYS_STEP && sub < CFG.MAX_SUBSTEPS) { physAcc -= CFG.PHYS_STEP; physicsStep(); physicsExtStep(); sub++; }
       if (sub >= CFG.MAX_SUBSTEPS) physAcc = 0;
       azimuth += ORBIT_STEP * dt;
-      placeCamera();
     }
+    placeCamera();
 
     if (refScaleUniform) refScaleUniform.value = uScale;
     nodeUniforms.uScale.value = uScale;
@@ -1214,6 +1214,8 @@ export async function startMemoryPointCloud(
   document.addEventListener('visibilitychange', visibility);
   renderer.domElement.addEventListener('webglcontextlost', contextLost);
   renderer.domElement.addEventListener('webglcontextrestored', contextRestored);
+  const scroll = (): void => { if (!running) request(); };
+  window.addEventListener('scroll', scroll, { passive: true });
 
   const handle: MemoryPointCloudHandle = {
     wake(): void { previous = 0; request(); },
@@ -1232,6 +1234,7 @@ export async function startMemoryPointCloud(
       intersection.disconnect();
       resizeObserver.disconnect();
       document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('scroll', scroll);
       renderer.domElement.removeEventListener('webglcontextlost', contextLost);
       renderer.domElement.removeEventListener('webglcontextrestored', contextRestored);
       nodeGeo.dispose(); nodeMat.dispose();
