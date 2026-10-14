@@ -1,3 +1,4 @@
+import { trustedKeyStore } from './trustedKeyStore.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   TreeStructure, Clock, MagnifyingGlass, CaretRight, LockKey, ShieldCheck,
@@ -271,6 +272,9 @@ export function DashboardPages({
           controller.current();
           signal.throwIfAborted();
           if (!leaseAccepted) {
+            await lease?.assertTrustedCurrent?.();
+            controller.current();
+            signal.throwIfAborted();
             // Transfer ownership only once a current batch is ready to render.
             // Before this point, modal dismissal/navigation still cancels unlock.
             leaseAccepted = true;
@@ -843,12 +847,17 @@ export function DashboardPages({
     const wrapped = await wrapVaultV4(newSuper);
     await api(reset ? '/api/self/vault/reset' : '/api/self/vault', { method: 'POST', token,
       body: reset ? { ...wrapped, expected_key_generation: vaultInfo?.key_generation } : wrapped });
-    setTick((n) => n + 1);
     lockMemories();
+    let trustCleanupFailed = false;
+    if (reset && vaultInfo?.account_id && Number.isSafeInteger(vaultInfo.key_generation)) {
+      try { await trustedKeyStore.clearAccountOlderGenerations(vaultInfo.account_id, vaultInfo.key_generation + 1); }
+      catch { trustCleanupFailed = true; }
+    }
+    setTick((n) => n + 1);
     notify(reset ? t('keysResetLost') : t('superGenerated'));
     window.setTimeout(() => open({
       title: t('copySuperNowTitle'),
-      body: <SecretResult value={newSuper} notify={notify} description={t('copySuperNowBody', { reset: reset ? t('copySuperNowReset') : '' })} />,
+      body: <>{trustCleanupFailed && <Note tone="amber">{t('trustedResetCleanupFailed')}</Note>}<SecretResult value={newSuper} notify={notify} description={t('copySuperNowBody', { reset: reset ? t('copySuperNowReset') : '' })} /></>,
       submit: t('iCopied'),
     }), 0);
   };

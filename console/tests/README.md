@@ -79,7 +79,12 @@ The normal unit suite includes `passkeys.test.mjs`: exact same-URK and mixed
 legacy/current ciphertext compatibility (recovery wrappers v1–v4), AEAD metadata
 and ciphertext tampering, secret-free credential serialization, two independent
 assertion PRF outputs before activation, missing/unstable PRF, cancellation,
-retries, and stale account/unlock fencing. These are synthetic WebCrypto tests.
+retries, and stale account/unlock fencing. Tests separately assert creation,
+first/second assertion, and unlock failure messages. An empty-extension creation
+response modeled after Bitwarden browser extension 2026.9.1 proves that no
+assertion prompt or registration finish/commit request follows. Assertion mocks
+omit the registration-only `enabled` field. These are synthetic WebCrypto tests,
+not an execution of the Bitwarden extension or hardware-provider validation.
 
 The existing compiled-UI fixture suite also includes passkey management, multiple
 bindings, memory unlock after reload, removal, recovery preservation, missing PRF,
@@ -104,3 +109,34 @@ authoritative key-generation changes, stale cross-instance responses, removal
 of a previously confirmed binding, and Memories-to-Diary route cancellation.
 The failed-confirmation fixture returns a synthetic 503 after storing the binding;
 it does not claim to reproduce every real network failure mode.
+
+## Trusted-browser coverage
+
+`trusted-browser.test.mjs` exercises the distinct authenticated AES wrapper,
+same-URK/ciphertext compatibility, ordinary empty extension responses, two fresh
+UV assertions, local-store failure/readback, missing keys, cancellation/staleness,
+unknown commit retention, exact context checks, durable identity across token
+rotation, verified-account versus unknown-identity logout cleanup, and passive
+tabs that cannot repeat durable cleanup or delete a newer enrollment. Optional
+authoritative identity lookup tests cover exact response ownership, token/entry
+generation changes, cancellation, deadline expiry, and late ignored-abort results.
+
+`trusted-key-store.test.mjs` uses real WebCrypto with a deliberately synthetic
+IndexedDB transaction fixture. It covers nonexportable key shape, persistent
+readback proof, write failures, blocked/versionchanged storage, durable cross-tab
+epoch and generation fencing, revision-safe reconciliation, final-delivery
+leases, cleanup failures, and atomic cleanup counts with zero-record logout
+fencing. It is not a native IndexedDB conformance test.
+
+The compiled React suite uses native IndexedDB with synthetic WebAuthn. It adds
+explicit default-off opt-in, non-PRF enrollment/reload unlock, storage denial/loss,
+cancelled and uncertain commits, account switching, logout/rotation, visible
+cleanup failures, two-tab account-isolated logout, quiet default-off logout with
+an empty key store, a cross-tab account switch that cannot inherit the old UUID,
+remote rotation preserving other accounts, failed/stale identity lookup and
+same-token re-entry, native transaction-drained delayed logout, reset recovery
+delivery, and a key cleared during a delayed
+first memory pull. The native CDP fixture additionally tests a PRF-disabled
+virtual authenticator in trusted-browser mode with a genuine browser reload and
+CryptoKey readback. These fixtures do not claim an actual Bitwarden extension
+or real provider/hardware test; signed verification remains in the Server suite.

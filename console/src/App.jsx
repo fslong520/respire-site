@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { forgetTrustedAccount, moveTrustedAccount, rememberTrustedAccount, resolveTrustedAccount } from './trustedBrowser.js';
 import { Gate } from './Gate.jsx';
 import { clearPendingPasskeyCommit, movePendingPasskeyCommit } from './Passkeys.jsx';
 import { Shell } from './Shell.jsx';
@@ -53,6 +54,13 @@ function Console({ admin }) {
   const [switching, setSwitching] = useState(false);
   const [checked, setChecked] = useState(!readToken(key));
   const entryGeneration = useRef(0);
+  const receivingIdentity = useRef(null);
+  const [probeRevision, refreshProbe] = useState(0);
+  const advanceEntry = (probe = true) => {
+    const generation = ++entryGeneration.current;
+    if (probe) refreshProbe(revision => revision + 1);
+    return generation;
+  };
   const [hash, setHash] = useState(window.location.hash);
   const [github, setGithub] = useState(admin ? null : initialGithubCallback);
   const authorization = !admin && (hash === '#/authorize' || hash.startsWith('#/authorize?'));
@@ -62,13 +70,23 @@ function Console({ admin }) {
     window.addEventListener('hashchange', changed);
     return () => window.removeEventListener('hashchange', changed);
   }, []);
+  const forgetBrowserTrust = (previous, passive = false) => {
+    const forgotten = forgetTrustedAccount(previous, undefined, { passive });
+    forgotten.completion.then(({ clearedRecords }) => {
+      // The count is from the same committed transaction as the logout fence.
+      // An empty store still needs that fence, but no trust-removal warning.
+      if (forgotten.allAccounts && clearedRecords > 0) setHint(t('trustedLogoutAll'));
+    }).catch(() => setHint(t('trustedCleanupFailed')));
+  };
   const setToken = (value) => {
     const previous = readToken(key);
     if (!writeToken(key, value)) throw new Error(t('sessionStorageFailed'));
-    entryGeneration.current += 1;
-    if (!admin && !value) {
+    advanceEntry();
+    receivingIdentity.current = null;
+    if (!admin && !value && previous) {
       dropUnlockSession(previous);
       clearPendingPasskeyCommit(previous);
+      forgetBrowserTrust(previous);
       // Account-list cleanup cannot undo a successful logout.
       try { setAccounts(removeAccount(previous)); }
       catch { setHint(t('accountListFailed')); }
@@ -76,7 +94,9 @@ function Console({ admin }) {
     setTokenState(value);
   };
   async function enterAccount(value, superPass, secretKey, recoveryCreated = false) {
-    const generation = ++entryGeneration.current;
+    // The candidate is checked below. Do not re-probe the still-saved old
+    // token: its expiry must not cancel a valid replacement account entry.
+    const generation = advanceEntry(false);
     const previous = readToken(key);
     const info = await api('/api/self', { token: value });
     if (generation !== entryGeneration.current || readToken(key) !== previous) return false;
@@ -85,6 +105,7 @@ function Console({ admin }) {
     let dataKey;
     if (superPass) {
       vault = await api('/api/self/vault', { token: value });
+      if (generation === entryGeneration.current && readToken(key) === previous) rememberTrustedAccount(value, vault.account_id);
       const urk = await unwrapUrk(superPass, secretKey, vault);
       try { dataKey = await deriveDataKeys(urk, vault.wrapped_urk.startsWith('rsrs:v1:')); }
       finally { urk.fill(0); }
@@ -112,7 +133,7 @@ function Console({ admin }) {
     } finally { setSwitching(false); }
   }
   function addAccount() {
-    entryGeneration.current += 1;
+    advanceEntry(false);
     setAdding(true);
   }
   useEffect(() => {
@@ -120,10 +141,16 @@ function Console({ admin }) {
     const changed = (event) => {
       if (event.key === USER_KEY) {
         clearUnlockSessions();
-        entryGeneration.current += 1;
+        if (!event.newValue && event.oldValue) {
+          clearPendingPasskeyCommit(event.oldValue);
+          forgetBrowserTrust(event.oldValue, true);
+        }
+        advanceEntry();
+        const currentToken = readToken(USER_KEY);
+        receivingIdentity.current = currentToken ? { token: currentToken, generation: entryGeneration.current } : null;
         setSwitching(false);
         setChecked(false);
-        setTokenState(readToken(USER_KEY));
+        setTokenState(currentToken);
         setAdding(false);
       }
       if (event.key === 'rsrs.dashboard.accounts') setAccounts(readAccounts());
@@ -152,23 +179,31 @@ function Console({ admin }) {
       setChecked(true);
       return;
     }
+    const generation = entryGeneration.current, controller = new AbortController();
+    const current = () => !controller.signal.aborted && readToken(key) === token && entryGeneration.current === generation;
+    const identify = !admin && receivingIdentity.current?.token === token && receivingIdentity.current.generation === generation;
     const probe = admin ? '/admin/me' : '/api/self';
-    api(probe, { token })
-      .then((info) => {
-        if (readToken(key) !== token) return;
+    // Probe auth errors are handled below only while this exact entry is live.
+    // The global token-only callback could otherwise sign out a newer ABA entry.
+    api(probe, { token, signal: controller.signal, notifyUnauthorized: false })
+      .then(async (info) => {
+        if (!current()) return;
         if (!admin && info.user) setAccounts(saveAccount(info.user, token));
+        if (identify) await resolveTrustedAccount({ token, request: api, signal: controller.signal, isCurrent: current });
+        if (!current()) return;
         setChecked(true);
       })
       .catch((err) => {
-        if (readToken(key) !== token) return;
+        if (!current()) return;
         if (err.status === 401 || err.status === 403) setToken('');
         setChecked(true);
       });
-  }, [admin, token]);
+    return () => controller.abort();
+  }, [admin, token, probeRevision]);
   if (github) {
     const generation = entryGeneration.current;
     return <GithubCallback grant={github} token={token} authorization={authorization}
-      onDone={() => { entryGeneration.current += 1; setGithub(null); }}
+      onDone={() => { advanceEntry(); setGithub(null); }}
       onEnter={async ({ token: value, superPass, recoveryCreated }) => {
         if (generation !== entryGeneration.current) return;
         if (await enterAccount(value, superPass, undefined, recoveryCreated)) setGithub(null);
@@ -190,7 +225,7 @@ function Console({ admin }) {
             return admin ? setToken(value) : enterAccount(value, superPass, secretKey, recoveryCreated);
           }}
         />
-        {adding && <button type="button" className="gate-link" onClick={() => { entryGeneration.current += 1; setAdding(false); }}>{t('cancel')}</button>}
+        {adding && <button type="button" className="gate-link" onClick={() => { advanceEntry(); setAdding(false); }}>{t('cancel')}</button>}
         <div className={`toast ${hint ? 'visible' : ''}`} role="status">{hint}</div>
       </>
     );
@@ -219,6 +254,7 @@ function Console({ admin }) {
           // This callback is used only by authenticated same-account rotation.
           // setToken must succeed before public pending metadata can move.
           movePendingPasskeyCommit(token, value);
+          moveTrustedAccount(token, value, readToken(USER_KEY));
         }
       }}
       onLogout={() => { try { setToken(''); } catch (error) { setHint(error.message); } }}
