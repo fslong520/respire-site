@@ -6,7 +6,7 @@ import {
 } from '@phosphor-icons/react';
 import { AdminPages } from './AdminPages.jsx';
 import { DashboardPages } from './DashboardPages.jsx';
-import { Modal, Avatar, LangSwitch, useI18n } from './ui.jsx';
+import { Modal, Avatar, LangSwitch, Button, Note, useI18n } from './ui.jsx';
 import { Brand } from './Brand.jsx';
 import { ADMIN_KEY, USER_KEY, api, readToken } from './api.js';
 import { parseRoute } from './hashRoute.js';
@@ -37,7 +37,7 @@ function readRoute(admin, fallback) {
   });
 }
 
-export function Shell({ admin, token, onLogout, onToken, accounts = [], switching, onSwitchAccount, onAddAccount }) {
+export function Shell({ admin, token, onLogout, onToken, accounts = [], switching, onSwitchAccount, onAddAccount, passkeyOffer = false, onDismissPasskeyOffer }) {
   useI18n();
   const fallback = admin ? 'users' : 'memories';
   const [route, setRoute] = useState(() => readRoute(admin, fallback));
@@ -64,7 +64,7 @@ export function Shell({ admin, token, onLogout, onToken, accounts = [], switchin
   }
 
   useEffect(() => {
-    const fn = () => setRoute(readRoute(admin, fallback));
+    const fn = () => { setRoute(readRoute(admin, fallback)); setModal(null); };
     window.addEventListener('hashchange', fn);
     if (!location.hash) location.hash = `#/${fallback}`;
     return () => {
@@ -183,6 +183,13 @@ export function Shell({ admin, token, onLogout, onToken, accounts = [], switchin
             </div>
           </header>
           <main className={`console-main surface-${page}`} id="main-content" tabIndex={-1}>
+            {!admin && passkeyOffer && <section className="panel key-panel" aria-label={t('passkeyOffer')}>
+              <Note>{t('passkeyOfferDescription')}</Note>
+              <div className="key-actions">
+                <Button icon={Key} onClick={() => { go('keys'); onDismissPasskeyOffer(); }}>{t('passkeyOffer')}</Button>
+                <Button onClick={onDismissPasskeyOffer}>{t('passkeyLater')}</Button>
+              </div>
+            </section>}
             {admin ? (
               <AdminPages page={page} token={token} me={me} notify={notify} open={setModal} onReloadMe={load} />
             ) : (
