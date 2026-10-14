@@ -439,7 +439,7 @@ html[data-theme=dark] .memory-card[data-kind='time'] { --card-accent:#a9a197; }
 .passkey-list li > span { overflow-wrap: anywhere; }
 
 .passkey-panel .button.primary { background: var(--text); color: var(--panel); border-color: var(--text); }
-.passkey-panel .button.primary:hover { opacity: .85; }
+.passkey-panel .button.primary:not(:disabled):hover { opacity: .85; }
 
 /* Encryption settings share one readable body scale and consistent gutters. */
 .memory-key-panel, .passkey-panel { margin-bottom: 16px; padding: 0; }
