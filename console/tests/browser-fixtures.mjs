@@ -913,7 +913,8 @@ try {
     await page.locator('.graph-node').nth(24).waitFor();
     assert.equal(await page.locator('.graph-node').count(), 25);
     await page.getByLabel(t('searchMemory'), { exact: true }).fill(title);
-    await page.locator('.search-hit').filter({ hasText: title }).waitFor();
+    await page.locator('.search-hit').filter({ hasText: title }).first().waitFor();
+    assert.equal(await page.locator('.search-hit').count(), 25, 'Graph search must cover all matching loaded memories');
     assert.equal(await page.locator('.graph-node').count(), 0, 'Search must supersede graph');
     await page.getByLabel(t('searchMemory'), { exact: true }).fill('');
     await page.locator('.graph-node').nth(24).waitFor();
