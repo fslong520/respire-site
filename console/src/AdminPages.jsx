@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import uPlot from 'uplot';
+import 'uplot/dist/uPlot.min.css';
 import {
   UserPlus, MagnifyingGlass, DownloadSimple, CaretLeft, CaretRight,
   ShieldCheck, LockKey, X, Desktop, Prohibit, ArrowClockwise, Key, SignOut,
@@ -35,6 +37,100 @@ function auditType(action) {
   if (/会话|kick|token|签发/.test(action)) return 'session';
   if (/密码|totp|安全/.test(action)) return 'security';
   return 'user';
+}
+
+const STATS_COLORS = ['#6b867a', '#95856f', '#837299'];
+
+function StatsChart({ series }) {
+  const wrapRef = useRef(null);
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || !series?.length) return undefined;
+    // Bucket dates are Asia/Shanghai days; label ticks with that calendar date
+    // regardless of the viewer's local timezone.
+    const xs = series.map((p) => Math.floor(Date.parse(`${p.date}T00:00:00+08:00`) / 1000));
+    const data = [xs, series.map((p) => p.registrations), series.map((p) => p.memories), series.map((p) => p.sessions)];
+    const grid = 'rgba(128,132,148,.18)';
+    const tick = '#8a90a0';
+    const opts = {
+      width: wrap.clientWidth,
+      height: 330,
+      legend: { show: false },
+      axes: [
+        { stroke: tick, grid: { stroke: grid }, ticks: { stroke: grid }, space: 84, values: (u, ticks) => ticks.map((tv) => new Date(tv * 1000 + 8 * 3600 * 1000).toISOString().slice(0, 10)) },
+        { stroke: tick, grid: { stroke: grid }, ticks: { stroke: grid } },
+      ],
+      series: [
+        {},
+        { label: t('statRegistrations'), stroke: STATS_COLORS[0], width: 2 },
+        { label: t('statMemories'), stroke: STATS_COLORS[1], width: 2 },
+        { label: t('statSessions'), stroke: STATS_COLORS[2], width: 2 },
+      ],
+    };
+    const plot = new uPlot(opts, data, wrap);
+    const onResize = () => plot.setSize({ width: wrap.clientWidth, height: 330 });
+    const observer = new ResizeObserver(onResize);
+    observer.observe(wrap);
+    return () => {
+      observer.disconnect();
+      plot.destroy();
+    };
+  }, [series]);
+  return (
+    <>
+      <div className="stats-legend">
+        {[t('statRegistrations'), t('statMemories'), t('statSessions')].map((label, i) => (
+          <span key={label}><i style={{ background: STATS_COLORS[i] }} />{label}</span>
+        ))}
+      </div>
+      <div ref={wrapRef} />
+    </>
+  );
+}
+
+function StatsPage({ token }) {
+  const [days, setDays] = useState(30);
+  const [series, setSeries] = useState(null);
+  const [error, setError] = useState('');
+  const [trackingSince, setTrackingSince] = useState('');
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setSeries(null);
+    setError('');
+    api(`/admin/stats?days=${days}`, { token })
+      .then((r) => {
+        if (alive) { setSeries(r.series); setTrackingSince(r.memory_tracking_since); }
+      })
+      .catch((e) => {
+        if (!alive) return;
+        setError(e.status === 403 ? t('statsForbidden') : (e.message ? `${t('statsLoadFailed')} ${e.message}` : t('statsLoadFailed')));
+      });
+    return () => { alive = false; };
+  }, [days, token, reload]);
+
+  return (
+    <>
+      <Heading eyebrow="ADMINISTRATION / STATS" title={t('statsTitle')} description={t('statsDesc')}>
+        <div className="tabs" aria-label={t('statsDays', { n: days })}>
+          {[7, 30, 90].map((n) => (
+            <button key={n} className={days === n ? 'active' : ''} onClick={() => setDays(n)}>{t('statsDays', { n })}</button>
+          ))}
+        </div>
+      </Heading>
+      <section className="panel stats-panel">
+        {error ? (
+          <div className="stats-error" role="alert"><WarningCircle size={30} /><p>{error}</p><Button onClick={() => setReload((n) => n + 1)}>{t('statsRetry')}</Button></div>
+        ) : series ? (
+          <StatsChart series={series} />
+        ) : (
+          <div className="stats-loading">{t('statsLoading')}</div>
+        )}
+      </section>
+      {series && <Note>{t('statsHistory', { date: trackingSince })}</Note>}
+    </>
+  );
 }
 
 export function AdminPages({ page, token, me, notify, open, onReloadMe }) {
@@ -429,6 +525,10 @@ export function AdminPages({ page, token, me, notify, open, onReloadMe }) {
         </section>
       </>
     );
+  }
+
+  if (page === 'stats') {
+    return <StatsPage token={token} />;
   }
 
   return <Security admin token={token} me={me} notify={notify} onReload={onReloadMe} />;

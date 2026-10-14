@@ -9,7 +9,7 @@ const html = await readFile(new URL('../dist/index.html', import.meta.url));
 const fonts = new Map(await Promise.all((await readdir(new URL('../dist/', import.meta.url)))
   .filter(name => name.endsWith('.woff2'))
   .map(async name => ['/' + name, await readFile(new URL('../dist/' + name, import.meta.url))])));
-const output = resolve(process.env.RESPIRE_RENDER_OUTPUT || 'render-output');
+const output = resolve(process.env.RSRS_RENDER_OUTPUT || 'render-output');
 await mkdir(output, { recursive: true });
 const server = createServer((request, response) => {
   if (request.method === 'GET' && fonts.has(request.url)) {
@@ -25,7 +25,7 @@ const server = createServer((request, response) => {
 });
 await new Promise(resolveListen => server.listen(0, '127.0.0.1', resolveListen));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch({ headless: true, ...(process.env.RESPIRE_BROWSER_EXECUTABLE ? { executablePath: process.env.RESPIRE_BROWSER_EXECUTABLE } : {}) });
+const browser = await chromium.launch({ headless: true, ...(process.env.RSRS_BROWSER_EXECUTABLE ? { executablePath: process.env.RSRS_BROWSER_EXECUTABLE } : {}) });
 const rows = [];
 try {
   for (const [surface, width, height] of [['dashboard', 1440, 1000], ['admin', 1440, 1000], ['dashboard', 390, 844], ['admin', 390, 844]]) {

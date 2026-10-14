@@ -46,10 +46,18 @@ The old `tests/browser-dev-smoke.mjs` and `scripts/read-dev-mail.py` remain
 byte-for-byte upstream imports. Do not repurpose the old same-origin script or
 its legacy proxy SHA headers as split-origin acceptance evidence.
 
+The user TOTP case exercises the separate second-factor login page, an invalid
+code followed by a valid retry, and explicit CLI OAuth approval and denial.
+The authorization page must not request the memory super password; CLI/TUI
+collect it locally after authorization. The case also checks that both failed
+and successful TOTP removal preserve the browser session, and that removal
+remains effective after reload. These checks require a hosted run; offline
+contract checks do not establish that these flows have passed.
+
 ## Required approvals and configuration
 
 Every variable below is explicit. There are no production defaults and no
-fallback to `RESPIRE_DEV_SERVER_ADDR` or legacy frontend SHA variables.
+fallback to `RSRS_DEV_SERVER_ADDR` or legacy frontend SHA variables.
 
 Before running, the operator must separately approve the test, confirm the
 selected services contain only isolated test data, and approve the synthetic
@@ -59,23 +67,23 @@ permission or make a production environment safe.
 
 | Required approval variable | Required value | Approved scope |
 | --- | --- | --- |
-| `RESPIRE_SPLIT_SMOKE_APPROVED` | `true` | Execute this hosted acceptance run |
-| `RESPIRE_SPLIT_ISOLATED_ENVIRONMENT_CONFIRMED` | `true` | All four deployments, API/database, and mailbox are isolated test resources |
-| `RESPIRE_SPLIT_API_ADMIN_APPROVED` | `true` | Use the isolated bootstrap admin token, create synthetic fixtures, exercise authentication, inspect test outbox metadata, and verify role boundaries |
-| `RESPIRE_SPLIT_MAIL_APPROVED` | `true` | Send verification/reset messages to the dedicated fixture recipient and execute the trusted mailbox reader |
-| `RESPIRE_SPLIT_FIXTURE_CLEANUP_APPROVED` | `true` | Permanently purge only the exact user/admin identities created by this run and verify their removal |
+| `RSRS_SPLIT_SMOKE_APPROVED` | `true` | Execute this hosted acceptance run |
+| `RSRS_SPLIT_ISOLATED_ENVIRONMENT_CONFIRMED` | `true` | All four deployments, API/database, and mailbox are isolated test resources |
+| `RSRS_SPLIT_API_ADMIN_APPROVED` | `true` | Use the isolated bootstrap admin token, create synthetic fixtures, exercise authentication, inspect test outbox metadata, and verify role boundaries |
+| `RSRS_SPLIT_MAIL_APPROVED` | `true` | Send verification/reset messages to the dedicated fixture recipient and execute the trusted mailbox reader |
+| `RSRS_SPLIT_FIXTURE_CLEANUP_APPROVED` | `true` | Permanently purge only the exact user/admin identities created by this run and verify their removal |
 
 | Required configuration | Meaning |
 | --- | --- |
-| `RESPIRE_SPLIT_API_ORIGIN` | Actual isolated API HTTPS origin |
-| `RESPIRE_SPLIT_DASHBOARD_ORIGIN` | Isolated Dashboard Pages deployment HTTPS origin |
-| `RESPIRE_SPLIT_ADMIN_ORIGIN` | Isolated Admin Pages deployment HTTPS origin |
-| `RESPIRE_SPLIT_HOMEPAGE_ORIGIN` | Isolated homepage Pages deployment HTTPS origin, serving the root-base build |
-| `RESPIRE_SPLIT_SERVER_SHA` | Exact 40-character lowercase Server commit compiled into the API |
-| `RESPIRE_SPLIT_SITE_SHA` | Exact 40-character lowercase Site commit for the harness checkout and all three deployed frontend artifacts |
-| `RESPIRE_SPLIT_ADMIN_TOKEN` | Approved isolated API bootstrap administrator token, supplied through secure environment injection |
-| `RESPIRE_SPLIT_MAIL_ADDRESS` | Dedicated approved test recipient, never a personal/production inbox |
-| `RESPIRE_SPLIT_MAIL_READER` | JSON command array for a trusted mailbox reader; no shell string or secrets in arguments |
+| `RSRS_SPLIT_API_ORIGIN` | Actual isolated API HTTPS origin |
+| `RSRS_SPLIT_DASHBOARD_ORIGIN` | Isolated Dashboard Pages deployment HTTPS origin |
+| `RSRS_SPLIT_ADMIN_ORIGIN` | Isolated Admin Pages deployment HTTPS origin |
+| `RSRS_SPLIT_HOMEPAGE_ORIGIN` | Isolated homepage Pages deployment HTTPS origin, serving the root-base build |
+| `RSRS_SPLIT_SERVER_SHA` | Exact 40-character lowercase Server commit compiled into the API |
+| `RSRS_SPLIT_SITE_SHA` | Exact 40-character lowercase Site commit for the harness checkout and all three deployed frontend artifacts |
+| `RSRS_SPLIT_ADMIN_TOKEN` | Approved isolated API bootstrap administrator token, supplied through secure environment injection |
+| `RSRS_SPLIT_MAIL_ADDRESS` | Dedicated approved test recipient, never a personal/production inbox |
+| `RSRS_SPLIT_MAIL_READER` | JSON command array for a trusted mailbox reader; no shell string or secrets in arguments |
 
 The four origins must be distinct. Only HTTPS remote DNS origins are accepted;
 credentials, paths, queries, fragments, IP/loopback hosts, trailing-dot hostnames,
@@ -96,9 +104,9 @@ Optional configuration:
 
 | Variable | Default / constraints |
 | --- | --- |
-| `RESPIRE_SPLIT_MAIL_WAIT_SECONDS` | `120`; finite value from `30` through `600` |
-| `RESPIRE_SPLIT_SMOKE_OUTPUT` | `browser-test-output/hosted-split`; each run creates a private `run-*` subdirectory |
-| `RESPIRE_BROWSER_EXECUTABLE` | Optional absolute path to a compatible Chromium installation; otherwise use installed Playwright Chromium |
+| `RSRS_SPLIT_MAIL_WAIT_SECONDS` | `120`; finite value from `30` through `600` |
+| `RSRS_SPLIT_SMOKE_OUTPUT` | `browser-test-output/hosted-split`; each run creates a private `run-*` subdirectory |
+| `RSRS_BROWSER_EXECUTABLE` | Optional absolute path to a compatible Chromium installation; otherwise use installed Playwright Chromium |
 
 Unset `DEBUG`, `PWDEBUG`, `NODE_DEBUG`, and `NODE_DEBUG_NATIVE`. The harness
 refuses these logging modes because they can expose authentication material.
@@ -110,11 +118,11 @@ console forwarding around a credential-bearing hosted run.
 The retained TLS IMAP helper can be explicitly selected from `console/`:
 
 ```sh
-export RESPIRE_SPLIT_MAIL_READER='["python3","scripts/read-dev-mail.py"]'
+export RSRS_SPLIT_MAIL_READER='["python3","scripts/read-dev-mail.py"]'
 ```
 
-It retains its original configuration names: `RESPIRE_DEV_IMAP_HOST`,
-`RESPIRE_DEV_IMAP_USERNAME`, and `RESPIRE_DEV_IMAP_PASSWORD`. Supply credentials
+It retains its original configuration names: `RSRS_DEV_IMAP_HOST`,
+`RSRS_DEV_IMAP_USERNAME`, and `RSRS_DEV_IMAP_PASSWORD`. Supply credentials
 through the operator's approved secret mechanism, not source files, command-line
 arguments, logs, or this document. This helper reads INBOX over TLS in read-only
 mode and filters the expected purpose, recipient and receipt time.
@@ -136,13 +144,13 @@ from the admin API or invent a success when email delivery fails.
 ## Fail-closed source proof before fixture writes
 
 1. The actual harness checkout `git rev-parse HEAD` must equal
-   `RESPIRE_SPLIT_SITE_SHA`, and `git status --porcelain --untracked-files=normal`
+   `RSRS_SPLIT_SITE_SHA`, and `git status --porcelain --untracked-files=normal`
    must be empty. Commit the harness and use a clean checkout of that commit.
    These checks run before creating output, launching Chromium, contacting an
    API, or executing a mail reader. Default output and installed dependencies
    are ignored by Git; do not leave unrelated untracked files in the checkout.
 2. API `/health` must return JSON with `ok: true` and exact `source_revision ===
-   RESPIRE_SPLIT_SERVER_SHA`. Missing/`unknown`/short/mismatched revisions fail.
+   RSRS_SPLIT_SERVER_SHA`. Missing/`unknown`/short/mismatched revisions fail.
    This is the Server binary's compile-time revision, not an nginx header or
    runtime environment override. `/ready` must report `ok: true` and
    `database: "ready"`.

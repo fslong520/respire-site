@@ -147,22 +147,22 @@ function hkdfSha256(ikm, salt, info, len) {
   return out;
 }
 
-export async function deriveSalt(user) {
+export async function deriveSalt(user, namespace = 'rsrs') {
   const ikm = enc(user.trim().toLowerCase());
   if (hasSubtle) {
     const key = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
     const bits = await crypto.subtle.deriveBits(
-      { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: enc('onememory:auth-salt:v1') },
+      { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: enc(`${namespace}:auth-salt:v1`) },
       key,
       128,
     );
-    return toHex(new Uint8Array(bits));
+    return (namespace === 'rsrs' ? 'rsrs:v1:' : '') + toHex(new Uint8Array(bits));
   }
-  return toHex(hkdfSha256(ikm, new Uint8Array(32), enc('onememory:auth-salt:v1'), 16));
+  return (namespace === 'rsrs' ? 'rsrs:v1:' : '') + toHex(hkdfSha256(ikm, new Uint8Array(32), enc(`${namespace}:auth-salt:v1`), 16));
 }
 
 export async function deriveHash(pass, saltHex) {
-  const salt = fromHex(saltHex);
+  const salt = fromHex(saltHex.startsWith('rsrs:v1:') ? saltHex.slice(8) : saltHex);
   if (hasSubtle) {
     const key = await crypto.subtle.importKey('raw', enc(pass), 'PBKDF2', false, ['deriveBits']);
     const bits = await crypto.subtle.deriveBits(
@@ -175,8 +175,8 @@ export async function deriveHash(pass, saltHex) {
   return toHex(pbkdf2Sha256(enc(pass), salt, 100000, 32));
 }
 
-export async function authPayload(user, password) {
-  const salt = await deriveSalt(user);
+export async function authPayload(user, password, storedSalt) {
+  const salt = storedSalt ?? await deriveSalt(user);
   const pass_hash = await deriveHash(password, salt);
   return { user: user.trim(), pass_hash, salt };
 }
@@ -205,17 +205,17 @@ async function deriveSuperKek(superPass, salt) {
   return pbkdf2Sha256(enc(superPass), salt, SUPER_ITERS, 32);
 }
 
-async function deriveVaultKek(superPass, secretKey, salt) {
+async function deriveVaultKek(superPass, secretKey, salt, namespace = 'onememory') {
   const intermediate = await deriveSuperKek(superPass, salt);
   if (hasSubtle) {
     const key = await crypto.subtle.importKey('raw', intermediate, 'HKDF', false, ['deriveBits']);
     return new Uint8Array(await crypto.subtle.deriveBits(
-      { name: 'HKDF', hash: 'SHA-256', salt: enc(secretKey), info: enc('onememory:kek:v1') },
+      { name: 'HKDF', hash: 'SHA-256', salt: enc(secretKey), info: enc(`${namespace}:kek:v1`) },
       key,
       256,
     ));
   }
-  return hkdfSha256(intermediate, enc(secretKey), enc('onememory:kek:v1'), 32);
+  return hkdfSha256(intermediate, enc(secretKey), enc(`${namespace}:kek:v1`), 32);
 }
 
 // v4 single recovery-code factor; KEK = HKDF(entropy, salt=kdf_salt, info=kek:v4)
@@ -227,17 +227,17 @@ function superKeyBytes(superPass) {
   return fromHex(raw);
 }
 
-async function deriveKekV4(superPass, saltHex) {
+async function deriveKekV4(superPass, saltHex, namespace = 'rsrs') {
   const ikm = superKeyBytes(superPass);
   if (hasSubtle) {
     const key = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
     return new Uint8Array(await crypto.subtle.deriveBits(
-      { name: 'HKDF', hash: 'SHA-256', salt: fromHex(saltHex), info: enc('onememory:kek:v4') },
+      { name: 'HKDF', hash: 'SHA-256', salt: fromHex(saltHex), info: enc(`${namespace}:kek:v4`) },
       key,
       256,
     ));
   }
-  return hkdfSha256(ikm, fromHex(saltHex), enc('onememory:kek:v4'), 32);
+  return hkdfSha256(ikm, fromHex(saltHex), enc(`${namespace}:kek:v4`), 32);
 }
 
 export async function wrapVaultV4(superPass, urkBytes) {
@@ -246,16 +246,17 @@ export async function wrapVaultV4(superPass, urkBytes) {
   const nonce = randomBytes(12);
   const key = await crypto.subtle.importKey('raw', kek, 'AES-GCM', false, ['encrypt']);
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, urkBytes || randomBytes(32)));
-  return { kdf_salt: toHex(kdfSalt), wrapped_urk: toHex(ct), urk_nonce: toHex(nonce), version: 4 };
+  return { kdf_salt: toHex(kdfSalt), wrapped_urk: 'rsrs:v1:' + toHex(ct), urk_nonce: toHex(nonce), version: 4 };
 }
 
 async function unwrapVaultV4(superPass, vault) {
-  const kek = await deriveKekV4(superPass, vault.kdf_salt);
+  const current = vault.wrapped_urk.startsWith('rsrs:v1:');
+  const kek = await deriveKekV4(superPass, vault.kdf_salt, current ? 'rsrs' : 'onememory');
   const key = await crypto.subtle.importKey('raw', kek, 'AES-GCM', false, ['decrypt']);
   return new Uint8Array(await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv: fromHex(vault.urk_nonce) },
     key,
-    fromHex(vault.wrapped_urk),
+    fromHex(current ? vault.wrapped_urk.slice(8) : vault.wrapped_urk),
   ));
 }
 
@@ -273,12 +274,13 @@ export async function unwrapUrk(superPass, secretKey, vault) {
   const version = Number(vault.version);
   if (version >= 4) return unwrapVaultV4(secretKey || superPass, vault);
   const salt = fromHex(vault.kdf_salt);
-  const kek = version === 3 ? await deriveVaultKek(superPass, secretKey, salt) : await deriveSuperKek(superPass, salt);
+  const current = vault.wrapped_urk.startsWith('rsrs:v1:');
+  const kek = version === 3 ? await deriveVaultKek(superPass, secretKey, salt, current ? 'rsrs' : 'onememory') : await deriveSuperKek(superPass, salt);
   const key = await crypto.subtle.importKey('raw', kek, 'AES-GCM', false, ['decrypt']);
   return new Uint8Array(await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv: fromHex(vault.urk_nonce) },
     key,
-    fromHex(vault.wrapped_urk),
+    fromHex(current ? vault.wrapped_urk.slice(8) : vault.wrapped_urk),
   ));
 }
 
@@ -294,7 +296,19 @@ export async function deriveDataKey(urk) {
   return hkdfSha256(urk, new Uint8Array(32), enc('onememory:data:v1'), 32);
 }
 
+export async function deriveDataKeys(urk, writeCurrent = false) {
+  const legacy = await deriveDataKey(urk);
+  const key = await crypto.subtle.importKey('raw', urk, 'HKDF', false, ['deriveBits']);
+  const current = new Uint8Array(await crypto.subtle.deriveBits(
+    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: enc('rsrs:data:v1') }, key, 256));
+  return { legacy, current, writeCurrent };
+}
+
 export async function decryptItem(dataKey, ciphertextHex, nonceHex) {
+  if (ciphertextHex.startsWith('rsrs:') && !ciphertextHex.startsWith('rsrs:v1:')) throw new Error('Unsupported ciphertext version');
+  const current = ciphertextHex.startsWith('rsrs:v1:');
+  if (dataKey?.legacy) dataKey = current ? dataKey.current : dataKey.legacy;
+  if (current) ciphertextHex = ciphertextHex.slice(8);
   const key = dataKey instanceof Uint8Array
     ? await crypto.subtle.importKey('raw', dataKey, 'AES-GCM', false, ['decrypt'])
     : dataKey;
@@ -310,6 +324,8 @@ export async function decryptItem(dataKey, ciphertextHex, nonceHex) {
 
 /** Encrypt entry content with AES-256-GCM and a 12-byte nonce; return hex {nonce, ciphertext}. */
 export async function encryptItem(dataKey, plaintext) {
+  const current = Boolean(dataKey?.writeCurrent);
+  if (dataKey?.legacy) dataKey = current ? dataKey.current : dataKey.legacy;
   const key = await crypto.subtle.importKey('raw', dataKey, 'AES-GCM', false, ['encrypt']);
   const nonce = randomBytes(12);
   const ct = new Uint8Array(await crypto.subtle.encrypt(
@@ -317,5 +333,5 @@ export async function encryptItem(dataKey, plaintext) {
     key,
     enc(plaintext),
   ));
-  return { nonce: toHex(nonce), ciphertext: toHex(ct) };
+  return { nonce: toHex(nonce), ciphertext: (current ? 'rsrs:v1:' : '') + toHex(ct) };
 }

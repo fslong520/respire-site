@@ -1,0 +1,375 @@
+import test from 'node:test';
+import { pbkdf2Sync } from 'node:crypto';
+import assert from 'node:assert/strict';
+import { bindTrustedBrowser, unlockWithTrustedBrowser, wrapTrustedUrk, unwrapTrustedUrk, rememberTrustedAccount, resolveTrustedAccount, moveTrustedAccount, forgetTrustedAccount } from '../src/trustedBrowser.js';
+import { encodeBase64url as b64, passkeyCommitConfirmed } from '../src/passkeys.js';
+import { wrapVaultV4, wrapVault, toHex, deriveDataKeys, encryptItem, decryptItem, unwrapUrk } from '../src/crypto.js';
+
+const bytes = (n, x) => new Uint8Array(n).fill(x);
+const URK = bytes(32, 55), RECOVERY = 'A3-000102-030405-060708-090a0b-0c0d0e-0f1011';
+const META = { mode: 'trusted_browser', account_id: 'fixture-account-id', rp_id: 'localhost', key_generation: 2,
+  credential_id: b64(bytes(24, 9)), device_id: '11223344-1122-4122-8122-112233445566' };
+const CONFIG = { enabled: true, trusted_browser_enabled: true, ...META };
+const vault = async () => ({ ...await wrapVaultV4(RECOVERY, URK), account_id: META.account_id, key_generation: META.key_generation });
+const generate = () => crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+function nativeCredential(registration = false) {
+  return { type: 'public-key', id: META.credential_id, rawId: bytes(24, 9),
+    response: { clientDataJSON: bytes(20, 1), ...(registration ? { attestationObject: bytes(40, 2) }
+      : { authenticatorData: bytes(37, 3), signature: bytes(64, 4), userHandle: null }) },
+    getClientExtensionResults: () => ({}), toJSON: () => assert.fail('Unsafe serialization') };
+}
+function harness(hooks = {}) {
+  const requests = [], events = [], keys = new Map();
+  let gets = 0, wrapper;
+  const id = c => JSON.stringify([c.account_id, c.rp_id, c.device_id, c.key_generation]);
+  const keyStore = {
+    async create(c) { events.push('persist'); if (hooks.create) return hooks.create(c); const key = await generate(); keys.set(id(c), { key: structuredClone(key) }); return this.read(c); },
+    async read(c) { events.push('readback'); if (hooks.read) await hooks.read(c); return keys.get(id(c))?.key || null; },
+    async readLease(c) { const record = keys.get(id(c)); if (!record) return null; return { key: record.key, assertCurrent: async () => {
+      if (hooks.beforeAccept && wrapper) await hooks.beforeAccept();
+      if (keys.get(id(c)) !== record) throw new DOMException('Local key revoked', 'AbortError');
+    } }; },
+    async markActive(c) { events.push('active'); assert.ok(keys.has(id(c))); },
+    async remove(c) { events.push('remove'); keys.delete(id(c)); },
+    clear() { keys.clear(); },
+  };
+  const envelope = (phase, registration = false) => ({ ...META, ceremony_id: phase,
+    public_key: registration ? { challenge: b64(bytes(32, 1)), rp: { id: META.rp_id, name: 'Synthetic' },
+      user: { id: b64(bytes(16, 2)), name: 'Synthetic', displayName: 'Synthetic' }, pubKeyCredParams: [{ type: 'public-key', alg: -7 }] }
+      : { challenge: b64(bytes(32, phase === 'test' ? 3 : 4)), rpId: META.rp_id, allowCredentials: [{ type: 'public-key', id: META.credential_id }] } });
+  const request = async (path, options) => {
+    requests.push({ path, body: structuredClone(options.body) });
+    assert.equal(options.body.mode, META.mode); assert.equal(options.body.device_id, META.device_id);
+    const sent = JSON.stringify(options.body);
+    for (const secret of [RECOVERY, b64(URK), '"results"', '"key"']) assert.equal(sent.includes(secret), false);
+    if (hooks.request) await hooks.request(path, options);
+    if (path === '/register/start') return envelope('create', true);
+    if (path === '/register/finish') return { ...envelope('test'), ...hooks.contextPatch };
+    if (path === '/register/test') return envelope('commit');
+    if (path === '/register/commit') { wrapper = options.body.wrapper; return { ok: true }; }
+    if (path === '/unlock/start') return envelope('unlock');
+    if (path === '/unlock/finish') return { ...META, wrapper, ...hooks.unlockPatch };
+    assert.fail(path);
+  };
+  const credentials = {
+    create: async options => { events.push('create'); assert.deepEqual(options.publicKey.extensions, {});
+      assert.equal(options.publicKey.authenticatorSelection.userVerification, 'required'); return nativeCredential(true); },
+    get: async options => { gets++; events.push(`get${gets}`); assert.deepEqual(options.publicKey.extensions, {});
+      assert.equal(options.publicKey.userVerification, 'required'); if (hooks.get) await hooks.get(gets, options); return nativeCredential(); },
+  };
+  return { request, credentials, keyStore, keys, requests, events, get gets() { return gets; }, get wrapper() { return wrapper; } };
+}
+const bind = async (h, rest = {}) => bindTrustedBrowser({ ...h, config: CONFIG, vault: await vault(), superPass: RECOVERY,
+  label: 'Synthetic trusted browser', deviceId: META.device_id, ...rest });
+const unlock = async (h, rest = {}) => unlockWithTrustedBrowser({ ...h, config: CONFIG, vault: await vault(),
+  credentialId: META.credential_id, deviceId: META.device_id, ...rest });
+
+test('ordinary empty-extension credentials bind only after persistence/readback and two fresh UV assertions', async () => {
+  const h = harness(), v = await vault(), original = JSON.stringify(v);
+  assert.deepEqual(await bind(h, { vault: v }), META);
+  assert.equal(h.gets, 2);
+  assert.ok(h.events.indexOf('persist') < h.events.indexOf('get1'));
+  assert.ok(h.events.indexOf('readback') < h.events.indexOf('get1'));
+  assert.deepEqual(h.requests.map(r => r.path), ['/register/start', '/register/finish', '/register/test', '/register/commit']);
+  assert.equal(JSON.stringify(v), original);
+  assert.deepEqual(await unwrapUrk(RECOVERY, undefined, v), URK);
+  const expected = await deriveDataKeys(URK, true), memory = await encryptItem(expected, 'pre-existing synthetic memory');
+  const keys = await unlock(h);
+  assert.deepEqual(keys, expected);
+  assert.equal(await decryptItem(keys, memory.ciphertext, memory.nonce), 'pre-existing synthetic memory');
+  assert.equal(h.gets, 3);
+  assert.equal(h.wrapper.kdf, 'trusted-browser-aes256gcm-v1');
+});
+
+test('trusted wrapper authenticates mode/account/RP/device/credential/generation and rejects tampering', async () => {
+  const key = await generate(), wrapped = await wrapTrustedUrk(URK, key, META);
+  for (const patch of [{ mode: 'prf' }, { account_id: 'other' }, { rp_id: 'other.test' },
+    { device_id: '11223344-1122-4122-8122-112233445567' }, { credential_id: b64(bytes(24, 8)) }, { key_generation: 3 }]) {
+    await assert.rejects(unwrapTrustedUrk(wrapped, key, { ...META, ...patch }));
+  }
+  await assert.rejects(unwrapTrustedUrk(wrapped, await generate(), META));
+  await assert.rejects(unwrapTrustedUrk({ ...wrapped, kdf: 'webauthn-prf-hkdf-sha256-v1' }, key, META));
+  await assert.rejects(unwrapTrustedUrk({ ...wrapped, nonce: b64(bytes(12, 0)) }, key, META));
+  await assert.rejects(unwrapTrustedUrk({ ...wrapped, wrapped_urk: b64(bytes(48, 0)) }, key, META));
+  const exportable = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+  await assert.rejects(wrapTrustedUrk(URK, exportable, META), { code: 'trustedKeyMissing' });
+});
+
+test('storage creation failure, readback loss, cancellation and stale flow never activate a binding', async t => {
+  for (const failure of ['create', 'readback', 'cancel', 'stale']) await t.test(failure, async () => {
+    let current = true;
+    const h = harness({
+      ...(failure === 'create' ? { create: () => { throw new Error('Synthetic IDB denied'); } } : {}),
+      get: async count => {
+        if (failure === 'cancel') throw new DOMException('Cancelled', 'NotAllowedError');
+        if (failure === 'stale') current = false;
+        if (failure === 'readback' && count === 2) h.keyStore.clear();
+      },
+    });
+    await assert.rejects(bind(h, { isCurrent: () => current }));
+    assert.equal(h.requests.some(r => r.path === '/register/commit'), false);
+    assert.equal(h.keys.size, 0);
+  });
+});
+
+test('trusted mode must be explicitly enabled and context cannot change during enrollment', async () => {
+  const h = harness();
+  await assert.rejects(bind(h, { config: { ...CONFIG, trusted_browser_enabled: false } }), { code: 'trustedBrowserDisabled' });
+  assert.equal(h.requests.length, 0);
+  for (const contextPatch of [{ account_id: 'other' }, { device_id: crypto.randomUUID() }, { mode: 'prf' }, { key_generation: 3 }]) {
+    const broken = harness({ contextPatch }); await assert.rejects(bind(broken), { code: 'passkeyChanged' });
+    assert.equal(broken.keys.size, 0); assert.equal(broken.gets, 0);
+  }
+});
+
+test('ambiguous commit keeps only the local key for safe reconciliation, with no retry or removal', async () => {
+  const h = harness({ request: path => { if (path === '/register/commit') throw new TypeError('Response lost'); } });
+  await assert.rejects(bind(h), { code: 'passkeyCommitUnknown' });
+  assert.equal(h.keys.size, 1);
+  assert.equal(h.requests.filter(r => r.path === '/register/commit').length, 1);
+  assert.equal(h.events.includes('remove'), false);
+  const config = { ...CONFIG, credentials: [META] };
+  assert.equal(passkeyCommitConfirmed(META, config), true);
+  for (const patch of [{ mode: 'prf' }, { device_id: crypto.randomUUID() }]) {
+    assert.equal(passkeyCommitConfirmed(META, { ...config, credentials: [{ ...META, ...patch }] }), false);
+  }
+});
+
+test('unlock after site-data loss fails before native prompt or API wrapper release', async () => {
+  const h = harness(); await bind(h); h.keyStore.clear();
+  const before = h.requests.length;
+  await assert.rejects(unlock(h), { code: 'trustedKeyMissing' });
+  assert.equal(h.gets, 2); assert.equal(h.requests.length, before);
+});
+
+test('server-response context changes and key removal during final crypto fencing cannot unlock', async () => {
+  for (const unlockPatch of [{ device_id: crypto.randomUUID() }, { mode: 'prf' }, { account_id: 'other' }]) {
+    const h = harness({ unlockPatch }); await bind(h); await assert.rejects(unlock(h), { code: 'passkeyChanged' });
+  }
+  const h = harness({ beforeAccept: () => h.keyStore.clear() });
+  await bind(h); await assert.rejects(unlock(h), { name: 'AbortError' });
+});
+
+test('same-account token rotation does not change durable encryption identity', async () => {
+  const h = harness(); await bind(h);
+  const keys = [...h.keys.keys()];
+  let lease;
+  await unlock(h, { onKeyLease: value => { lease = value; } });
+  assert.deepEqual([...h.keys.keys()], keys);
+  assert.equal(keys.some(key => /token/i.test(key)), false);
+  await lease.assertCurrent();
+  h.keyStore.clear(); await assert.rejects(lease.assertCurrent(), { name: 'AbortError' });
+});
+
+
+test('logout targets only a verified account, unknown identity falls back to all, and failed rotation does not transfer', async () => {
+  const cleared = [];
+  const store = { clearAccount: async account => cleared.push(account), clearAll: async () => cleared.push('ALL') };
+  rememberTrustedAccount('account-a-token', 'account-a');
+  rememberTrustedAccount('account-b-token', 'account-b');
+  moveTrustedAccount('account-a-token', 'unsaved-token', 'account-a-token');
+  let forgotten = forgetTrustedAccount('account-a-token', store);
+  assert.equal(forgotten.allAccounts, false); await forgotten.completion;
+  assert.deepEqual(cleared, ['account-a']);
+  forgotten = forgetTrustedAccount('account-b-token', store);
+  assert.equal(forgotten.allAccounts, false); await forgotten.completion;
+  assert.deepEqual(cleared, ['account-a', 'account-b']);
+  forgotten = forgetTrustedAccount('unknown-identity', store);
+  assert.equal(forgotten.allAccounts, true); await forgotten.completion;
+  assert.deepEqual(cleared, ['account-a', 'account-b', 'ALL']);
+  rememberTrustedAccount('before-rotation', 'stable-account');
+  moveTrustedAccount('before-rotation', 'after-rotation', 'after-rotation');
+  await forgetTrustedAccount('after-rotation', store).completion;
+  assert.equal(cleared.at(-1), 'stable-account');
+});
+
+test('passive logout never deletes durable keys, even for known identities after reenrollment', async () => {
+  const cleared = [];
+  const store = {
+    clearAccount: async account => { cleared.push(account); return { clearedRecords: 1 }; },
+    clearAll: async () => { cleared.push('ALL'); return { clearedRecords: 2 }; },
+  };
+  const passive = forgetTrustedAccount('unknown-passive-token', store, { passive: true });
+  assert.equal(passive.allAccounts, false);
+  assert.deepEqual(await passive.completion, { clearedRecords: 0 });
+  assert.deepEqual(cleared, []);
+  rememberTrustedAccount('known-passive-token', 'account-a');
+  const newEnrollment = { account_id: 'account-a', device_id: 'new-device' };
+  store.clearAccount = async account => { cleared.push(account); newEnrollment.deleted = true; return { clearedRecords: 1 }; };
+  const known = forgetTrustedAccount('known-passive-token', store, { passive: true });
+  assert.equal(known.allAccounts, false);
+  assert.deepEqual(await known.completion, { clearedRecords: 0 });
+  assert.deepEqual(cleared, []);
+  assert.equal(newEnrollment.deleted, undefined);
+  const initiating = forgetTrustedAccount('unknown-initiating-token', store);
+  assert.equal(initiating.allAccounts, true);
+  assert.deepEqual(await initiating.completion, { clearedRecords: 2 });
+  assert.deepEqual(cleared, ['ALL']);
+});
+
+
+test('trusted binding preserves legacy recovery wrappers v1 through v3 and their existing URK', async t => {
+  for (const version of [1, 2, 3]) await t.test(`v${version}`, async () => {
+    const superPass = 'Synthetic legacy recovery', secretKey = version === 3 ? 'Synthetic legacy secret' : undefined;
+    let v;
+    if (version === 3) v = await wrapVault(superPass, secretKey, URK);
+    else {
+      const salt = bytes(16, 7), nonce = bytes(12, 8);
+      const key = await crypto.subtle.importKey('raw', pbkdf2Sync(superPass, salt, 210000, 32, 'sha256'), 'AES-GCM', false, ['encrypt']);
+      const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, URK));
+      v = { version, kdf_salt: toHex(salt), urk_nonce: toHex(nonce), wrapped_urk: toHex(encrypted) };
+    }
+    v = { ...v, account_id: META.account_id, key_generation: META.key_generation };
+    const original = structuredClone(v), h = harness();
+    await bind(h, { vault: v, superPass, secretKey });
+    assert.deepEqual(v, original); assert.deepEqual(await unwrapUrk(superPass, secretKey, v), URK);
+    const keys = await unlock(h, { vault: v });
+    assert.deepEqual(keys, await deriveDataKeys(URK, v.wrapped_urk.startsWith('rsrs:v1:')));
+    const sent = JSON.stringify(h.requests);
+    assert.equal(sent.includes(superPass), false); if (secretKey) assert.equal(sent.includes(secretKey), false);
+  });
+});
+
+function accountLookupHarness() {
+  const cleared = [];
+  const keyStore = {
+    clearAccount: async accountId => { cleared.push(accountId); return { clearedRecords: 1 }; },
+    clearAll: async () => { cleared.push('ALL'); return { clearedRecords: 0 }; },
+  };
+  const forget = async token => {
+    const result = forgetTrustedAccount(token, keyStore);
+    await result.completion;
+    return result.allAccounts;
+  };
+  return { cleared, forget };
+}
+function deferredLookup() {
+  let resolve, reject;
+  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
+}
+const flushLookup = () => new Promise(resolve => setImmediate(resolve));
+
+test('identity lookup associates only the exact token with the authenticated returned account', async () => {
+  const h = accountLookupHarness(), token = 'lookup-success-token', accountId = '11223344-1122-4122-8122-112233445566';
+  let received;
+  assert.equal(await resolveTrustedAccount({ token, isCurrent: () => true, request: async (path, options) => {
+    received = { path, options };
+    return { account_id: accountId, wrapped_urk: 'not-cached', unrelated: 'not-cached' };
+  } }), true);
+  assert.equal(received.path, '/api/self/vault');
+  assert.equal(received.options.token, token);
+  assert.equal(received.options.notifyUnauthorized, false);
+  assert.ok(received.options.signal instanceof AbortSignal);
+  assert.equal(await h.forget(token), false);
+  assert.deepEqual(h.cleared, [accountId]);
+  assert.equal(await h.forget('lookup-success-other-token'), true);
+  assert.deepEqual(h.cleared, [accountId, 'ALL']);
+});
+
+test('real account switch resolves its own account and never inherits an older token mapping', async () => {
+  const h = accountLookupHarness();
+  rememberTrustedAccount('lookup-switch-token-a', 'account-a');
+  assert.equal(await resolveTrustedAccount({ token: 'lookup-switch-token-b', isCurrent: () => true,
+    request: async () => ({ account_id: 'account-b' }) }), true);
+  assert.equal(await h.forget('lookup-switch-token-b'), false);
+  assert.equal(await h.forget('lookup-switch-token-a'), false);
+  assert.deepEqual(h.cleared, ['account-b', 'account-a']);
+  rememberTrustedAccount('lookup-switch-source', 'source-account');
+  assert.equal(await resolveTrustedAccount({ token: 'lookup-switch-failed', isCurrent: () => true,
+    request: async () => { throw new Error('optional lookup unavailable'); } }), false);
+  assert.equal(await h.forget('lookup-switch-failed'), true);
+  assert.equal(await h.forget('lookup-switch-source'), false);
+  assert.deepEqual(h.cleared.slice(-2), ['ALL', 'source-account']);
+});
+
+test('identity lookup rejects stale token, stale entry generation and token ABA continuations', async t => {
+  for (const stale of ['token', 'generation', 'token-aba']) await t.test(stale, async () => {
+    const h = accountLookupHarness(), token = `lookup-stale-${stale}`, pending = deferredLookup();
+    let activeToken = token, entryGeneration = 1;
+    const result = resolveTrustedAccount({ token, isCurrent: () => activeToken === token && entryGeneration === 1,
+      request: () => pending.promise });
+    if (stale === 'token') activeToken = 'another-token';
+    else if (stale === 'generation') entryGeneration++;
+    else { activeToken = 'another-token'; entryGeneration++; activeToken = token; }
+    pending.resolve({ account_id: 'must-not-map' });
+    assert.equal(await result, false);
+    assert.equal(await h.forget(token), true);
+    assert.deepEqual(h.cleared, ['ALL']);
+  });
+});
+
+test('canceled identity lookup resolves false even when the request ignores abort and later succeeds', async () => {
+  const h = accountLookupHarness(), pending = deferredLookup(), controller = new AbortController();
+  const token = 'lookup-aborted-token'; let requestSignal;
+  const result = resolveTrustedAccount({ token, signal: controller.signal, isCurrent: () => true,
+    request: (path, options) => { requestSignal = options.signal; return pending.promise; } });
+  controller.abort();
+  assert.equal(await result, false);
+  assert.equal(requestSignal.aborted, true);
+  assert.equal(await h.forget(token), true);
+  pending.resolve({ account_id: 'late-aborted-account' }); await flushLookup();
+  assert.equal(await h.forget(token), true);
+  assert.deepEqual(h.cleared, ['ALL', 'ALL']);
+});
+
+test('identity lookup timeout is independent of ignored abort and permanently fences a late response', async () => {
+  const h = accountLookupHarness(), pending = deferredLookup();
+  const token = 'lookup-timeout-token'; let requestSignal;
+  const result = resolveTrustedAccount({ token, timeoutMs: 5, isCurrent: () => true,
+    request: (path, options) => { requestSignal = options.signal; return pending.promise; } });
+  assert.equal(await result, false);
+  assert.equal(requestSignal.aborted, true);
+  assert.equal(await h.forget(token), true);
+  pending.resolve({ account_id: 'late-timeout-account' }); await flushLookup();
+  assert.equal(await h.forget(token), true);
+  assert.deepEqual(h.cleared, ['ALL', 'ALL']);
+});
+
+test('optional identity failures and malformed public IDs keep conservative cleanup fallback', async t => {
+  const badIds = [undefined, null, '', ' ', ' leading', 'trailing ', 'middle space', 'control\u0000id', 'delete\u007fid', 'a'.repeat(257), 123, {}];
+  for (let index = 0; index < badIds.length; index++) await t.test(`malformed ${index}`, async () => {
+    const h = accountLookupHarness(), token = `lookup-malformed-${index}`;
+    assert.equal(await resolveTrustedAccount({ token, isCurrent: () => true,
+      request: async () => ({ account_id: badIds[index] }) }), false);
+    assert.equal(await h.forget(token), true); assert.deepEqual(h.cleared, ['ALL']);
+  });
+  for (const kind of ['sync', 'async', 'unauthorized', 'malformed-getter']) await t.test(kind, async () => {
+    const h = accountLookupHarness(), token = `lookup-error-${kind}`;
+    const request = kind === 'sync' ? () => { throw new Error('request failed'); }
+      : kind === 'malformed-getter' ? async () => ({ get account_id() { throw new Error('malformed response'); } })
+        : async () => { throw Object.assign(new Error('lookup rejected'), { status: kind === 'unauthorized' ? 401 : 500 }); };
+    assert.equal(await resolveTrustedAccount({ token, isCurrent: () => true, request }), false);
+    assert.equal(await h.forget(token), true); assert.deepEqual(h.cleared, ['ALL']);
+  });
+});
+
+test('identity lookup checks initial cancellation/current guard and suppresses the request when stale', async () => {
+  const controller = new AbortController(); controller.abort();
+  let calls = 0;
+  const request = async () => { calls++; return { account_id: 'must-not-map' }; };
+  for (const options of [{ signal: controller.signal, isCurrent: () => true }, { isCurrent: () => false },
+    { isCurrent: () => { throw new Error('unmounted'); } }, {}]) {
+    assert.equal(await resolveTrustedAccount({ token: 'lookup-pre-stale', request, ...options }), false);
+  }
+  assert.equal(calls, 0);
+  const h = accountLookupHarness(); assert.equal(await h.forget('lookup-pre-stale'), true);
+});
+
+test('late rejected ignored-abort requests do not create an unhandled rejection or mapping', async () => {
+  const pending = deferredLookup(), token = 'lookup-late-rejection', h = accountLookupHarness();
+  assert.equal(await resolveTrustedAccount({ token, isCurrent: () => true, timeoutMs: 1, request: () => pending.promise }), false);
+  pending.reject(new Error('late request failure')); await flushLookup();
+  assert.equal(await h.forget(token), true);
+});
+
+test('identity response after its deadline cannot map while the timeout callback is still queued', async () => {
+  const token = 'lookup-blocked-loop-deadline', h = accountLookupHarness();
+  assert.equal(await resolveTrustedAccount({ token, timeoutMs: 3, isCurrent: () => true, request: () => {
+    const until = performance.now() + 10;
+    while (performance.now() < until) { /* Simulate a delayed event loop before timer delivery. */ }
+    return { account_id: 'too-late-account' };
+  } }), false);
+  assert.equal(await h.forget(token), true);
+  assert.deepEqual(h.cleared, ['ALL']);
+});

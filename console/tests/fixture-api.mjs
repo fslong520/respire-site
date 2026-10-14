@@ -9,6 +9,8 @@ export const FIXTURE = Object.freeze({
   admin: 'fixture-admin',
   password: 'fixture-password-only',
   userToken: 'fixture-user-token',
+  secondUser: 'fixture-second-user',
+  secondToken: 'fixture-second-token',
   adminToken: 'fixture-admin-token',
   email: 'fixture@example.invalid',
   emailCode: '123456',
@@ -33,22 +35,48 @@ export async function startFixtureApi({ frontend } = {}) {
   const requests = [];
   const unexpected = [];
   const userAuth = await authPayload(FIXTURE.user, FIXTURE.password);
+  const secondAuth = await authPayload(FIXTURE.secondUser, FIXTURE.password);
   const adminAuth = await authPayload(FIXTURE.admin, FIXTURE.password);
   const state = {};
   function reset() {
     Object.assign(state, {
       failures: new Map(),
+      rotatedToken: null,
+      selfGates: new Map(),
+      vaultGates: new Map(),
+      vaultFailures: new Map(),
+      vaultStarted: new Map(),
+      memoriesGate: null,
       userTotp: false,
       adminTotp: false,
+      adminRole: 'owner',
       registered: false,
       email: '',
       emailVerified: false,
       pendingEmail: '',
       vault: null,
+      passkeysEnabled: false,
+      trustedBrowserEnabled: false,
+      passkeys: new Map(),
+      passkeyCeremonies: new Map(),
+      passkeyCommitGate: null,
+      passkeyRemoveGate: null,
+      passkeyRemoveStarted: null,
+      passkeyCommitResponseGate: null,
+      passkeyCommitResponseLost: false,
+      passkeyCommitRejected: false,
+      passkeyListGate: null,
+      passkeyListStarted: null,
+      passkeyCommitStarted: null,
+      passkeyCommitStored: null,
+      keyGeneration: 1,
       blobs: new Map(),
       revision: 0,
       userTicket: 'fixture-user-ticket',
       adminTicket: 'fixture-admin-ticket',
+      cliDecision: 'pending',
+      github: { bound: false },
+      githubState: 'a'.repeat(64),
     });
   }
   reset();
@@ -96,16 +124,34 @@ export async function startFixtureApi({ frontend } = {}) {
         if (failure.raw !== undefined) return response.writeHead(failure.status, { 'Content-Type': 'text/plain' }).end(failure.raw);
         return json(failure.status, { error: failure.error });
       }
+      if (method === 'GET' && path === '/auth/salt') {
+        const auth = url.searchParams.get('kind') === 'admin' ? adminAuth
+          : url.searchParams.get('user') === FIXTURE.secondUser ? secondAuth : userAuth;
+        assert.equal(url.searchParams.get('user'), auth.user);
+        assert.equal(request.headers.authorization, undefined);
+        return json(200, { salt: auth.salt });
+      }
+      if (method === 'POST' && path === '/oauth/github/start') {
+        assert.equal(request.headers.authorization, undefined);
+        return json(200, { state: state.githubState, expires_in: 600,
+          authorization_uri: `${origin}/dashboard?code=fixture-github-code&state=${state.githubState}` });
+      }
+      if (method === 'POST' && path === '/oauth/github/exchange') {
+        assert.equal(request.headers.authorization, undefined);
+        assert.deepEqual(body, { state: state.githubState, code: 'fixture-github-code' });
+        if (state.userTotp) return json(200, { user: FIXTURE.user, totp_required: true, ticket: state.userTicket });
+        return json(200, { user: FIXTURE.user, token: FIXTURE.userToken });
+      }
       if (method === 'POST' && ['/login', '/admin/login'].includes(path)) {
         const admin = path.startsWith('/admin');
-        const auth = admin ? adminAuth : userAuth;
+        const auth = admin ? adminAuth : body.user === secondAuth.user ? secondAuth : userAuth;
         assert.equal(request.headers['content-type'], 'application/json');
         assert.equal(request.headers.authorization, undefined, 'Login must not reuse stored bearer tokens');
         if (body.user !== auth.user || body.pass_hash !== auth.pass_hash) return json(401, { error: 'fixture invalid credentials' });
         assert.equal(body.password, undefined, 'Passwords must be hashed before transit');
         if (!admin) assert.equal(body.device_name, 'dashboard');
         if (state[admin ? 'adminTotp' : 'userTotp']) return json(200, { totp_required: true, ticket: state[admin ? 'adminTicket' : 'userTicket'] });
-        return json(200, { token: admin ? FIXTURE.adminToken : FIXTURE.userToken });
+        return json(200, { token: admin ? FIXTURE.adminToken : auth === secondAuth ? FIXTURE.secondToken : FIXTURE.userToken });
       }
       if (method === 'POST' && ['/login/totp', '/admin/login/totp'].includes(path)) {
         const admin = path.startsWith('/admin');
@@ -126,21 +172,173 @@ export async function startFixtureApi({ frontend } = {}) {
         return json(200, { token: FIXTURE.userToken });
       }
       const admin = path.startsWith('/admin/');
-      const expectedToken = admin ? FIXTURE.adminToken : FIXTURE.userToken;
+      const second = request.headers.authorization === `Bearer ${FIXTURE.secondToken}`;
+      const expectedToken = admin ? FIXTURE.adminToken : second ? FIXTURE.secondToken : (state.rotatedToken || FIXTURE.userToken);
       if (request.headers.authorization !== `Bearer ${expectedToken}`) return json(admin ? 403 : 401, { error: admin ? 'admin token required' : 'fixture expired session' });
-      if (method === 'GET' && path === '/api/self') return json(200, { user: FIXTURE.user, active: state.blobs.size });
+      if (method === 'GET' && path === '/api/self') {
+        await state.selfGates.get(expectedToken);
+        return json(200, { user: second ? FIXTURE.secondUser : FIXTURE.user, active: state.blobs.size });
+      }
+      if (method === 'POST' && path === '/api/self/rotate') {
+        state.rotatedToken = 'fixture-rotated-token';
+        return json(200, { token: state.rotatedToken });
+      }
       if (method === 'GET' && path === '/api/self/sessions') return json(200, { sessions: [{ id: 'fixture-session', device_name: 'fixture-browser', created_at: '2026-01-01T00:00:00Z', current: true }] });
       if (method === 'GET' && path === '/api/self/keys') return json(200, { email: state.email, email_verified: state.emailVerified, totp: state.userTotp });
+      if (method === 'GET' && path === '/api/self/github') return json(200, state.github);
+      if (method === 'POST' && path === '/api/self/github/start') return json(200, { state: state.githubState, expires_in: 600,
+        authorization_uri: `${origin}/dashboard?code=fixture-github-code&state=${state.githubState}` });
+      if (method === 'POST' && path === '/api/self/github/exchange') {
+        assert.deepEqual(body, { state: state.githubState, code: 'fixture-github-code' });
+        state.github = { bound: true, id: 42, login: 'fixture-github' };
+        return json(200, state.github);
+      }
+      if (method === 'POST' && path === '/api/self/github/unbind') {
+        state.github = { bound: false };
+        return json(200, state.github);
+      }
+      if (['/api/self/totp/begin', '/admin/totp/begin'].includes(path) && method === 'POST') {
+        return json(200, { secret: 'JBSWY3DPEHPK3PXP', otpauth: 'otpauth://totp/respire:fixture?secret=JBSWY3DPEHPK3PXP&issuer=respire&period=30&digits=6' });
+      }
+      if (['/api/self/totp/confirm', '/admin/totp/confirm'].includes(path) && method === 'POST') {
+        if (body.code !== FIXTURE.totpCode) return json(400, { error: 'fixture invalid second factor' });
+        state[path.startsWith('/admin') ? 'adminTotp' : 'userTotp'] = true;
+        return json(200, { ok: true });
+      }
+      if (path === '/api/self/totp/disable' && method === 'POST') {
+        if (body.code !== FIXTURE.totpCode) return json(400, { error: 'fixture invalid second factor' });
+        state.userTotp = false;
+        return json(200, { ok: true });
+      }
+      if (path === '/api/self/cli-authorization/ABCDEF123456') {
+        if (method === 'GET') return json(200, { device_name: 'fixture-terminal', expected_user: FIXTURE.user, expires_in: 600, state: state.cliDecision });
+        assert.equal(method, 'POST');
+        assert.equal(typeof body.approve, 'boolean');
+        assert.equal(state.cliDecision, 'pending');
+        state.cliDecision = body.approve ? 'approved' : 'denied';
+        return json(200, { ok: true });
+      }
+      if (method === 'GET' && /^\/api\/self\/cli-authorization\/[A-Fa-f0-9]{12}$/.test(path)) return json(404, { error: 'fixture authorization code not found' });
+      // Synthetic protocol fixture only: signature/attestation verification is
+      // covered by Server tests, not these browser UI regressions.
+      const passkeyMeta = { account_id: second ? 'fixture-second-account-id' : 'fixture-account-id', rp_id: new URL(origin).hostname, key_generation: state.keyGeneration };
+      const newCeremony = (stage, details = {}) => {
+        const ceremony_id = crypto.randomUUID();
+        const record = { ...passkeyMeta, ...details, ceremony_id, stage };
+        state.passkeyCeremonies.set(ceremony_id, record);
+        return record;
+      };
+      const assertionOptions = pending => ({ ...passkeyMeta, ceremony_id: pending.ceremony_id,
+        credential_id: pending.credential_id, mode: pending.mode, device_id: pending.device_id, prf_salt: pending.prf_salt, public_key: { challenge: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url'),
+        rpId: passkeyMeta.rp_id, userVerification: 'required', allowCredentials: [{ type: 'public-key', id: pending.credential_id }] } });
+      const takeCeremony = stage => {
+        const pending = state.passkeyCeremonies.get(body.ceremony_id);
+        assert.equal(pending?.stage, stage);
+        state.passkeyCeremonies.delete(body.ceremony_id);
+        assert.equal(body.credential.type, 'public-key');
+        assert.equal(body.credential.rawId, body.credential.id);
+        assert.equal(body.credential.clientExtensionResults?.prf?.results, undefined);
+        if (pending.credential_id) assert.equal(body.credential.id, pending.credential_id);
+        if (pending.mode === 'trusted_browser') { assert.equal(body.mode, pending.mode); assert.equal(body.device_id, pending.device_id); }
+        return pending;
+      };
+      if (method === 'GET' && path === '/api/self/passkeys') {
+        state.passkeyListStarted?.();
+        await state.passkeyListGate;
+        return json(200, { enabled: state.passkeysEnabled, trusted_browser_enabled: state.trustedBrowserEnabled,
+        ...(state.passkeysEnabled ? { ...passkeyMeta, origin } : {}),
+        credentials: [...state.passkeys.values()].filter(c => c.account_id === passkeyMeta.account_id).map(({ wrapper, ...credential }) => credential) });
+      }
+      if (method === 'POST' && path.startsWith('/api/self/passkeys/')) {
+        assert.equal(state.passkeysEnabled, true);
+        if (path.endsWith('/register/start')) {
+          assert.ok(body.label.length > 0);
+          if (body.mode === 'trusted_browser') {
+            assert.equal(state.trustedBrowserEnabled, true);
+            assert.match(body.device_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+          }
+          const pending = newCeremony('register', { label: body.label, ...(body.mode === 'trusted_browser' ? { mode: body.mode, device_id: body.device_id } : {}) });
+          return json(200, { ...pending, public_key: { challenge: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url'),
+            rp: { id: passkeyMeta.rp_id, name: 'Synthetic Respire' }, user: { id: Buffer.from(passkeyMeta.account_id).toString('base64url'), name: FIXTURE.user, displayName: FIXTURE.user },
+            pubKeyCredParams: [{ type: 'public-key', alg: -7 }], excludeCredentials: [...state.passkeys.values()].map(c => ({ type: 'public-key', id: c.credential_id })) } });
+        }
+        if (path.endsWith('/register/finish')) {
+          const pending = takeCeremony('register');
+          return json(200, assertionOptions(newCeremony('test', { ...pending, credential_id: body.credential.id,
+            ...(pending.mode === 'trusted_browser' ? {} : { prf_salt: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url') }) })));
+        }
+        if (path.endsWith('/register/test')) {
+          const pending = takeCeremony('test');
+          return json(200, assertionOptions(newCeremony('commit', pending)));
+        }
+        if (path.endsWith('/register/commit')) {
+          const pending = takeCeremony('commit');
+          state.passkeyCommitStarted?.();
+          if (state.passkeyCommitRejected) return json(400, { error: 'Synthetic rejected commit' });
+          await state.passkeyCommitGate;
+          if (pending.key_generation !== state.keyGeneration) return json(409, { error: 'Synthetic generation changed' });
+          assert.equal(body.wrapper.version, 1);
+          assert.equal(body.wrapper.kdf, pending.mode === 'trusted_browser' ? 'trusted-browser-aes256gcm-v1' : 'webauthn-prf-hkdf-sha256-v1');
+          assert.equal(Buffer.from(body.wrapper.wrapped_urk, 'base64url').length, 48);
+          assert.equal(Buffer.from(body.wrapper.nonce, 'base64url').length, 12);
+          state.passkeys.set(pending.credential_id, { ...passkeyMeta, credential_id: pending.credential_id, label: pending.label,
+            mode: pending.mode, device_id: pending.device_id, prf_salt: pending.prf_salt, created_at: new Date().toISOString(), last_used_at: null, wrapper: body.wrapper });
+          state.passkeyCommitStored?.();
+          await state.passkeyCommitResponseGate;
+          // Successful write followed by an ambiguous confirmation failure.
+          if (state.passkeyCommitResponseLost) return json(503, { error: 'Synthetic confirmation lost after commit' });
+          return json(200, { ok: true });
+        }
+        if (path.endsWith('/unlock/start')) {
+          const credential = state.passkeys.get(body.credential_id);
+          if (!credential || credential.account_id !== passkeyMeta.account_id) return json(404, { error: 'fixture passkey not found' });
+          if (credential.mode === 'trusted_browser') { assert.equal(body.mode, credential.mode); assert.equal(body.device_id, credential.device_id); }
+          return json(200, assertionOptions(newCeremony('unlock', credential)));
+        }
+        if (path.endsWith('/unlock/finish')) {
+          const pending = takeCeremony('unlock');
+          return json(200, state.passkeys.get(pending.credential_id));
+        }
+        if (path.endsWith('/remove')) {
+          state.passkeys.delete(body.credential_id);
+          state.passkeyRemoveStarted?.();
+          await state.passkeyRemoveGate;
+          return json(200, { ok: true });
+        }
+      }
+      if (method === 'POST' && path === '/api/self/vault/reset') {
+        assert.equal(body.expected_key_generation, state.keyGeneration);
+        state.keyGeneration++;
+        state.passkeys.clear(); state.passkeyCeremonies.clear();
+        const { expected_key_generation, ...vault } = body;
+        state.vault = vault;
+        return json(200, { ok: true });
+      }
       if (path === '/api/self/vault') {
         if (method === 'POST') {
           assert.equal(body.version, 4);
-          assert.match(body.wrapped_urk, /^[0-9a-f]{96}$/);
+          assert.match(body.wrapped_urk, /^rsrs:v1:[0-9a-f]{96}$/);
           assert.match(body.urk_nonce, /^[0-9a-f]{24}$/);
           assert.match(body.kdf_salt, /^[0-9a-f]{32}$/);
-          state.vault = body;
+          if (body.operation === 'rewrap_same_urk') assert.equal(body.expected_key_generation, state.keyGeneration);
+          const { operation, expected_key_generation, ...vault } = body;
+          state.vault = vault;
           return json(200, { ok: true });
         }
-        if (method === 'GET') return state.vault ? json(200, state.vault) : json(404, { error: 'fixture vault not initialized' });
+        if (method === 'GET') {
+          const vault = state.vault ? { ...state.vault, ...(state.passkeysEnabled ? { account_id: passkeyMeta.account_id, key_generation: state.keyGeneration } : {}) } : null;
+          const failure = state.vaultFailures.get(expectedToken), gate = state.vaultGates.get(expectedToken);
+          state.vaultStarted.get(expectedToken)?.();
+          await gate;
+          if (failure) return json(failure.status, { error: failure.error });
+          return vault ? json(200, vault) : json(404, { error: 'fixture vault not initialized' });
+        }
+      }
+      if (method === 'POST' && path === '/api/self/github/vault') {
+        if (state.vault || state.blobs.size) return json(409, { error: 'existing vault or memories must be preserved' });
+        assert.equal(body.version, 4);
+        state.vault = body;
+        return json(200, { ok: true });
       }
       if (method === 'GET' && path === '/pull') {
         const since = Number(url.searchParams.get('since') || 0);
@@ -150,6 +348,7 @@ export async function startFixtureApi({ frontend } = {}) {
         return json(200, { epoch: 'fixture-epoch', protocols: [1, 2] });
       }
       if (method === 'GET' && path === '/api/self/memories') {
+        await state.memoriesGate;
         const after = Number(url.searchParams.get('after'));
         const until = Number(url.searchParams.get('until') ?? state.revision);
         const rows = [...state.blobs.values()].filter(blob => blob.revision > after && blob.revision <= until)
@@ -160,7 +359,7 @@ export async function startFixtureApi({ frontend } = {}) {
         return json(200, { epoch: 'fixture-epoch', cursor, until, has_more, blobs });
       }
       if (method === 'POST' && path === '/push') {
-        assert.match(body.ciphertext, /^[0-9a-f]+$/);
+        assert.match(body.ciphertext, /^rsrs:v1:[0-9a-f]+$/);
         assert.match(body.nonce, /^[0-9a-f]{24}$/);
         assert.equal(body.embedding_enc, '');
         assert.equal(body.deleted, false);
@@ -178,7 +377,21 @@ export async function startFixtureApi({ frontend } = {}) {
         state.emailVerified = true;
         return json(200, { ok: true });
       }
-      if (method === 'GET' && path === '/admin/me') return json(200, { user: FIXTURE.admin, role: 'owner', kind: 'super_admin', totp: state.adminTotp });
+      if (method === 'GET' && path === '/admin/me') return json(200, { user: FIXTURE.admin, role: state.adminRole, kind: 'super_admin', totp: state.adminTotp });
+      if (method === 'GET' && path === '/admin/stats') {
+        if (state.adminRole === 'viewer') return json(403, { error: 'forbidden' });
+        const rawDays = url.searchParams.get('days');
+        const days = rawDays === null ? 30 : Number(rawDays);
+        if ((rawDays !== null && !/^\+?\d+$/.test(rawDays.trim())) || !Number.isInteger(days) || days < 7 || days > 90) {
+          return json(400, { error: 'days must be an integer between 7 and 90' });
+        }
+        const today = Date.UTC(2026, 9, 6);
+        const series = Array.from({ length: days }, (_, i) => {
+          const date = new Date(today - (days - i - 1) * 86400000).toISOString().slice(0, 10);
+          return { date, registrations: i % 3, memories: date < '2026-10-05' ? null : 2, sessions: i % 4 };
+        });
+        return json(200, { days, timezone: 'Asia/Shanghai', memory_tracking_since: '2026-10-05', historical_baseline: 'retained_registrations_and_sessions', series });
+      }
       if (method === 'GET' && path === '/admin/users') return json(200, { users: [{ user: FIXTURE.user, active: 0, session_count: 1, created_at: '2026-01-01T00:00:00Z' }], total: 1, page: 1, summary: { all: 1, ok: 1, banned: 0, deleted: 0, sessions: 1, ciphertext: 0 } });
       if (method === 'GET' && path === '/admin/admins') return json(200, { admins: [] });
       if (method === 'GET' && ['/admin/outbox', '/admin/audit'].includes(path)) return json(200, { items: [] });

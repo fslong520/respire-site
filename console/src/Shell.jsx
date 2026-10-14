@@ -2,17 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Users, ShieldCheck, Clock, Envelope, LockKey, TreeStructure, Desktop, Key,
   MagnifyingGlass, ArrowUpRight, BookOpen, SignOut, CaretDown, Sun, Moon,
-  TextAa, List, CheckCircle,
+  TextAa, List, CheckCircle, ChartLine,
 } from '@phosphor-icons/react';
 import { AdminPages } from './AdminPages.jsx';
 import { DashboardPages } from './DashboardPages.jsx';
-import { Modal, Avatar, LangSwitch, useI18n } from './ui.jsx';
+import { Modal, Avatar, LangSwitch, Button, Note, useI18n } from './ui.jsx';
 import { Brand } from './Brand.jsx';
 import { ADMIN_KEY, USER_KEY, api, readToken } from './api.js';
 import { parseRoute } from './hashRoute.js';
 import { t } from './i18n.js';
 
 const adminNav = [
+  ['stats', 'navStats', ChartLine],
   ['users', 'navUsers', Users],
   ['admins', 'navAdmins', ShieldCheck],
   ['audit', 'navAudit', Clock],
@@ -36,7 +37,7 @@ function readRoute(admin, fallback) {
   });
 }
 
-export function Shell({ admin, token, onLogout, onToken }) {
+export function Shell({ admin, token, onLogout, onToken, accounts = [], switching, onSwitchAccount, onAddAccount, passkeyOffer = false, onDismissPasskeyOffer }) {
   useI18n();
   const fallback = admin ? 'users' : 'memories';
   const [route, setRoute] = useState(() => readRoute(admin, fallback));
@@ -63,7 +64,7 @@ export function Shell({ admin, token, onLogout, onToken }) {
   }
 
   useEffect(() => {
-    const fn = () => setRoute(readRoute(admin, fallback));
+    const fn = () => { setRoute(readRoute(admin, fallback)); setModal(null); };
     window.addEventListener('hashchange', fn);
     if (!location.hash) location.hash = `#/${fallback}`;
     return () => {
@@ -135,6 +136,16 @@ export function Shell({ admin, token, onLogout, onToken }) {
             <Avatar name={me?.user || '?'} color="sand" />
             <div><strong>{me?.user || t('account')}</strong><span>{admin ? t('adminRoleSide', { role: me?.role || '' }) : t('personalAccount')}</span></div>
           </div>
+          {!admin && <div className="account-switch-controls">
+            <label>{t('switchAccount')}<select aria-label={t('switchAccount')} value={token} disabled={switching} onChange={(event) => {
+              const account = accounts.find(row => row.token === event.target.value);
+              if (account) onSwitchAccount(account);
+            }}>
+              {!accounts.some(row => row.token === token) && <option value={token}>{me?.user || t('account')}</option>}
+              {accounts.map(row => <option key={row.user} value={row.token}>{row.user}</option>)}
+            </select></label>
+            <button type="button" className="sidebar-link" disabled={switching} onClick={onAddAccount}>{t('addAccount')}</button>
+          </div>}
           <div className="nav-label">{admin ? t('navLabelAdmin') : t('navLabelUser')}</div>
           <nav aria-label={t('mainNav')}>
             {visibleNav.map(([id, labelKey, I]) => (
@@ -172,6 +183,13 @@ export function Shell({ admin, token, onLogout, onToken }) {
             </div>
           </header>
           <main className={`console-main surface-${page}`} id="main-content" tabIndex={-1}>
+            {!admin && passkeyOffer && <section className="panel key-panel" aria-label={t('passkeyOffer')}>
+              <Note>{t('passkeyOfferDescription')}</Note>
+              <div className="key-actions">
+                <Button icon={Key} onClick={() => { go('keys'); onDismissPasskeyOffer(); }}>{t('passkeyOffer')}</Button>
+                <Button onClick={onDismissPasskeyOffer}>{t('passkeyLater')}</Button>
+              </div>
+            </section>}
             {admin ? (
               <AdminPages page={page} token={token} me={me} notify={notify} open={setModal} onReloadMe={load} />
             ) : (

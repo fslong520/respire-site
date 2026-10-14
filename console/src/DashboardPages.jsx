@@ -1,18 +1,21 @@
+import { trustedKeyStore } from './trustedKeyStore.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   TreeStructure, Clock, MagnifyingGlass, CaretRight, LockKey, ShieldCheck,
-  CloudCheck, Desktop, Terminal, Plus, Key, Copy, Check, Eye, EyeSlash, DownloadSimple,
+  CloudCheck, Desktop, Terminal, Plus, Key, Copy, Check, DownloadSimple,
   SignOut, ArrowClockwise, Article, ArrowLeft, X, WarningCircle, PencilSimple, Trash,
   ListBullets, CaretDown, BookOpen, SquaresFour, Compass, ListChecks, Heart, Wrench, Smiley, Tag, ShareNetwork,
 } from '@phosphor-icons/react';
 import { Button, Badge, Heading, Empty, Note, SecretResult, copy, download, useI18n } from './ui.jsx';
-import { decryptItem, deriveDataKey, encryptItem, generateSecretKey, unwrapUrk, wrapVaultV4 } from './crypto.js';
-import { api, readSecret, readSuper, readToken, USER_KEY, superFresh, superFreshText, writeSecret, writeSuper } from './api.js';
+import { decryptItem, deriveDataKeys, encryptItem, generateSecretKey, unwrapUrk, wrapVaultV4 } from './crypto.js';
+import { api, readToken, USER_KEY, hasLegacyRecovery, exportLegacyRecovery, clearLegacyRecovery } from './api.js';
 import { MemorySync } from './memorySync.js';
 import { Security } from './Security.jsx';
+import { Passkeys } from './Passkeys.jsx';
 import { buildIndex, childrenOf, subtreeCount, diaryDays, visibleRows, ROOT_ID, DIARY_ID } from './treeModel.js';
 import GraphView from './GraphView.jsx';
 import { t, getLocale, kindLabel } from './i18n.js';
+import { readUnlockSession, saveUnlockSession, dropUnlockSession } from './unlockSession.js';
 
 /** Normalize tags: CLI payloads may use CSV, while browser editing uses arrays. */
 function toTagList(tags) {
@@ -61,12 +64,6 @@ function Pager({ total, page, onPage, labels }) {
 
 import DiaryCalendar from './DiaryCalendar.jsx';
 
-function maskKey(s) {
-  if (!s) return t('superNotSaved');
-  if (s.length < 8) return '••••';
-  return `${s.slice(0, 3)}-••••-••••-••••`;
-}
-
 function EmptyInstallHint() {
   return <Note icon={Terminal}><a href="https://github.com/risense-ai/respire-docs" target="_blank" rel="noreferrer">{t('docsHelp')}</a></Note>;
 }
@@ -111,11 +108,14 @@ export function DashboardPages({
   const [listPage, setListPage] = useState(1);
   const openMemory = (id) => go(id ? `memories/${encodeURIComponent(id)}` : 'memories');
   const [locked, setLocked] = useState(true);
-  const [revealed, setRevealed] = useState(false);
   const [tick, setTick] = useState(0);
   const [vaultInfo, setVaultInfo] = useState(undefined);
   const [viewMode, setViewMode] = useState('tree');
   const [expanded, setExpanded] = useState(() => new Set([ROOT_ID, DIARY_ID]));
+  const list = useMemo(() => (items || []).filter((m) => [m.title, m.content, m.kind, m.project].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase())), [items, query]);
+  useEffect(() => {
+    setListPage(current => Math.min(current, Math.max(1, Math.ceil(list.length / PAGE_SIZE))));
+  }, [list.length]);
   // Memoize indexes and search results because TreeBranch depends on index identity.
   // Rebuilding them on every render would reset expanded child rows.
   const treeSource = useMemo(() => {
@@ -200,9 +200,8 @@ export function DashboardPages({
     // forget writes a tombstone and advances the revision for incremental deletion.
     await syncIncremental();
   };
-  const superPass = readSuper();
-  const secretKey = readSecret();
-  const keyStored = !!(superPass || secretKey);
+  const keyStored = !!readUnlockSession(token);
+  const legacyRecovery = hasLegacyRecovery();
   const hasVault = !!(vaultInfo && vaultInfo.wrapped_urk);
 
   useEffect(() => {
@@ -215,22 +214,37 @@ export function DashboardPages({
       });
   }, [page, token, tick]);
 
-  const unlockMemories = async (pass, secret) => {
-    const generation = ++unlockGeneration.current;
-    memorySyncRef.current?.close();
+  const unlockMemories = async (pass, secret, session, lease) => {
+    const generation = lease?.generation ?? ++unlockGeneration.current;
+    let leaseAccepted = false;
+    const current = () => generation === unlockGeneration.current && readToken(USER_KEY) === token && (!lease || leaseAccepted || lease.isCurrent());
+    if (!current()) throw new DOMException('Unlock superseded', 'AbortError');
     const vault = await api('/api/self/vault', { token });
+    if (!current()) throw new DOMException('Unlock superseded', 'AbortError');
     const v = Number(vault.version) || 0;
-    if (v >= 4 && !pass) throw new Error(t('needSuper'));
-    if (v === 3 && !pass) throw new Error(t('needSuperV3'));
-    if (v === 3 && !secret) throw new Error(t('needSecretV3'));
-    const urk = await unwrapUrk(pass, secret, vault);
-    const dataKey = await deriveDataKey(urk);
-    const decryptKey = await crypto.subtle.importKey('raw', dataKey, 'AES-GCM', false, ['decrypt']);
-    if (generation !== unlockGeneration.current || readToken(USER_KEY) !== token) {
+    let dataKey;
+    if (session) {
+      if (session.vault !== JSON.stringify(vault)) {
+        dropUnlockSession(token);
+        throw new Error(t('pleaseUnlock'));
+      }
+      dataKey = session.dataKey;
+    } else {
+      if (v >= 4 && !pass) throw new Error(t('needSuper'));
+      if (v === 3 && !pass) throw new Error(t('needSuperV3'));
+      if (v === 3 && !secret) throw new Error(t('needSecretV3'));
+      const urk = await unwrapUrk(pass, secret, vault);
+      try { dataKey = await deriveDataKeys(urk, vault.wrapped_urk.startsWith('rsrs:v1:')); }
+      finally { urk.fill(0); }
+    }
+    const decryptKey = {
+      legacy: await crypto.subtle.importKey('raw', dataKey.legacy, 'AES-GCM', false, ['decrypt']),
+      current: await crypto.subtle.importKey('raw', dataKey.current, 'AES-GCM', false, ['decrypt']),
+    };
+    if (!current()) {
       throw new DOMException('Unlock superseded', 'AbortError');
     }
-    writeSuper(pass);
-    if (v === 3 && secret) writeSecret(secret);
+    memorySyncRef.current?.close();
     dataKeyRef.current = dataKey;
     setLoadError('');
     let firstResolve;
@@ -240,10 +254,11 @@ export function DashboardPages({
     const controller = new MemorySync({
       token, vault,
       isCurrent: () => dataKeyRef.current === dataKey && readToken(USER_KEY) === token
-        && memorySyncRef.current === controller,
+        && memorySyncRef.current === controller && (leaseAccepted || current()),
       onLoading: setSyncing,
       onCacheError: () => notify(t('memoryCacheUnavailable')),
-      onReset: () => setItems([]),
+      // Keep the locked controls mounted until the first accepted batch.
+      onReset: () => setItems(leaseAccepted ? [] : null),
       onBlobs: async (blobs, signal) => {
         let failed = 0;
         // Small batches yield between paints, with one imported key per unlocked session.
@@ -257,6 +272,16 @@ export function DashboardPages({
           }));
           controller.current();
           signal.throwIfAborted();
+          if (!leaseAccepted) {
+            await lease?.assertTrustedCurrent?.();
+            controller.current();
+            signal.throwIfAborted();
+            // Transfer ownership only once a current batch is ready to render.
+            // Before this point, modal dismissal/navigation still cancels unlock.
+            leaseAccepted = true;
+            lease?.onAccept?.();
+            lease?.signal?.removeEventListener('abort', releaseIfUnaccepted);
+          }
           setItems((prev) => {
             const next = new Map((prev || []).map((m) => [m.id, m]));
             for (const change of changes) {
@@ -268,6 +293,7 @@ export function DashboardPages({
             return [...next.values()];
           });
           setLocked(false);
+          saveUnlockSession(token, vault, dataKey);
           if (!displayed) {
             displayed = true;
             firstResolve();
@@ -277,12 +303,24 @@ export function DashboardPages({
         if (failed) notify(t('newCipherFail', { n: failed }));
       },
     });
+    const releaseIfUnaccepted = () => {
+      if (leaseAccepted) return;
+      controller.close();
+      if (memorySyncRef.current === controller) { memorySyncRef.current = null; setSyncing(false); }
+      if (dataKeyRef.current === dataKey) dataKeyRef.current = null;
+      firstReject(new DOMException('Unlock superseded', 'AbortError'));
+    };
+    lease?.signal?.addEventListener('abort', releaseIfUnaccepted, { once: true });
     memorySyncRef.current = controller;
     controller.start().then(() => {
       controller.current();
       setLastSync(Date.now());
     }).catch((error) => {
-      if (!displayed) firstReject(error);
+      if (!displayed) {
+        lease?.signal?.removeEventListener('abort', releaseIfUnaccepted);
+        if (dataKeyRef.current === dataKey) dataKeyRef.current = null;
+        firstReject(error);
+      }
       if (error.name === 'AbortError') return;
       setLoadError(t('memoryLoadInterrupted'));
       if (displayed) notify(error.message);
@@ -309,6 +347,7 @@ export function DashboardPages({
   // Locking clears key material and invalidates in-flight sync by dataKeyRef identity.
   // Never render returned plaintext after the user locks the view.
   const lockMemories = () => {
+    dropUnlockSession(token);
     unlockGeneration.current++;
     memorySyncRef.current?.close();
     memorySyncRef.current = null;
@@ -351,11 +390,9 @@ export function DashboardPages({
   useEffect(() => {
     if (page !== 'memories') return;
     if (items !== null) return;
-    const saved = readSuper();
-    if (!saved) return;
-    // Saved recovery codes expire after three days; request manual entry instead of auto-unlocking.
-    if (!superFresh()) { setLocked(true); return; }
-    unlockMemories(saved, readSecret()).catch((e) => {
+    const session = readUnlockSession(token);
+    if (!session) return;
+    unlockMemories('', '', session).catch((e) => {
       if (e.name === 'AbortError') return;
       setLocked(true);
       const why = String(e.message || e);
@@ -440,27 +477,34 @@ export function DashboardPages({
     },
     submit: t('saveEdit'),
   });
+  const passkeyControls = (mode = 'unlock') => <Passkeys key={JSON.stringify([token, tick, page, memoryId])} token={token} mode={mode} hasVault={hasVault} unlocked={keyStored} open={open} notify={notify}
+    beginUnlock={() => {
+      const generation = ++unlockGeneration.current;
+      return { generation, isCurrent: () => generation === unlockGeneration.current && readToken(USER_KEY) === token };
+    }}
+    onCancelUnlock={lockMemories}
+    onUnlock={async (dataKey, vault, lease) => {
+      await unlockMemories('', '', { vault: JSON.stringify(vault), dataKey }, lease);
+      notify(t('unlockedHere'));
+    }} />;
+
   const openUnlock = async () => {
     let vault = {};
     try { vault = await api('/api/self/vault', { token }); } catch { /* Report a missing vault on submission */ }
     const v = Number(vault.version) || 0;
-    const fresh = superFresh();
-    const saved = readSuper();
-    // Do not prefill an expired saved recovery code.
-    const prefill = fresh ? saved : '';
     const fields = v >= 4
-      ? [{ name: 'pass', label: t('labelSuperA3'), type: 'password', value: prefill }]
+      ? [{ name: 'pass', label: t('labelSuperA3'), type: 'password', value: '' }]
       : [
-          { name: 'pass', label: t('labelSuperPass'), type: 'password', value: prefill },
-          { name: 'secret', label: 'Secret Key', value: fresh ? readSecret() : '', required: false },
+          { name: 'pass', label: t('labelSuperPass'), type: 'password', value: '' },
+          { name: 'secret', label: 'Secret Key', type: 'password', value: '', required: false },
         ];
     open({
       title: t('unlockTitle'),
       icon: LockKey,
       description: (
         (v >= 4
-          ? (fresh ? t('unlockV4Fresh') : t('unlockV4'))
-          : (fresh ? t('unlockV3Fresh') : t('unlockV3')))
+          ? t('unlockV4')
+          : t('unlockV3'))
         + t('unlockTail')
       ),
       fields,
@@ -498,6 +542,7 @@ export function DashboardPages({
             <h2>{t('diaryLockedH2')}</h2>
             <p>{t('diaryLockedP')}</p>
             <Button primary icon={Key} onClick={openUnlock}>{t('unlockMemory')}</Button>
+            {passkeyControls()}
           </section>
         </>
       );
@@ -515,7 +560,6 @@ export function DashboardPages({
   }
 
   if (page === 'memories') {
-    const list = (items || []).filter((m) => [m.title, m.content, m.kind, m.project].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()));
     const mem = (items || []).find((m) => m.id === memoryId);
     if (locked && items === null) {
       return (
@@ -526,13 +570,12 @@ export function DashboardPages({
             <Badge tone="purple">{t('e2e')}</Badge>
             <h2>{t('lockedH2')}</h2>
             <p>
-              {readSuper() && !superFresh()
-                ? <>{t('superExpired')}<br /></>
-                : null}
               {t('lockedP')}
             </p>
             <Button primary icon={Key} onClick={openUnlock}>{t('unlockMemory')}</Button>
-            <span>{readSuper() ? t('localKeyStatus', { status: superFreshText() }) : t('cipherLocal')}</span>
+            {passkeyControls()}
+            <span>{t('memoryOnlyDescription')}</span>
+            {legacyRecovery ? <Button onClick={() => go('keys')}>{t('legacyRecoveryClear')}</Button> : null}
           </section>
         </>
       );
@@ -583,8 +626,10 @@ export function DashboardPages({
         ) : (
           <>
             {emptyVault && !syncing && !loadError && <EmptyInstallHint notify={notify} />}
-            {loadError && <Note>{loadError}</Note>}
-            {syncing && <Note>{t('memoryLoading', { n: (items || []).length })}</Note>}
+            {(loadError || syncing) && <div className="memory-tip" role={loadError ? 'alert' : 'status'}>
+              {loadError ? <WarningCircle size={20} /> : <ArrowClockwise size={20} />}
+              <span>{loadError || t('memoryLoading', { n: (items || []).length })}</span>
+            </div>}
             <div className="memory-status">
               <span><CloudCheck size={22} />{t('cloudReady')}</span>
               <span>{t('nMemories', { n: (items || []).length })}</span>
@@ -803,15 +848,19 @@ export function DashboardPages({
     // v4 recovery codes are generated rather than chosen by the user.
     const newSuper = generateSecretKey();
     const wrapped = await wrapVaultV4(newSuper);
-    await api('/api/self/vault', { method: 'POST', token, body: wrapped });
-    writeSuper(newSuper);
-    writeSecret('');
-    setTick((n) => n + 1);
+    await api(reset ? '/api/self/vault/reset' : '/api/self/vault', { method: 'POST', token,
+      body: reset ? { ...wrapped, expected_key_generation: vaultInfo?.key_generation } : wrapped });
     lockMemories();
+    let trustCleanupFailed = false;
+    if (reset && vaultInfo?.account_id && Number.isSafeInteger(vaultInfo.key_generation)) {
+      try { await trustedKeyStore.clearAccountOlderGenerations(vaultInfo.account_id, vaultInfo.key_generation + 1); }
+      catch { trustCleanupFailed = true; }
+    }
+    setTick((n) => n + 1);
     notify(reset ? t('keysResetLost') : t('superGenerated'));
     window.setTimeout(() => open({
       title: t('copySuperNowTitle'),
-      body: <SecretResult value={newSuper} notify={notify} description={t('copySuperNowBody', { reset: reset ? t('copySuperNowReset') : '' })} />,
+      body: <>{trustCleanupFailed && <Note tone="amber">{t('trustedResetCleanupFailed')}</Note>}<SecretResult value={newSuper} notify={notify} description={t('copySuperNowBody', { reset: reset ? t('copySuperNowReset') : '' })} /></>,
       submit: t('iCopied'),
     }), 0);
   };
@@ -832,21 +881,29 @@ export function DashboardPages({
           <Note icon={WarningCircle} tone="amber">{t('noWrap')}</Note>
         ) : null}
         <section className="panel key-panel">
-          <div className="section-top"><h2>{t('keysInBrowser')}</h2><Badge tone={keyStored ? (superFresh() ? 'green' : 'amber') : 'amber'}>{keyStored ? (superFresh() ? t('savedInTtl') : t('expired')) : t('notSaved')}</Badge></div>
-          <div className="key-row"><div><label>{t('superPassword')}</label><p>{t('superExplain', { status: superPass ? t('currentStatus', { status: superFreshText() }) : '' })}</p></div><code>{superPass ? (revealed ? superPass : '••••••••••••••••') : t('superNotSaved')}</code></div>
-          <div className="key-row">
-            <div><label>{t('superPassword')}</label><p>{t('superSame')}</p></div>
-            <code>{revealed && secretKey ? secretKey : maskKey(secretKey)}</code>
-            <button aria-label={t('showHide')} className="icon-button" disabled={!keyStored} onClick={() => setRevealed(!revealed)}>{revealed ? <EyeSlash size={22} /> : <Eye size={22} />}</button>
-          </div>
-          <div className="key-actions">
-            <Button icon={DownloadSimple} disabled={!keyStored} onClick={() => {
-              download('respire-recovery.txt', t('recoveryFile', { pass: superPass || secretKey }));
-              notify(t('recoveryDownloaded'));
-            }}>{t('downloadRecovery')}</Button>
-            <Button icon={Copy} disabled={!keyStored} onClick={() => copy(superPass || secretKey, notify)}>{t('copySuper')}</Button>
-          </div>
+          <div className="section-top"><h2>{t('memoryOnlyKeys')}</h2><Badge tone={keyStored ? 'green' : 'amber'}>{keyStored ? t('pageUnlocked') : t('pageLocked')}</Badge></div>
+          <p>{t('memoryOnlyDescription')}</p>
+          {legacyRecovery ? <>
+            <Note tone="amber">{t('legacyRecoveryWarning')}</Note>
+            <div className="key-actions">
+              <Button icon={DownloadSimple} onClick={() => {
+                try { download('respire-legacy-recovery.json', exportLegacyRecovery()); }
+                catch (e) { notify(e.message); }
+              }}>{t('legacyRecoveryExport')}</Button>
+              <Button danger onClick={() => open({
+                title: t('legacyRecoveryClear'), description: t('legacyRecoveryWarning'),
+                fields: [{ name: 'confirm', label: t('legacyBackupConfirm'), options: [
+                  { value: 'no', label: t('legacyBackupNotSaved') },
+                  { value: 'yes', label: t('legacyBackupSaved') },
+                ] }],
+                validate: v => v.confirm === 'yes' ? null : t('legacyBackupNotSaved'),
+                onSubmit: () => { clearLegacyRecovery(); setTick(n => n + 1); notify(t('legacyRecoveryCleared')); },
+                submit: t('legacyRecoveryClear'), danger: true,
+              })}>{t('legacyRecoveryClear')}</Button>
+            </div>
+          </> : null}
         </section>
+        {passkeyControls('manage')}
         <div className="settings-stack">
           {!hasVault ? (
             <div className="setting-row">
@@ -869,16 +926,18 @@ export function DashboardPages({
                 title: t('resetSuperTitle'),
                 description: t('resetSuperDesc'),
                 fields: [
-                  { name: 'old', label: t('currentSuper'), type: 'password', value: readSuper() },
+                  { name: 'old', label: t('currentSuper'), type: 'password' },
+                  ...(Number(vaultInfo?.version) === 3 ? [{ name: 'secret', label: 'Secret Key', type: 'password' }] : []),
                 ],
                 onSubmit: async (v) => {
                   const vault = await api('/api/self/vault', { token });
-                  const urk = await unwrapUrk(v.old, readSecret(), vault);
+                  const urk = await unwrapUrk(v.old, v.secret, vault);
                   const newSuper = generateSecretKey();
-                  const wrapped = await wrapVaultV4(newSuper, urk);
-                  await api('/api/self/vault', { method: 'POST', token, body: wrapped });
-                  writeSuper(newSuper);
-                  writeSecret('');
+                  let wrapped;
+                  try { wrapped = await wrapVaultV4(newSuper, urk); }
+                  finally { urk.fill(0); }
+                  await api('/api/self/vault', { method: 'POST', token, body: { ...wrapped,
+                    operation: 'rewrap_same_urk', expected_key_generation: vault.key_generation } });
                   setTick((n) => n + 1);
                   lockMemories();
                   window.setTimeout(() => open({
@@ -915,16 +974,8 @@ export function DashboardPages({
             </div>
           ) : null}
           <div className="setting-row">
-            <div><h3>{keyStored ? t('removeLocalKeys') : t('saveLocalKeys')}</h3><p>{keyStored ? t('removeLocalP') : t('saveLocalP')}</p></div>
-            <Button danger={keyStored} onClick={() => {
-              if (keyStored) {
-                writeSuper(''); writeSecret('');
-                lockMemories(); setRevealed(false); setTick((n) => n + 1);
-                notify(t('removedLocal'));
-              } else {
-                openUnlock();
-              }
-            }}>{keyStored ? t('remove') : t('saveKeys')}</Button>
+            <div><h3>{keyStored ? t('pageUnlocked') : t('pageLocked')}</h3><p>{t('memoryOnlyDescription')}</p></div>
+            <Button danger={keyStored} onClick={() => keyStored ? lockMemories() : openUnlock()}>{keyStored ? t('lock') : t('unlockMemory')}</Button>
           </div>
         </div>
         <Note icon={WarningCircle} tone="amber">{t('keepSuperSafe')}</Note>

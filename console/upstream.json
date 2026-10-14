@@ -6,19 +6,17 @@
   "unchanged_sha256": {
     "src/Brand.jsx": "c2e84d60a4116b00f3fd5864b93f279534748782298bd63542697d7c7d112612",
     "src/DiaryCalendar.jsx": "426cda6b3fcfaac1fbe13cbb0863532dda85da250705f9f07274580b4057d62d",
-    "src/Security.jsx": "3e2c92280535b4c301ec896bd3166679642bb8b5e687fa525cb8c22ad46a6364",
     "src/brand.js": "cb3290ff967155c0788b31dcb92045cb228deb2d85c9a99f7085d031c9cccbbc",
     "src/brand/logo-reverse.svg": "7725b4d84ecb9f9c4274f4b4a17840b4fcb9429cf781d530172ca6b42d29d080",
     "src/brand/logo.svg": "ac4baf05821101bba2bd274a9b355c2685d2d40712423d0d15faaf70658eed7c",
     "src/hashRoute.js": "56792e91a58debdd968179e42a6c2f3d78cee3f1a7d093bf9f77bb9512fe74b2",
     "src/styles.css": "ec631937ebf2f5121f77543a85f2402d27dc375889a459d6e0fc6252395ac757",
-    "tests/browser-dev-smoke.mjs": "c5a14cbf868bd2f9b4a175f6e1666d2b0e01d1df4b1d97bf4192bf9da7c66da6",
     "tests/hash-route-harness.html": "728cf34b2cfc4acc82d35ac0316061b8043ff2ef8b5b6db94338fe1f2cdf1bf8",
     "tests/hash-route.test.mjs": "67e9e092a1d04f353a964f17493f17782d79246d865a00ce577029814722597c",
-    "tests/i18n.test.mjs": "5422d4ce407d36604fe0a1d834237eccb9978535e4d3de7f6c46e3f374f3a764",
-    "scripts/read-dev-mail.py": "d018080335c5b01d10b9e97abd19e6bf2d29b3364ae379f760dd265779e8ba5b"
+    "tests/i18n.test.mjs": "5422d4ce407d36604fe0a1d834237eccb9978535e4d3de7f6c46e3f374f3a764"
   },
   "intentionally_adapted": [
+    "scripts/read-dev-mail.py",
     "index.html",
     "README.md",
     "package.json",
@@ -37,7 +35,10 @@
     "src/treeModel.js",
     "src/ui.jsx",
     "tests/browser-render.mjs",
-    "vite.config.js"
+    "tests/browser-dev-smoke.mjs",
+    "vite.config.js",
+    "src/Security.jsx",
+    "src/CliAuthorization.jsx"
   ],
   "not_imported": [
     "dist/index.html",

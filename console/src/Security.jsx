@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ShieldCheck, LockKey, Envelope, Shield, Trash } from '@phosphor-icons/react';
 import { Button, Badge, Heading, Note, openPurgeConfirm, useI18n } from './ui.jsx';
 import { authPayload } from './crypto.js';
 import { api } from './api.js';
 import { t } from './i18n.js';
+import { beginGithub } from './githubAuth.js';
+import QRCode from 'qrcode';
 
 export function Security({ admin, token, me, notify, onReload, open, onLogout }) {
   useI18n();
@@ -16,8 +18,19 @@ export function Security({ admin, token, me, notify, onReload, open, onLogout })
   const [emailSent, setEmailSent] = useState(false);
   const [emailBusy, setEmailBusy] = useState(false);
   const [totpSecret, setTotpSecret] = useState('');
+  const [totpQr, setTotpQr] = useState('');
   const [totpCode, setTotpCode] = useState('');
+  const [totpBusy, setTotpBusy] = useState(false);
   const totp = !!me?.totp;
+  const [github, setGithub] = useState(null);
+  const [githubBusy, setGithubBusy] = useState(false);
+  useEffect(() => {
+    if (admin) return;
+    let active = true;
+    api('/api/self/github', { token }).then(reply => { if (active) setGithub(reply); })
+      .catch(err => { if (active) setError(err.message); });
+    return () => { active = false; };
+  }, [admin, token]);
 
   const passPath = admin ? '/admin/password' : '/api/self/password';
   const totpBegin = admin ? '/admin/totp/begin' : '/api/self/totp/begin';
@@ -46,6 +59,22 @@ export function Security({ admin, token, me, notify, onReload, open, onLogout })
       </div>
       {tab === 'overview' ? (
         <section className="panel settings-panel">
+          {!admin && <div className="setting-row">
+            <ShieldCheck size={25} />
+            <div><h3>GitHub <Badge>{github?.bound ? t('githubBound') : t('unbound')}</Badge></h3><p>{github?.login || t('githubDescription')}</p></div>
+            <Button disabled={githubBusy || !github} onClick={async () => {
+              setGithubBusy(true); setError('');
+              try {
+                if (github.bound) {
+                  await api('/api/self/github/unbind', { method: 'POST', token });
+                  setGithub(await api('/api/self/github', { token }));
+                  notify(t('githubUnlinked'));
+                } else await beginGithub(token);
+              } catch (err) { setError(err.message); }
+              finally { setGithubBusy(false); }
+            }}>{github?.bound ? t('githubUnbind') : t('githubBind')}</Button>
+          </div>}
+          {error && <p className="form-error" role="alert">{error}</p>}
           <div className="setting-row">
             <LockKey size={25} />
             <div><h3>{t('loginPassH3')}</h3><p>{t('loginPassP')}</p></div>
@@ -61,7 +90,7 @@ export function Security({ admin, token, me, notify, onReload, open, onLogout })
           <div className="setting-row">
             <Shield size={25} />
             <div><h3>{t('totpH3')} <Badge tone={totp ? 'green' : 'neutral'}>{totp ? t('totpOn') : t('totpOff')}</Badge></h3><p>{t('totpP')}</p></div>
-            <Button onClick={() => setTab('totp')}>{t('manage')}</Button>
+            <Button onClick={() => setTab('totp')}>{totp ? t('unbindTotp') : t('startBind')}</Button>
           </div>
         </section>
       ) : tab === 'pass' ? (
@@ -131,40 +160,59 @@ export function Security({ admin, token, me, notify, onReload, open, onLogout })
       ) : (
         <section className="panel form-panel">
           <div className="feature-mark"><ShieldCheck size={30} /></div>
-          <h2>{t('totpTitle')}</h2>
-          <p>{t('totpApps')}</p>
-          <div className="row" style={{ gap: 8, marginBottom: 16 }}>
-            <Button onClick={async () => {
+          <h2>{totp ? t('totpBoundTitle') : t('totpTitle')}</h2>
+          <p>{totp ? t('totpUnbindHelp') : t('totpApps')}</p>
+          {!totp && <div className="row" style={{ gap: 8, marginBottom: 16 }}>
+            <Button disabled={totpBusy} onClick={async () => {
+              if (totpBusy) return;
+              setTotpBusy(true); setError('');
               try {
                 const r = await api(totpBegin, { method: 'POST', token });
+                const qr = await QRCode.toDataURL(r.otpauth, { width: 256, margin: 4, errorCorrectionLevel: 'M' });
                 setTotpSecret(r.secret);
+                setTotpQr(qr);
+                setTotpCode('');
               } catch (err) { setError(err.message); }
+              finally { setTotpBusy(false); }
             }}>{t('startBind')}</Button>
-          </div>
-          {totpSecret ? <div className="setup-key"><code>{totpSecret}</code></div> : null}
-          <label className="field">{t('verify')}<input value={totpCode} onChange={(e) => setTotpCode(e.target.value)} /></label>
+          </div>}
+          {!totp && totpSecret ? <div className="totp-setup">
+            <p>{t('totpScanHelp')}</p>
+            <img className="totp-qr" src={totpQr} width="256" height="256" alt={t('totpQrAlt')} />
+            <div className="setup-key"><code>{totpSecret}</code></div>
+          </div> : null}
+          <Badge tone={totp ? 'green' : 'neutral'}>{totp ? t('totpOn') : t('totpOff')}</Badge>
+          {(totp || totpSecret) && <label className="field">{t('totpCode')}<input disabled={totpBusy} inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={totpCode} onChange={(e) => setTotpCode(e.target.value)} /></label>}
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="key-actions">
-            <Button primary onClick={async () => {
+            {!totp && totpSecret && <Button primary disabled={!/^[0-9]{6}$/.test(totpCode) || totpBusy} onClick={async () => {
+              if (totpBusy) return;
+              setTotpBusy(true); setError('');
               try {
                 await api(totpConfirm, { method: 'POST', token, body: { code: totpCode } });
                 await onReload?.();
                 notify(t('totpOnOk'));
                 setError('');
                 setTotpSecret('');
+                setTotpQr('');
                 setTotpCode('');
               } catch (err) { setError(err.message); }
-            }}>{t('confirmOn')}</Button>
-            <Button danger onClick={async () => {
+              finally { setTotpBusy(false); }
+            }}>{t('confirmOn')}</Button>}
+            {totp && <Button danger disabled={!/^[0-9]{6}$/.test(totpCode) || totpBusy} onClick={async () => {
+              if (totpBusy) return;
+              setTotpBusy(true); setError('');
               try {
                 await api(totpDisable, { method: 'POST', token, body: { code: totpCode } });
                 await onReload?.();
                 notify(t('totpOffOk'));
                 setError('');
                 setTotpSecret('');
+                setTotpQr('');
                 setTotpCode('');
               } catch (err) { setError(err.message); }
-            }}>{t('close')}</Button>
+              finally { setTotpBusy(false); }
+            }}>{t('unbindTotp')}</Button>}
           </div>
         </section>
       )}

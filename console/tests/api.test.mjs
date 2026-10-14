@@ -32,3 +32,11 @@ test('network, rate limit, and non-JSON error responses remain visible', async (
   globalThis.fetch = async () => new Response('{"error":"rate limited"}', { status: 429 }); await assert.rejects(api('/login'), { status: 429, message: 'rate limited' });
   globalThis.fetch = async () => new Response('Service unavailable', { status: 503 }); await assert.rejects(api('/api/self'), { status: 503, message: 'Service unavailable' });
 });
+test('fenced optional probes can suppress global auth side effects without hiding rejection', async () => {
+  const calls = []; onUnauthorized((...args) => calls.push(args));
+  for (const [path, status, error] of [['/api/self/vault', 401, 'expired'], ['/admin/me', 403, 'admin token required']]) {
+    globalThis.fetch = async () => new Response(JSON.stringify({ error }), { status });
+    await assert.rejects(api(path, { token: 'reused-fixture-token', notifyUnauthorized: false }), { status });
+    assert.deepEqual(calls, []);
+  }
+});

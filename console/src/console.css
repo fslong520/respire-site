@@ -306,6 +306,11 @@ tr.selected,tbody tr:hover { background:var(--soft); }
 .secret-result p { font-size:0.6875rem; color:var(--muted); line-height:1.8; }
 .toast { position:fixed; z-index:100; bottom:25px; left:50%; transform:translate(-50%,15px); display:flex; gap:9px; align-items:center; max-width:90vw; background:#1c1d19; color:#f8f6f2; padding:13px 19px; border-radius:4px; font-size:0.6875rem; opacity:0; pointer-events:none; box-shadow:0 8px 24px #1c1d1920; }
 .toast.visible { opacity:1; transform:translate(-50%,0); }
+.memory-tip { position:fixed; z-index:90; top:90px; right:24px; display:flex; align-items:flex-start; gap:10px; width:max-content; max-width:min(420px,calc(100vw - 32px)); max-height:calc(100dvh - 120px); overflow:auto; padding:14px 18px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--text); box-shadow:0 8px 24px #1c1d1920; font-size:.875rem; line-height:1.6; overflow-wrap:anywhere; }
+.memory-tip svg { flex-shrink:0; margin-top:2px; }
+.totp-setup { margin:16px 0; }
+.totp-setup p { margin-bottom:12px; }
+.totp-qr { display:block; max-width:100%; height:auto; background:white; border-radius:4px; }
 .lang-switch { display:inline-flex; gap:0; background:transparent; padding:0; border-radius:0; }
 .lang-switch button { padding:4px 7px; color:var(--muted); font:0.8125rem ui-monospace,monospace; background:transparent; border-radius:0; }
 .lang-switch button[aria-pressed=true] { background:transparent; color:var(--text); text-decoration:underline; text-underline-offset:4px; }
@@ -436,3 +441,26 @@ html[data-theme=dark] .memory-card[data-kind='time'], html[data-theme=dark] .gra
 .memory-graph.is-empty { display:flex; align-items:center; justify-content:center; }
 .graph-empty { margin:0; font-family:var(--font-serif); color:var(--muted); }
 @media(max-width:760px) { .memory-graph { height:340px; } }
+
+.account-switch-controls { padding: 0 16px 12px; }
+.account-switch-controls label { display: grid; gap: 6px; }
+.account-switch-controls select { width: 100%; padding: 8px; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 6px; }
+
+.passkey-unlock { max-width: 30rem; display: grid; gap: .65rem; margin: .75rem auto; }
+.passkey-unlock .key-actions { justify-content: center; }
+.passkey-unlock small { display: block; }
+.passkey-list { list-style: none; padding: 0; }
+.passkey-list li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .65rem 0; }
+.passkey-list li > span { overflow-wrap: anywhere; }
+
+.graph-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem; }
+.graph-controls p { margin:0; }
+.graph-controls nav { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.graph-window-hint { color:var(--muted); font-size:.85rem; }
+.graph-node[data-external] { stroke-dasharray:3 2; }
+.graph-node:focus { outline:none; stroke:var(--text); stroke-width:3; }
+.graph-external { max-height:12rem; overflow:auto; }
+.graph-external button { overflow-wrap:anywhere; text-align:left; }
+
+.graph-relations-picker { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+.graph-relations-picker select { max-width:100%; min-width:0; }
