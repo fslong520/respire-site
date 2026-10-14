@@ -160,7 +160,7 @@ export function Modal({
         })} /> : <input aria-label={f.label} autoFocus={f.autofocus} type={f.type || 'text'} required={f.required !== false} placeholder={f.placeholder} value={values[f.name]} onChange={e => setValues({
           ...values,
           [f.name]: e.target.value
-        })} autoComplete="off" minLength={f.minLength} />}{f.hint && <small>{f.hint}</small>}</label>)}{error && <p role="alert" className="form-error"><WarningCircle size={18} />{error}</p>}<div className="modal-footer"><Button type="button" onClick={dismiss}>{config.cancel || t('cancel')}</Button><Button type="submit" primary={!config.danger} danger={config.danger} className={config.danger ? 'purge' : ''} disabled={busy}>{busy ? t('working') : config.submit || t('confirm')}</Button></div></form></dialog>;
+        })} autoComplete="off" minLength={f.minLength} />}{f.hint && <small>{typeof f.hint === 'function' ? f.hint(values) : f.hint}</small>}</label>)}{error && <p role="alert" className="form-error"><WarningCircle size={18} />{error}</p>}<div className="modal-footer"><Button type="button" onClick={dismiss}>{config.cancel || t('cancel')}</Button><Button type="submit" primary={!config.danger} danger={config.danger} className={config.danger ? 'purge' : ''} disabled={busy}>{busy ? t('working') : config.submit || t('confirm')}</Button></div></form></dialog>;
 }
 
 /** Account purge requires two confirmations: explain the effects, then verify the username and confirmation phrase. */

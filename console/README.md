@@ -66,7 +66,7 @@ The [Bitwarden browser extension 2026.9.1 provider implementation](https://githu
 forwards only `credProps`, returns only `credProps` at creation, and returns empty
 assertion extensions. This is a limitation of that version's PRF provider path,
 not a claim that ordinary Bitwarden passkey authentication fails or that future
-versions cannot add PRF. The UI explains this before enrollment. Error messages
+versions cannot add PRF. The UI checks support during enrollment and reports capability failures without permanent provider-specific notices. Error messages
 separately identify unsupported creation, missing first/second verification
 results, and missing output during an existing binding's unlock. They contain
 no PRF output, salts, credential IDs, or telemetry payload.

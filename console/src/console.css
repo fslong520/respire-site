@@ -437,3 +437,27 @@ html[data-theme=dark] .memory-card[data-kind='time'] { --card-accent:#a9a197; }
 .passkey-list { list-style: none; padding: 0; }
 .passkey-list li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .65rem 0; }
 .passkey-list li > span { overflow-wrap: anywhere; }
+
+/* Encryption settings share one readable body scale and consistent gutters. */
+.memory-key-panel, .passkey-panel { margin-bottom: 16px; }
+.memory-key-panel > p, .passkey-panel > p { margin: 0; padding: 16px 25px; font-size: .8125rem; line-height: 1.7; color: var(--muted); }
+.memory-key-panel .section-top h2, .passkey-panel .section-top h2 { font-family: var(--font-sans); font-size: 1rem; line-height: 1.5; }
+.passkey-panel .section-top { padding-bottom: 16px; }
+.passkey-panel > p + p { padding-top: 0; }
+.passkey-panel .passkey-list { margin: 0; padding: 0 25px; font-size: .8125rem; }
+.passkey-panel .passkey-list li { border-bottom: 1px solid var(--line); }
+.passkey-panel .passkey-list small { display: block; color: var(--muted); font-size: .75rem; line-height: 1.5; }
+.passkey-panel > .key-actions { margin: 0; padding: 8px 25px 16px; }
+.passkey-panel > .button { margin: 12px 25px; }
+.passkey-controls { padding: 0 25px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.passkey-controls .key-actions { margin: 0; }
+.passkey-controls > .field, .passkey-controls > p, .passkey-controls > .note { flex-basis: 100%; margin: 0; font-size: .8125rem; }
+.passkey-controls > .field { max-width: 30rem; }
+@media (max-width: 600px) {
+  .memory-key-panel > p, .passkey-panel > p { padding: 14px 18px; }
+  .passkey-panel .passkey-list { padding: 0 18px; }
+  .passkey-panel > .key-actions { padding: 8px 18px 16px; }
+  .passkey-controls { padding: 0 18px 18px; align-items: stretch; }
+  .passkey-panel .button { white-space: normal; text-align: center; }
+  .passkey-panel .passkey-list li { align-items: flex-start; }
+}
