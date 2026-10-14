@@ -7,10 +7,11 @@ React/Vite source for the Respire website. English is served at `/`; Chinese at 
 | `src/App.tsx` | Header, hero, product sections and portal links |
 | `src/respire/product-story.tsx` | Workflow tabs, examples and FAQ |
 | `src/respire/product-details.tsx` | CLI installation and usage |
-| `src/respire/MemoryFiberScene.tsx` | Three.js artwork, image fallback and motion controls |
-| `src/respire/memory-narrative.tsx` | Scroll-linked continuous red strand |
+| `src/respire/MemoryFiberScene.tsx` | Hero shell: fixed page-wide WebGL layer host, sculpture fallback, anchor and motion controls |
+| `src/respire/memory-point-cloud.ts` | Container point cloud plus scroll-grown scattered clusters with random focus, rendered as one fixed full-viewport scene |
+| `src/respire/memory-narrative.tsx` | Scroll-spline measurement that publishes thread progress and lights the Recall/Store dots |
 | `src/destinations.ts` | Portal and base-path configuration |
-| `assets/` | Original reference artwork and favicon |
+| `assets/` | Reference artwork, container point cloud and favicon |
 | `scripts/verify-marketing.mjs` | Built-page browser checks |
 
 ## Development

@@ -1,13 +1,10 @@
 import {SCULPTURE_URL} from '../destinations';
 "use client";
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import styles from './MemoryFiberScene.module.css';
-import { createMemoryFiberLines, createMemoryRedThread } from './memory-fiber-lines';
-import { memoryFiberVertexShader, memoryFiberFragmentShader, memoryGroundVertexShader, memoryGroundFragmentShader } from './memory-fiber-shader';
-import { createMemorySurfaceData } from './memory-fiber-surface';
 
-export interface MemoryFiberSceneProps { className?: string; locale?: 'en' | 'zh' }
+export interface MemoryFiberSceneProps { className?: string; locale?: 'en' | 'zh'; layerHost?: RefObject<HTMLDivElement | null> }
 
 const clamp = (n: number, low = 0, high = 1) => Math.max(low, Math.min(high, n));
 const smooth = (a: number, b: number, value: number) => {
@@ -79,7 +76,7 @@ function inverseFallbackField(point:number[],scale:number,phase:number,pointer?:
 /** Reference-traced layered sheet Geometry and a user-source-inspired ShaderMaterial,
  * with a faithful, localized-deformation image fallback when WebGL is unavailable.
  */
-export default function MemoryFiberScene({ className = '', locale = 'en' }: MemoryFiberSceneProps) {
+export default function MemoryFiberScene({ className = '', locale = 'en', layerHost }: MemoryFiberSceneProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gpuHostRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<SVGCircleElement>(null);
@@ -195,176 +192,52 @@ export default function MemoryFiberScene({ className = '', locale = 'en' }: Memo
   useEffect(() => {
     const host = gpuHostRef.current;
     if (!host) return;
+    const layer = layerHost?.current ?? host;
     let disposed = false;
     let release = () => {};
+    const setReady = (ready: boolean) => {
+      gpuReadyRef.current = ready; setGpuReady(ready);
+      host.dataset.gpuStatus = ready ? 'ready' : 'fallback';
+      if (!ready) {
+        if (motion.current.paused || motion.current.reduced) {
+          foldARef.current?.setAttribute('scale', '0');
+          foldBRef.current?.setAttribute('scale', '0');
+          pointerFoldRef.current?.setAttribute('scale', '0');
+        }
+        const [x, y] = fallbackAnchorPoint();
+        anchorRef.current?.setAttribute('cx', String(x));
+        anchorRef.current?.setAttribute('cy', String(y));
+        host.dispatchEvent(new CustomEvent('memory-thread-anchor', { bubbles: true }));
+      }
+      wakeRef.current?.();
+    };
     void import('three').then(async (THREE) => {
       if (disposed) return;
-      let renderer: InstanceType<typeof THREE.WebGLRenderer>;
-      try { renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' }); }
-      catch { host.dataset.gpuStatus = 'unavailable'; return; }
-      const mobile = window.matchMedia('(max-width: 640px)').matches;
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.25 : 1.75));
-      renderer.setClearColor(0x000000, 0);
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.toneMapping = THREE.NoToneMapping;
-      renderer.domElement.setAttribute('aria-hidden', 'true');
-      host.appendChild(renderer.domElement);
       host.dataset.gpuStatus = 'loading';
-      release = () => { renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove(); };
-      const reference = await new THREE.TextureLoader().loadAsync(SCULPTURE_URL);
-      if (disposed) { reference.dispose(); return; }
-      reference.colorSpace = THREE.SRGBColorSpace;
-      reference.anisotropy = Math.min(8,renderer.capabilities.getMaxAnisotropy());
-      const releaseRenderer = release;
-      release = () => { reference.dispose(); releaseRenderer(); };
-      const scene = new THREE.Scene();
-      const camera = new THREE.OrthographicCamera(-2.508, 2.508, 2.508, -2.508, .1, 30);
-      camera.position.set(0, 0, 8);
-      camera.lookAt(0, 0, 0);
-      // Every vertex is a parameter on one independently draped sheet. The same
-      // calibrated reference contours drive both support and individual fibers.
-      const surfaceData = createMemorySurfaceData(mobile);
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(surfaceData.positions, 3));
-      geometry.setAttribute('normal', new THREE.BufferAttribute(surfaceData.normals, 3));
-      geometry.setAttribute('surfaceParam', new THREE.BufferAttribute(surfaceData.params, 3));
-      geometry.setAttribute('calibratedColor', new THREE.BufferAttribute(surfaceData.colors, 3));
-      geometry.setIndex(new THREE.BufferAttribute(surfaceData.indices, 1));
-      const uniforms = {
-        uReference: { value: reference },
-        uTime: { value: 0 }, uEpsilon: { value: mobile ? .00075 : .00045 },
-        uRayOrigin: { value: new THREE.Vector3() },
-        uLightDirection: { value: new THREE.Vector3() },
-        uPointer: { value: new THREE.Vector3() },
-        uBoneColor: { value: new THREE.Color('#68685f') },
-        uThreadColor: { value: new THREE.Color('#a93021') },
-        uObjectToClip: { value: new THREE.Matrix4() },
-        uObjectToWorld: { value: new THREE.Matrix4() },
-      };
-      const material = new THREE.ShaderMaterial({
-        uniforms, vertexShader: memoryFiberVertexShader, fragmentShader: memoryFiberFragmentShader,
-        side: THREE.DoubleSide, depthWrite: true, transparent: true, forceSinglePass: true,
-        name: 'Respire reference-traced draped sheet material',
-      });
-      const body = new THREE.Mesh(geometry, material);
-      body.frustumCulled = false;
-      const fibers = createMemoryFiberLines(THREE, uniforms, mobile);
-      const redThread = createMemoryRedThread(THREE);
-      body.add(fibers.object, redThread.object);
-      scene.add(body);
-      const groundGeometry = new THREE.PlaneGeometry(5.016, 5.016);
-      const groundMaterial = new THREE.ShaderMaterial({
-        vertexShader: memoryGroundVertexShader, fragmentShader: memoryGroundFragmentShader,
-        transparent: true, depthWrite: false,
-      });
-      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-      ground.position.z = -1; ground.renderOrder = -1;
-      scene.add(ground);
-      const inverseModel = new THREE.Matrix4();
-      const worldLight = new THREE.Vector3(-.6, .85, 1).normalize();
-      const synchronizeCamera = () => {
-        body.updateMatrixWorld(true);
-        camera.updateMatrixWorld(true);
-        inverseModel.copy(body.matrixWorld).invert();
-        uniforms.uRayOrigin.value.copy(camera.position).applyMatrix4(inverseModel);
-        uniforms.uLightDirection.value.copy(worldLight).transformDirection(inverseModel);
-        uniforms.uObjectToWorld.value.copy(body.matrixWorld);
-        uniforms.uObjectToClip.value.copy(camera.projectionMatrix).multiply(camera.matrixWorldInverse).multiply(body.matrixWorld);
-      };
-      // The connector follows the actual separate vermilion curve, not the
-      // raster fallback or a now-obsolete strand ID in the demonstration shader.
-      const anchorPoint = new THREE.Vector3();
-      let anchorAngle: number | null = null, anchorNarrow: boolean | null = null, anchorX = NaN, anchorY = NaN;
-      const projectRedStrand = (angle: number) => anchorPoint.copy(redThread.pointAt(angle)).applyMatrix4(body.matrixWorld).project(camera);
-      const updateAnchor = () => {
-        const narrow=window.innerWidth<=767;
-        if(anchorNarrow!==narrow){anchorNarrow=narrow;anchorAngle=null;}
-        if (anchorAngle === null) {
-          let best = Infinity;
-          for (let i = 0; i < 256; i++) {
-            const angle = i / 256 * Math.PI * 2;
-            // Select a visible point in sculpture space, independently of
-            // camera aspect: left exterior on desktop, lower trough on mobile.
-            const point=redThread.pointAt(angle);
-            if (point.z < .15) continue;
-            const score = (point.x/2.508-(narrow?.22:-.85))**2+(point.y/2.508-(narrow?-.51:-.115))**2;
-            if (score < best) { best = score; anchorAngle = angle; }
-          }
-        }
-        const point = projectRedStrand(anchorAngle ?? 1.1);
-        const aspect = host.clientWidth / Math.max(1, host.clientHeight);
-        const x = 500 + point.x * 500 * Math.max(aspect, 1);
-        const y = 500 - point.y * 500 / Math.min(aspect, 1);
-        if (Math.abs(x - anchorX) > .02 || Math.abs(y - anchorY) > .02 || !Number.isFinite(anchorX)) {
-          anchorX = x; anchorY = y;
+      const { startMemoryPointCloud } = await import('./memory-point-cloud');
+      const created = await startMemoryPointCloud(THREE, layer, {
+        heroBox: () => hostRef.current?.getBoundingClientRect() ?? layer.getBoundingClientRect(),
+        onReadyChange: setReady,
+        onAnchor: (x, y) => {
           anchorRef.current?.setAttribute('cx', x.toFixed(2));
           anchorRef.current?.setAttribute('cy', y.toFixed(2));
           host.dispatchEvent(new CustomEvent('memory-thread-anchor', { bubbles: true }));
-        }
-      };
-      let frame = 0, previous = 0, rendered = 0, elapsed = 0;
-      let visible = true, lost = false, shaderFailed = false;
-      const setReady = (ready: boolean) => {
-        gpuReadyRef.current = ready; setGpuReady(ready);
-        host.dataset.gpuStatus = ready ? 'ready' : 'fallback';
-        if (!ready) { anchorX = NaN; anchorY = NaN; if(motion.current.paused||motion.current.reduced){foldARef.current?.setAttribute('scale','0');foldBRef.current?.setAttribute('scale','0');pointerFoldRef.current?.setAttribute('scale','0')} const [x,y]=fallbackAnchorPoint(); anchorRef.current?.setAttribute('cx', String(x)); anchorRef.current?.setAttribute('cy', String(y)); host.dispatchEvent(new CustomEvent('memory-thread-anchor', { bubbles: true })); }
-        wakeRef.current?.();
-      };
-      renderer.debug.checkShaderErrors = true;
-      renderer.debug.onShaderError = () => { shaderFailed = true; setReady(false); host.dataset.gpuStatus = 'shader-error'; };
-      const stop = () => { cancelAnimationFrame(frame); frame = 0; previous = 0; };
-      const request = () => { if (!frame && !disposed && visible && !document.hidden && !lost && !shaderFailed) frame = requestAnimationFrame(draw); };
-      function draw(now: number) {
-        frame = 0;
-        if (disposed || !visible || document.hidden || lost || shaderFailed) return;
-        const active = !motion.current.paused && !motion.current.reduced;
-        const delta = previous ? Math.min((now - previous) / 1000, .065) : 0;
-        previous = now;
-        if (active) elapsed += delta;
-        if (now - rendered >= 1000 / (mobile ? 20 : 24) || !gpuReadyRef.current || !active) {
-          rendered = now;
-          // Slow the source's internal cross-section deformation, not the object transform.
-          uniforms.uTime.value = elapsed * Math.PI * 2 / 12;
-          const m = motion.current;
-          if (active) { m.x += (m.targetX - m.x) * .12; m.y += (m.targetY - m.y) * .12; m.strength += (m.targetStrength - m.strength) * .075; }
-          uniforms.uPointer.value.set(m.x - .5, .5 - m.y, m.strength);
-          synchronizeCamera();
-          renderer.render(scene, camera);
-          if (!shaderFailed && !gpuReadyRef.current && renderer.info.render.calls > 0) setReady(true);
-          if (!shaderFailed && gpuReadyRef.current) updateAnchor();
-        }
-        if (active) request();
-      }
-      const resize = () => {
-        const width = Math.max(1, host.clientWidth), height = Math.max(1, host.clientHeight);
-        const resolutionCap = mobile ? 440 : 720;
-        const scale = Math.min(1, resolutionCap / Math.max(width, height));
-        renderer.setSize(Math.round(width * scale), Math.round(height * scale), false);
-        const aspect = width / height;
-        camera.left = -2.508 * Math.max(aspect, 1); camera.right = -camera.left;
-        camera.top = 2.508 / Math.min(aspect, 1); camera.bottom = -camera.top;
-        camera.updateProjectionMatrix(); synchronizeCamera(); request();
-      };
-      const visibility = () => { if (document.hidden) stop(); else request(); };
-      const contextLost = (event: Event) => { event.preventDefault(); lost = true; stop(); setReady(false); };
-      const contextRestored = () => { lost = false; shaderFailed = false; request(); };
-      const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; if (visible) request(); else stop(); }, { threshold: .02 });
-      intersection.observe(host);
-      const observer = new ResizeObserver(resize); observer.observe(host);
-      document.addEventListener('visibilitychange', visibility);
-      renderer.domElement.addEventListener('webglcontextlost', contextLost);
-      renderer.domElement.addEventListener('webglcontextrestored', contextRestored);
-      gpuWakeRef.current = () => { stop(); request(); };
-      resize();
-      release = () => {
-        stop(); intersection.disconnect(); observer.disconnect();
-        document.removeEventListener('visibilitychange', visibility);
-        renderer.domElement.removeEventListener('webglcontextlost', contextLost);
-        renderer.domElement.removeEventListener('webglcontextrestored', contextRestored);
-        reference.dispose(); fibers.dispose(); redThread.dispose(); geometry.dispose(); material.dispose(); groundGeometry.dispose(); groundMaterial.dispose(); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
-        gpuWakeRef.current = null; gpuReadyRef.current = false;
-      };
-    }).catch(() => { release(); host.dataset.gpuStatus = 'setup-error'; gpuReadyRef.current = false; setGpuReady(false); wakeRef.current?.(); });
+        },
+        onUnavailable: () => { host.dataset.gpuStatus = 'unavailable'; },
+        onSetupError: () => { host.dataset.gpuStatus = 'setup-error'; gpuReadyRef.current = false; setGpuReady(false); wakeRef.current?.(); },
+      });
+      if (disposed) { created?.dispose(); return; }
+      if (!created) return;
+      release = () => { created.dispose(); gpuWakeRef.current = null; gpuReadyRef.current = false; };
+      gpuWakeRef.current = () => { created.setReduced(motion.current.reduced); created.setPaused(motion.current.paused); created.wake(); };
+      created.setReduced(motion.current.reduced);
+      created.setPaused(motion.current.paused);
+      created.wake();
+    }).catch(() => {
+      release();
+      host.dataset.gpuStatus = 'setup-error';
+      gpuReadyRef.current = false; setGpuReady(false); wakeRef.current?.();
+    });
     return () => { disposed = true; release(); };
   }, []);
 

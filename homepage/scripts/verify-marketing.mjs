@@ -65,8 +65,8 @@ try{
   await page.keyboard.press('Escape');assert.equal(await menu.getAttribute('aria-expanded'),'false');
   if(screenshots)await page.screenshot({path:resolve(screenshots,'mobile-zh.png'),fullPage:true});
   await page.emulateMedia({reducedMotion:'reduce'});await page.reload();
-  await page.locator('.narrative-strand-ink').waitFor({state:'attached'});
-  await page.waitForFunction(()=>document.querySelector('.narrative-strand-ink')?.style.strokeDashoffset==='0');
+  await page.locator('[data-memory-body] [data-gpu-status="ready"]').waitFor();
+  await page.waitForFunction(()=>document.querySelector('.memory-narrative')?.dataset.threadProgress==='1.000');
   assert.deepEqual(errors,[]);
   console.log(JSON.stringify({passed:true,base,gpu_status:gpuStatus,checks:['exact public build provenance','English rendering','production links','installation','no demo notices','animation pause/resume','FAQ','Chinese URL and reload','mobile overflow/menu','reduced motion','no page errors']}));
 }finally{await browser.close();await new Promise(r=>server.close(r));}
