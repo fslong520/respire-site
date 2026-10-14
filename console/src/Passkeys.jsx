@@ -169,6 +169,7 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
       operation.current(); validatePasskeyOrigin(next);
       const vault = await api('/api/self/vault', { token, signal: operation.signal });
       operation.current();
+      let prfFailed = false;
       open({
         title: t('passkeyBind'), description: `${t('passkeyBindDescription')}${next.trusted_browser_enabled ? '' : ` ${t('passkeyPrfRequirement')}`}`,
         fields: [
@@ -179,6 +180,9 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
           ...(Number(vault.version) === 3 ? [{ name: 'secretKey', label: 'Secret Key', type: 'password' }] : []),
         ],
         submit: t('passkeyBind'),
+        submitDisabled: (_failure, values) => prfFailed && values.unlockMode !== 'trusted_browser',
+        errorAction: (_failure, values) => next.trusted_browser_enabled && values.unlockMode !== 'trusted_browser' && prfFailed
+          ? { label: t('trustedBrowserSwitch'), values: { ...values, unlockMode: 'trusted_browser', superPass: '', secretKey: '' } } : null,
         onDismiss: () => { refreshUnknown(operation); operation.controller.abort(); finish(operation); },
         onSubmit: async values => {
           operation.current();
@@ -209,7 +213,8 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
               // outcome notice now own recovery, without resubmitting a commit.
               return true;
             }
-            throw new Error(errorText(error));
+            if (['passkeyPrfCreateUnavailable', 'passkeyPrfFirstMissing', 'passkeyPrfReopenMissing'].includes(error.code)) prfFailed = true;
+            throw Object.assign(new Error(errorText(error)), { code: error.code });
           } finally { values.superPass = ''; values.secretKey = ''; if (operation.isCurrent()) setStage(''); }
         },
       });
@@ -302,7 +307,7 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
         <span>{credential.label || t('passkeyUnnamed')}{credential.mode === 'trusted_browser' && <small> · {t(localTrusted.some(k => k.device_id === credential.device_id && k.key_generation === credential.key_generation) ? 'trustedBrowserHere' : 'trustedBrowserElsewhere')}</small>}</span>
         <Button danger icon={Trash} disabled={busy} onClick={() => remove(credential)}>{t('passkeyRemove')}</Button>
       </li>)}
-    </ul> : <p>{t('passkeyNoCredentials')}</p>}
+    </ul> : <p>{t('passkeyEmpty')}</p>}
     {localTrusted.length > 0 && <Button disabled={busy} onClick={() => open({ title: t('trustedForget'), description: t('trustedForgetDescription'), submit: t('trustedForget'), danger: true, onSubmit: async () => {
       active.current?.abort(); onCancelUnlock?.(); await trustedKeyStore.clearAccount(config.account_id);
       if (mounted.current) setLocalTrusted([]); notify(t('trustedForgotten'));

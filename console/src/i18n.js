@@ -3,8 +3,9 @@ const STORAGE = 'respire.uiLocale';
 
 const EN = {
   trustedBrowserMode: 'Unlock method',
-  trustedBrowserPrfChoice: 'PRF passkey (no saved browser key)',
-  trustedBrowserChoice: 'Trust this browser (save a local encryption key)',
+  trustedBrowserSwitch: 'Use trusted-browser unlock',
+  trustedBrowserPrfChoice: 'PRF passkey',
+  trustedBrowserChoice: 'Trust this browser',
   trustedBrowserConsent: 'This saves an encryption key in this browser: keep your recovery code; browser and device security is not hardware protection.',
   trustedBrowserSaving: 'Saving and testing this browser’s local encryption key…',
   trustedBrowserDisabled: 'Trusted-browser unlock is not enabled. Use PRF mode or your recovery code.',
@@ -37,6 +38,7 @@ const EN = {
   passkeyLater: 'Maybe later',
 
   passkeyTitle: "Passkey memory unlock",
+  passkeyEmpty: 'No passkeys added yet.',
   passkeyDescription: 'Unlock memories with a passkey. Keep your recovery code as a backup.',
   passkeyPrfRequirement: 'Requires a PRF-capable provider; ordinary passkey sign-in alone is not enough.',
   passkeyKeepRecovery: "Keep your same super password / recovery code safely. Binding adds an encrypted copy of the same root key. It does not replace your recovery code or re-encrypt memories.",
@@ -622,8 +624,9 @@ const EN = {
 
 const ZH = {
   trustedBrowserMode: '解锁方式',
-  trustedBrowserPrfChoice: 'PRF 通行密钥（不保存浏览器密钥）',
-  trustedBrowserChoice: '信任此浏览器（保存本地加密密钥）',
+  trustedBrowserSwitch: '改用可信浏览器',
+  trustedBrowserPrfChoice: 'PRF 通行密钥',
+  trustedBrowserChoice: '信任此浏览器',
   trustedBrowserConsent: '启用后会在此浏览器保存加密密钥；请保留恢复码，浏览器与设备保护不等同于硬件保护。',
   trustedBrowserSaving: '正在保存并测试此浏览器的本地加密密钥……',
   trustedBrowserDisabled: '尚未启用可信浏览器解锁。请使用 PRF 模式或恢复码。',
@@ -656,6 +659,7 @@ const ZH = {
   passkeyLater: '稍后再说',
 
   passkeyTitle: "通行密钥记忆解锁",
+  passkeyEmpty: '尚未添加通行密钥。',
   passkeyDescription: '使用通行密钥解锁记忆，请保留恢复码作为备份。',
   passkeyPrfRequirement: '需要提供商支持 PRF，仅支持普通通行密钥登录还不够。',
   passkeyKeepRecovery: "请妥善保留原有超级密码／恢复码。绑定仅增加同一根密钥的加密副本，不替换恢复码，也不会重新加密记忆。",
