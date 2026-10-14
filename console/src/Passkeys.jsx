@@ -84,7 +84,9 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
     if (notice !== undefined) setCommitNotice(notice);
     setConfig(next);
     setLocalTrusted(localKeys);
-    setSelected(value => next.credentials?.some(c => c.credential_id === value) ? value : next.credentials?.[0]?.credential_id || '');
+    const usable = (next.credentials || []).filter(c => c.mode !== 'trusted_browser'
+      || localKeys.some(k => k.device_id === c.device_id && k.key_generation === c.key_generation));
+    setSelected(value => usable.some(c => c.credential_id === value) ? value : usable[0]?.credential_id || next.credentials?.[0]?.credential_id || '');
     return next;
   };
   useEffect(() => {
@@ -142,7 +144,9 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
     setBusy(true); setError(''); setStage('passkeyVerifying');
     try {
       const next = await load(operation.signal);
-      operation.current(); validatePasskeyOrigin(next);
+      operation.current();
+      if (!next) throw new DOMException('Passkey list superseded', 'AbortError');
+      validatePasskeyOrigin(next);
       const vault = await api('/api/self/vault', { token, signal: operation.signal });
       assertPasskeyCurrent(operation.signal, isCurrent);
       const credential = next.credentials.find(c => c.credential_id === selected);
@@ -166,7 +170,9 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
     setBusy(true); setError('');
     try {
       const next = await load(operation.signal);
-      operation.current(); validatePasskeyOrigin(next);
+      operation.current();
+      if (!next) throw new DOMException('Passkey list superseded', 'AbortError');
+      validatePasskeyOrigin(next);
       const vault = await api('/api/self/vault', { token, signal: operation.signal });
       operation.current();
       let prfFailed = false;
@@ -285,7 +291,7 @@ export function Passkeys({ token, mode = 'unlock', hasVault = true, unlocked = f
     </div>
     {stage && <p role="status">{t(stage)}</p>}
     {commitNotice && <Note tone={commitNotice === 'passkeyCommitUnknown' ? 'amber' : ''}>{t(commitNotice)}</Note>}
-    {mode === 'manage' && <Button onClick={() => load().catch(error => {
+    {mode === 'manage' && <Button disabled={busy} onClick={() => load().catch(error => {
       if (mounted.current && readToken(USER_KEY) === token) {
         if (pendingCommits.has(token)) setCommitNotice('passkeyCommitUnknown');
         else setError(errorText(error));
