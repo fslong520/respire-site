@@ -13,7 +13,7 @@ export function onUnauthorized(handler) {
   unauthorized = handler;
 }
 
-export async function api(path, { method = 'GET', body, token, signal } = {}) {
+export async function api(path, { method = 'GET', body, token, signal, notifyUnauthorized = true } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   let payload;
@@ -29,10 +29,11 @@ export async function api(path, { method = 'GET', body, token, signal } = {}) {
   } catch {
     json = { error: text };
   }
-  if (response.status === 401 && unauthorized) unauthorized(path, token);
+  if (response.status === 401 && unauthorized && notifyUnauthorized) unauthorized(path, token);
   if (
     response.status === 403
     && unauthorized
+    && notifyUnauthorized
     && String(json.error || '').includes('admin token required')
   ) {
     unauthorized(path, token);

@@ -1,16 +1,19 @@
+import { trustedKeyStore } from './trustedKeyStore.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   TreeStructure, Clock, MagnifyingGlass, CaretRight, LockKey, ShieldCheck,
   CloudCheck, Desktop, Terminal, Plus, Key, Copy, Check, DownloadSimple,
   SignOut, ArrowClockwise, Article, ArrowLeft, X, WarningCircle, PencilSimple, Trash,
-  ListBullets, CaretDown, BookOpen, SquaresFour, Compass, ListChecks, Heart, Wrench, Smiley, Tag,
+  ListBullets, CaretDown, BookOpen, SquaresFour, Compass, ListChecks, Heart, Wrench, Smiley, Tag, ShareNetwork,
 } from '@phosphor-icons/react';
 import { Button, Badge, Heading, Empty, Note, SecretResult, copy, download, useI18n } from './ui.jsx';
 import { decryptItem, deriveDataKeys, encryptItem, generateSecretKey, unwrapUrk, wrapVaultV4 } from './crypto.js';
 import { api, readToken, USER_KEY, hasLegacyRecovery, exportLegacyRecovery, clearLegacyRecovery } from './api.js';
 import { MemorySync } from './memorySync.js';
 import { Security } from './Security.jsx';
+import { Passkeys } from './Passkeys.jsx';
 import { buildIndex, childrenOf, subtreeCount, diaryDays, visibleRows, ROOT_ID, DIARY_ID } from './treeModel.js';
+import GraphView from './GraphView.jsx';
 import { t, getLocale, kindLabel } from './i18n.js';
 import { readUnlockSession, saveUnlockSession, dropUnlockSession } from './unlockSession.js';
 
@@ -211,10 +214,13 @@ export function DashboardPages({
       });
   }, [page, token, tick]);
 
-  const unlockMemories = async (pass, secret, session) => {
-    const generation = ++unlockGeneration.current;
-    memorySyncRef.current?.close();
+  const unlockMemories = async (pass, secret, session, lease) => {
+    const generation = lease?.generation ?? ++unlockGeneration.current;
+    let leaseAccepted = false;
+    const current = () => generation === unlockGeneration.current && readToken(USER_KEY) === token && (!lease || leaseAccepted || lease.isCurrent());
+    if (!current()) throw new DOMException('Unlock superseded', 'AbortError');
     const vault = await api('/api/self/vault', { token });
+    if (!current()) throw new DOMException('Unlock superseded', 'AbortError');
     const v = Number(vault.version) || 0;
     let dataKey;
     if (session) {
@@ -235,9 +241,10 @@ export function DashboardPages({
       legacy: await crypto.subtle.importKey('raw', dataKey.legacy, 'AES-GCM', false, ['decrypt']),
       current: await crypto.subtle.importKey('raw', dataKey.current, 'AES-GCM', false, ['decrypt']),
     };
-    if (generation !== unlockGeneration.current || readToken(USER_KEY) !== token) {
+    if (!current()) {
       throw new DOMException('Unlock superseded', 'AbortError');
     }
+    memorySyncRef.current?.close();
     dataKeyRef.current = dataKey;
     setLoadError('');
     let firstResolve;
@@ -247,10 +254,11 @@ export function DashboardPages({
     const controller = new MemorySync({
       token, vault,
       isCurrent: () => dataKeyRef.current === dataKey && readToken(USER_KEY) === token
-        && memorySyncRef.current === controller,
+        && memorySyncRef.current === controller && (leaseAccepted || current()),
       onLoading: setSyncing,
       onCacheError: () => notify(t('memoryCacheUnavailable')),
-      onReset: () => setItems([]),
+      // Keep the locked controls mounted until the first accepted batch.
+      onReset: () => setItems(leaseAccepted ? [] : null),
       onBlobs: async (blobs, signal) => {
         let failed = 0;
         // Small batches yield between paints, with one imported key per unlocked session.
@@ -264,6 +272,16 @@ export function DashboardPages({
           }));
           controller.current();
           signal.throwIfAborted();
+          if (!leaseAccepted) {
+            await lease?.assertTrustedCurrent?.();
+            controller.current();
+            signal.throwIfAborted();
+            // Transfer ownership only once a current batch is ready to render.
+            // Before this point, modal dismissal/navigation still cancels unlock.
+            leaseAccepted = true;
+            lease?.onAccept?.();
+            lease?.signal?.removeEventListener('abort', releaseIfUnaccepted);
+          }
           setItems((prev) => {
             const next = new Map((prev || []).map((m) => [m.id, m]));
             for (const change of changes) {
@@ -285,12 +303,24 @@ export function DashboardPages({
         if (failed) notify(t('newCipherFail', { n: failed }));
       },
     });
+    const releaseIfUnaccepted = () => {
+      if (leaseAccepted) return;
+      controller.close();
+      if (memorySyncRef.current === controller) { memorySyncRef.current = null; setSyncing(false); }
+      if (dataKeyRef.current === dataKey) dataKeyRef.current = null;
+      firstReject(new DOMException('Unlock superseded', 'AbortError'));
+    };
+    lease?.signal?.addEventListener('abort', releaseIfUnaccepted, { once: true });
     memorySyncRef.current = controller;
     controller.start().then(() => {
       controller.current();
       setLastSync(Date.now());
     }).catch((error) => {
-      if (!displayed) firstReject(error);
+      if (!displayed) {
+        lease?.signal?.removeEventListener('abort', releaseIfUnaccepted);
+        if (dataKeyRef.current === dataKey) dataKeyRef.current = null;
+        firstReject(error);
+      }
       if (error.name === 'AbortError') return;
       setLoadError(t('memoryLoadInterrupted'));
       if (displayed) notify(error.message);
@@ -447,6 +477,17 @@ export function DashboardPages({
     },
     submit: t('saveEdit'),
   });
+  const passkeyControls = (mode = 'unlock') => <Passkeys key={JSON.stringify([token, tick, page, memoryId])} token={token} mode={mode} hasVault={hasVault} unlocked={keyStored} open={open} notify={notify}
+    beginUnlock={() => {
+      const generation = ++unlockGeneration.current;
+      return { generation, isCurrent: () => generation === unlockGeneration.current && readToken(USER_KEY) === token };
+    }}
+    onCancelUnlock={lockMemories}
+    onUnlock={async (dataKey, vault, lease) => {
+      await unlockMemories('', '', { vault: JSON.stringify(vault), dataKey }, lease);
+      notify(t('unlockedHere'));
+    }} />;
+
   const openUnlock = async () => {
     let vault = {};
     try { vault = await api('/api/self/vault', { token }); } catch { /* Report a missing vault on submission */ }
@@ -501,6 +542,7 @@ export function DashboardPages({
             <h2>{t('diaryLockedH2')}</h2>
             <p>{t('diaryLockedP')}</p>
             <Button primary icon={Key} onClick={openUnlock}>{t('unlockMemory')}</Button>
+            {passkeyControls()}
           </section>
         </>
       );
@@ -531,6 +573,7 @@ export function DashboardPages({
               {t('lockedP')}
             </p>
             <Button primary icon={Key} onClick={openUnlock}>{t('unlockMemory')}</Button>
+            {passkeyControls()}
             <span>{t('memoryOnlyDescription')}</span>
             {legacyRecovery ? <Button onClick={() => go('keys')}>{t('legacyRecoveryClear')}</Button> : null}
           </section>
@@ -603,10 +646,10 @@ export function DashboardPages({
                 {query && <button className="icon-button" aria-label={t('clear')} onClick={() => setQuery('')}><X size={17} /></button>}
               </label>
               <div className="collection-title">
-                <h2>{query ? t('searchResults') : (viewMode === 'tree' ? t('memoryTree') : viewMode === 'card' ? t('memoryCards') : t('allMemories'))}</h2>
+                <h2>{query ? t('searchResults') : (viewMode === 'tree' ? t('memoryTree') : viewMode === 'card' ? t('memoryCards') : viewMode === 'graph' ? t('memoryGraph') : t('allMemories'))}</h2>
                 <div className="collection-tools">
                   <div className="tabs view-tabs" role="tablist" aria-label={t('viewSwitcher')}>
-                    {[['tree', TreeStructure, t('treeView')], ['list', ListBullets, t('listView')], ['card', SquaresFour, t('cardView')]].map(([mode, Icon, label]) => (
+                    {[['tree', TreeStructure, t('treeView')], ['list', ListBullets, t('listView')], ['card', SquaresFour, t('cardView')], ['graph', ShareNetwork, t('graphView')]].map(([mode, Icon, label]) => (
                       <button key={mode} role="tab" aria-selected={viewMode === mode} className={viewMode === mode ? 'active' : ''} onClick={() => setViewMode(mode)} title={label}>
                         <Icon size={15} />
                         <span className="view-tab-label">{label}</span>
@@ -665,6 +708,8 @@ export function DashboardPages({
                     );
                   })}
                 </div>
+              ) : viewMode === 'graph' && treeSource.length ? (
+                <GraphView items={treeSource} onOpen={openMemory} />
               ) : viewMode === 'tree' && treeSource.length ? (
                 <div className="tree-view">
                   {treeRows.map(({ row, depth, open, hasKids }) => (
@@ -803,13 +848,19 @@ export function DashboardPages({
     // v4 recovery codes are generated rather than chosen by the user.
     const newSuper = generateSecretKey();
     const wrapped = await wrapVaultV4(newSuper);
-    await api('/api/self/vault', { method: 'POST', token, body: wrapped });
-    setTick((n) => n + 1);
+    await api(reset ? '/api/self/vault/reset' : '/api/self/vault', { method: 'POST', token,
+      body: reset ? { ...wrapped, expected_key_generation: vaultInfo?.key_generation } : wrapped });
     lockMemories();
+    let trustCleanupFailed = false;
+    if (reset && vaultInfo?.account_id && Number.isSafeInteger(vaultInfo.key_generation)) {
+      try { await trustedKeyStore.clearAccountOlderGenerations(vaultInfo.account_id, vaultInfo.key_generation + 1); }
+      catch { trustCleanupFailed = true; }
+    }
+    setTick((n) => n + 1);
     notify(reset ? t('keysResetLost') : t('superGenerated'));
     window.setTimeout(() => open({
       title: t('copySuperNowTitle'),
-      body: <SecretResult value={newSuper} notify={notify} description={t('copySuperNowBody', { reset: reset ? t('copySuperNowReset') : '' })} />,
+      body: <>{trustCleanupFailed && <Note tone="amber">{t('trustedResetCleanupFailed')}</Note>}<SecretResult value={newSuper} notify={notify} description={t('copySuperNowBody', { reset: reset ? t('copySuperNowReset') : '' })} /></>,
       submit: t('iCopied'),
     }), 0);
   };
@@ -829,7 +880,7 @@ export function DashboardPages({
         {!hasVault && vaultInfo !== undefined ? (
           <Note icon={WarningCircle} tone="amber">{t('noWrap')}</Note>
         ) : null}
-        <section className="panel key-panel">
+        <section className="panel key-panel memory-key-panel">
           <div className="section-top"><h2>{t('memoryOnlyKeys')}</h2><Badge tone={keyStored ? 'green' : 'amber'}>{keyStored ? t('pageUnlocked') : t('pageLocked')}</Badge></div>
           <p>{t('memoryOnlyDescription')}</p>
           {legacyRecovery ? <>
@@ -852,6 +903,7 @@ export function DashboardPages({
             </div>
           </> : null}
         </section>
+        {passkeyControls('manage')}
         <div className="settings-stack">
           {!hasVault ? (
             <div className="setting-row">
@@ -884,7 +936,8 @@ export function DashboardPages({
                   let wrapped;
                   try { wrapped = await wrapVaultV4(newSuper, urk); }
                   finally { urk.fill(0); }
-                  await api('/api/self/vault', { method: 'POST', token, body: wrapped });
+                  await api('/api/self/vault', { method: 'POST', token, body: { ...wrapped,
+                    operation: 'rewrap_same_urk', expected_key_generation: vault.key_generation } });
                   setTick((n) => n + 1);
                   lockMemories();
                   window.setTimeout(() => open({

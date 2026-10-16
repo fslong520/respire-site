@@ -409,24 +409,88 @@ tr.selected,tbody tr:hover { background:var(--soft); }
 
 /* Card-view kind difference (final): each kind tints the card with its accent
    at 10%, on top of the tone-colored badge + kind icon. One hue per kind,
-   brighter accents under the dark theme so the 10% mix stays visible. */
-.memory-card { --card-accent:var(--muted); }
-.memory-card[data-kind='context'] { --card-accent:#3d7085; }
-.memory-card[data-kind='decision'] { --card-accent:#6d5a9c; }
-.memory-card[data-kind='task'] { --card-accent:#4a6d9c; }
-.memory-card[data-kind='skill'] { --card-accent:#39735a; }
-.memory-card[data-kind='preference'] { --card-accent:#b07a3a; }
-.memory-card[data-kind='emotion'] { --card-accent:#b05a5a; }
-.memory-card[data-kind='time'] { --card-accent:#8a8275; }
+   brighter accents under the dark theme so the 10% mix stays visible. The
+   same tokens color graph nodes via --card-accent. */
+.memory-card, .graph-node { --card-accent:var(--muted); }
+.memory-card[data-kind='context'], .graph-node[data-kind='context'] { --card-accent:#3d7085; }
+.memory-card[data-kind='decision'], .graph-node[data-kind='decision'] { --card-accent:#6d5a9c; }
+.memory-card[data-kind='task'], .graph-node[data-kind='task'] { --card-accent:#4a6d9c; }
+.memory-card[data-kind='skill'], .graph-node[data-kind='skill'] { --card-accent:#39735a; }
+.memory-card[data-kind='preference'], .graph-node[data-kind='preference'] { --card-accent:#b07a3a; }
+.memory-card[data-kind='emotion'], .graph-node[data-kind='emotion'] { --card-accent:#b05a5a; }
+.memory-card[data-kind='time'], .graph-node[data-kind='time'] { --card-accent:#8a8275; }
 .memory-card { background:color-mix(in srgb, var(--card-accent) 10%, var(--panel)); }
-html[data-theme=dark] .memory-card[data-kind='context'] { --card-accent:#6fa8bd; }
-html[data-theme=dark] .memory-card[data-kind='decision'] { --card-accent:#a08ed1; }
-html[data-theme=dark] .memory-card[data-kind='task'] { --card-accent:#7d9cc9; }
-html[data-theme=dark] .memory-card[data-kind='skill'] { --card-accent:#7aa88f; }
-html[data-theme=dark] .memory-card[data-kind='preference'] { --card-accent:#cf9f66; }
-html[data-theme=dark] .memory-card[data-kind='emotion'] { --card-accent:#cf8484; }
-html[data-theme=dark] .memory-card[data-kind='time'] { --card-accent:#a9a197; }
+html[data-theme=dark] .memory-card[data-kind='context'], html[data-theme=dark] .graph-node[data-kind='context'] { --card-accent:#6fa8bd; }
+html[data-theme=dark] .memory-card[data-kind='decision'], html[data-theme=dark] .graph-node[data-kind='decision'] { --card-accent:#a08ed1; }
+html[data-theme=dark] .memory-card[data-kind='task'], html[data-theme=dark] .graph-node[data-kind='task'] { --card-accent:#7d9cc9; }
+html[data-theme=dark] .memory-card[data-kind='skill'], html[data-theme=dark] .graph-node[data-kind='skill'] { --card-accent:#7aa88f; }
+html[data-theme=dark] .memory-card[data-kind='preference'], html[data-theme=dark] .graph-node[data-kind='preference'] { --card-accent:#cf9f66; }
+html[data-theme=dark] .memory-card[data-kind='emotion'], html[data-theme=dark] .graph-node[data-kind='emotion'] { --card-accent:#cf8484; }
+html[data-theme=dark] .memory-card[data-kind='time'], html[data-theme=dark] .graph-node[data-kind='time'] { --card-accent:#a9a197; }
+
+/* Graph view: force-directed parent_id network in SVG. Every color rides on
+   theme variables, so dark mode needs no extra rules here. */
+.memory-graph { position:relative; height:480px; touch-action:none; }
+.memory-graph svg { display:block; width:100%; height:100%; cursor:grab; }
+.memory-graph svg:active { cursor:grabbing; }
+.graph-link { stroke:var(--line); stroke-width:1; transition:opacity .15s; }
+.graph-node { stroke:var(--panel); stroke-width:1.5; cursor:pointer; transition:opacity .15s; }
+.graph-node:hover { stroke:var(--text); }
+.graph-node.dimmed, .graph-link.dimmed { opacity:0.15; }
+.graph-label { font-family:var(--font-sans); font-size:0.6875rem; fill:var(--text); paint-order:stroke; stroke:var(--panel); stroke-width:3px; stroke-linejoin:round; pointer-events:none; }
+.memory-graph.is-empty { display:flex; align-items:center; justify-content:center; }
+.graph-empty { margin:0; font-family:var(--font-serif); color:var(--muted); }
+@media(max-width:760px) { .memory-graph { height:340px; } }
 
 .account-switch-controls { padding: 0 16px 12px; }
 .account-switch-controls label { display: grid; gap: 6px; }
 .account-switch-controls select { width: 100%; padding: 8px; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 6px; }
+
+.passkey-unlock { max-width: 30rem; display: grid; gap: .65rem; margin: .75rem auto; }
+.passkey-unlock .key-actions { justify-content: center; }
+.passkey-unlock small { display: block; }
+.passkey-list { list-style: none; padding: 0; }
+.passkey-list li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .65rem 0; }
+.passkey-list li > span { overflow-wrap: anywhere; }
+
+.graph-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem; }
+.graph-controls p { margin:0; }
+.graph-controls nav { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.graph-window-hint { color:var(--muted); font-size:.85rem; }
+.graph-node[data-external] { stroke-dasharray:3 2; }
+.graph-node:focus { outline:none; stroke:var(--text); stroke-width:3; }
+.graph-external { max-height:12rem; overflow:auto; }
+.graph-external button { overflow-wrap:anywhere; text-align:left; }
+
+.graph-relations-picker { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+.graph-relations-picker select { max-width:100%; min-width:0; }
+
+.passkey-panel .button.primary { background: var(--text); color: var(--panel); border-color: var(--text); }
+.passkey-panel .button.primary:not(:disabled):hover { opacity: .85; }
+
+/* Encryption settings share one readable body scale and consistent gutters. */
+.memory-key-panel, .passkey-panel { margin-bottom: 16px; padding: 0; }
+.memory-key-panel > p, .passkey-panel > p { margin: 0; padding: 16px 25px; font-size: .8125rem; line-height: 1.7; color: var(--muted); }
+.memory-key-panel .section-top h2, .passkey-panel .section-top h2 { font-family: var(--font-sans); font-size: 1rem; line-height: 1.5; }
+.memory-key-panel .section-top, .passkey-panel .section-top { padding: 20px 25px; }
+.passkey-panel > p + p { padding-top: 0; }
+.passkey-panel .passkey-list { margin: 0; padding: 0 25px; font-size: .8125rem; }
+.passkey-panel .passkey-list li { border-bottom: 1px solid var(--line); }
+.passkey-panel .passkey-list small { display: block; color: var(--muted); font-size: .75rem; line-height: 1.5; }
+.passkey-panel > .key-actions { margin: 0; padding: 8px 25px 16px; }
+.passkey-panel > .button { margin: 12px 25px; }
+.passkey-controls { padding: 0 25px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.passkey-controls .key-actions { margin: 0; padding: 0; }
+.passkey-controls > .field, .passkey-controls > p, .passkey-controls > .note { flex-basis: 100%; margin: 0; font-size: .8125rem; }
+.passkey-controls > .field { max-width: 30rem; }
+@media (max-width: 600px) {
+  .key-hero { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: start; }
+  .key-hero > .badge { grid-column: 2; margin-left: 0; justify-self: start; }
+  .memory-key-panel .section-top, .passkey-panel .section-top { padding: 18px; }
+  .memory-key-panel > p, .passkey-panel > p { padding: 14px 18px; }
+  .passkey-panel .passkey-list { padding: 0 18px; }
+  .passkey-panel > .key-actions { padding: 8px 18px 16px; }
+  .passkey-controls { padding: 0 18px 18px; align-items: stretch; }
+  .passkey-panel .button { white-space: normal; text-align: center; }
+  .passkey-panel .passkey-list li { align-items: flex-start; }
+}

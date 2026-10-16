@@ -13,6 +13,7 @@ import { decryptItem, deriveDataKeys, unwrapUrk, generateSecretKey, wrapVaultV4 
 import { t } from '../src/i18n.js';
 import { FIXTURE, startFixtureApi, closeServer, listen } from './fixture-api.mjs';
 import { startFixtureProxy } from './fixture-proxy.mjs';
+import { passkeyBrowserScenarios } from './passkey-browser-scenarios.mjs';
 
 async function assertNoRecoveryStorage(page) {
   const keys = await page.evaluate(() => [localStorage, sessionStorage].flatMap(storage =>
@@ -908,6 +909,19 @@ try {
     await waitForApi(page, '/api/self/memories', 'GET', () => page.getByRole('button', { name: t('pullLatest'), exact: true }).click());
     await page.locator('.memory-status').getByText(t('nMemories', { n: 25 }), { exact: true }).waitFor();
     await page.getByLabel(t('searchMemory'), { exact: true }).fill('');
+    await page.getByRole('tab', { name: t('graphView'), exact: true }).click();
+    await page.locator('.graph-node').nth(24).waitFor();
+    assert.equal(await page.locator('.graph-node').count(), 25);
+    await page.getByLabel(t('searchMemory'), { exact: true }).fill(title);
+    await page.locator('.search-hit').filter({ hasText: title }).first().waitFor();
+    assert.equal(await page.locator('.search-hit').count(), 25, 'Graph search must cover all matching loaded memories');
+    assert.equal(await page.locator('.graph-node').count(), 0, 'Search must supersede graph');
+    await page.getByLabel(t('searchMemory'), { exact: true }).fill('');
+    await page.locator('.graph-node').nth(24).waitFor();
+    await page.locator(`[data-node="${blob.id}"]`).focus();
+    await page.keyboard.press('Enter');
+    await page.locator('.reading-main').getByText(edited, { exact: true }).waitFor();
+    await page.getByRole('button', { name: t('backMemory'), exact: true }).click();
     await page.getByRole('tab', { name: t('cardView'), exact: true }).click();
     await page.locator('.pager').getByRole('button', { name: t('nextPage'), exact: true }).click();
     await page.locator('.pager-state').getByText(t('pageOf', { n: 2, total: 2 }), { exact: true }).waitFor();
@@ -949,6 +963,8 @@ try {
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     await page.locator('.reading-main').getByText(edited, { exact: true }).waitFor();
   });
+
+  await passkeyBrowserScenarios({ run, open, api });
 
   current = 'cross-origin transport proof';
   assert.ok(api.requests.length > 0, 'No API request was recorded');
