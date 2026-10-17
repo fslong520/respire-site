@@ -13,6 +13,15 @@ The supplied GLSL is retained in `homepage/src/respire/WlcfRn-user-supplied.glsl
 
 `homepage/assets/memory-fiber-sculpture.png` is a byte-for-byte copy of the original 1254×1254 visual reference supplied by the user. It is both the WebGL-independent artwork fallback and the full-resolution sRGB material projected onto actual deforming folded 3D meshes. Rest-space UVs move the image detail with each sheet. Additional traced structural strands and the separate red tube are actual geometry; the photographic hairlines are not all individually modeled. The shader excludes the source’s red path from the material and masks photographed ground shadow outside the fiber silhouette. The original reference remains unchanged. This artwork is unrelated to customer memory content, and no customer images or records are included.
 
+## Container point cloud
+
+- Derived file: `homepage/assets/memory-cloud.bin`
+- Upstream source: `brain2.ply`, retained in the mind3D project at `assets/brain2.container.ply`
+- License designation supplied by the user: not supplied
+- Original author and copyright notice: not supplied
+
+`homepage/assets/memory-cloud.bin` is derived from the upstream `brain2.ply` point cloud, sampled to 120,000 points and Uint16-quantized for the WebGL hero. The user did not supply an original author, copyright notice or license, and this project does not invent or certify one; preserve the upstream notice when it is provided for production distribution. This asset is unrelated to customer memory content, and no customer records are included.
+
 ## Dependencies
 
 Third-party packages remain under their respective licenses. Exact dependency versions are recorded in `package-lock.json`.
