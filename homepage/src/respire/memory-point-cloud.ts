@@ -74,6 +74,8 @@ const CFG = {
   PHYS_STEP: 1 / 60,
   MAX_SUBSTEPS: 3,
   ORBIT_DEG_PER_SEC: 5,
+  PALETTE_DWELL_MS: 12000,
+  PALETTE_FADE_MS: 1600,
   EXT_MAX_NODES: 3400,
   EXT_MAX_EDGES: 3600,
   EXT_START_Z: 520,
@@ -99,7 +101,6 @@ const CFG = {
 
 const PALETTE_NODE = ['#0a84ff', '#8b3dff', '#e5006d', '#00a06b', '#c98a00', '#3a5ccc', '#d94f16', '#2440d0'];
 const DECAY = 0.60;
-const REF_OPACITY_LIGHT = 0.25;
 const LIGHT_DIM_T = 0.3;
 const LIGHT_TINT_EDGE = 0.26;
 const EXT_EDGE_DIM_TINT = 0.16;
@@ -112,15 +113,36 @@ const srgbToLinear = (c: number): number => (c <= 0.04045 ? c / 12.92 : Math.pow
 /** Linear value of the paper background `#f8f6f2`, mixed in when dimming. */
 const PAPER: readonly [number, number, number] = [srgbToLinear(0xf8 / 255), srgbToLinear(0xf6 / 255), srgbToLinear(0xf2 / 255)];
 
-const STOP_LOW = [0.13, 0.32, 0.82];
-const STOP_MID = [0.02, 0.52, 0.62];
-const STOP_HIGH = [0.44, 0.20, 0.86];
+type Rgb = readonly [number, number, number];
 
-function heightRamp(t: number): [number, number, number] {
-  const k = Math.max(0, Math.min(1, t));
-  const [a, b, f] = k < 0.5 ? [STOP_LOW, STOP_MID, k * 2] : [STOP_MID, STOP_HIGH, (k - 0.5) * 2];
-  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
-}
+/**
+ * Container palettes from the mind3D demo5 light theme: seven low-saturation
+ * three-stop height ramps, each with its own opacity. On the demo they were
+ * compared with the space bar; here they cross-fade on a slow timer so the
+ * paper-toned hero keeps the same quiet range as the source artwork.
+ */
+interface LightPalette { opacity: number; stops: readonly [Rgb, Rgb, Rgb] }
+
+const rgb01 = (hex: string): Rgb => [
+  parseInt(hex.slice(1, 3), 16) / 255,
+  parseInt(hex.slice(3, 5), 16) / 255,
+  parseInt(hex.slice(5, 7), 16) / 255,
+];
+
+const LIGHT_PALETTES: readonly LightPalette[] = [
+  { opacity: 0.30, stops: [rgb01('#4f6272'), rgb01('#7d93a6'), rgb01('#c2ced8')] },
+  { opacity: 0.34, stops: [rgb01('#7a6455'), rgb01('#a8917d'), rgb01('#d8c9b9')] },
+  { opacity: 0.32, stops: [rgb01('#55705f'), rgb01('#86a08f'), rgb01('#c1d1c5')] },
+  { opacity: 0.30, stops: [rgb01('#625a6d'), rgb01('#8f8699'), rgb01('#cbc5d2')] },
+  { opacity: 0.28, stops: [rgb01('#3d565a'), rgb01('#6d898d'), rgb01('#b5c7c9')] },
+  { opacity: 0.26, stops: [rgb01('#3f454c'), rgb01('#747d86'), rgb01('#c1c7cd')] },
+  { opacity: 0.18, stops: [rgb01('#8a8f96'), rgb01('#b4b9bf'), rgb01('#dfe2e5')] },
+];
+
+const linearRgb = ([r, g, b]: Rgb): Rgb => [srgbToLinear(r), srgbToLinear(g), srgbToLinear(b)];
+const LIGHT_PALETTES_LINEAR: readonly (readonly [Rgb, Rgb, Rgb])[] = LIGHT_PALETTES.map(palette => [
+  linearRgb(palette.stops[0]), linearRgb(palette.stops[1]), linearRgb(palette.stops[2]),
+]);
 
 interface SpawnPoint { x: number; y: number; z: number }
 
@@ -369,37 +391,91 @@ export async function startMemoryPointCloud(
   let refPoints: Points | null = null;
   let spawnVolume!: SpawnVolume;
 
+  type PaletteStop = { value: InstanceType<Three['Vector3']> };
+  interface RefPaletteUniforms {
+    uOpacity: { value: number };
+    uMix: { value: number };
+    uLowA: PaletteStop; uMidA: PaletteStop; uHighA: PaletteStop;
+    uLowB: PaletteStop; uMidB: PaletteStop; uHighB: PaletteStop;
+  }
+  let refPaletteUniforms: RefPaletteUniforms | null = null;
+  let paletteCurrent = 0;
+  let paletteNext = 0;
+  let paletteMix = 1;
+  let paletteDwell = 0;
+
+  const setPaletteStop = (uniform: PaletteStop, rgb: Rgb): void => { uniform.value.set(rgb[0], rgb[1], rgb[2]); };
+  function applyPaletteUniforms(): void {
+    const uniforms = refPaletteUniforms;
+    if (!uniforms) return;
+    const from = LIGHT_PALETTES_LINEAR[paletteCurrent];
+    const to = LIGHT_PALETTES_LINEAR[paletteNext];
+    setPaletteStop(uniforms.uLowA, from[0]); setPaletteStop(uniforms.uMidA, from[1]); setPaletteStop(uniforms.uHighA, from[2]);
+    setPaletteStop(uniforms.uLowB, to[0]); setPaletteStop(uniforms.uMidB, to[1]); setPaletteStop(uniforms.uHighB, to[2]);
+    uniforms.uMix.value = paletteMix;
+    const opacityFrom = LIGHT_PALETTES[paletteCurrent].opacity;
+    const opacityTo = LIGHT_PALETTES[paletteNext].opacity;
+    uniforms.uOpacity.value = opacityFrom + (opacityTo - opacityFrom) * paletteMix;
+  }
+  function tickPalette(dtMs: number): void {
+    if (paletteMix < 1) {
+      paletteMix = Math.min(1, paletteMix + dtMs / CFG.PALETTE_FADE_MS);
+      if (paletteMix >= 1) { paletteCurrent = paletteNext; paletteMix = 1; paletteDwell = 0; }
+      applyPaletteUniforms();
+      return;
+    }
+    paletteDwell += dtMs;
+    if (paletteDwell < CFG.PALETTE_DWELL_MS) return;
+    paletteNext = (paletteCurrent + 1) % LIGHT_PALETTES.length;
+    paletteMix = 0;
+    applyPaletteUniforms();
+  }
+
   try {
     const refPositions = await loadCloud(MEMORY_CLOUD_URL);
     const n = CLOUD_META.count;
     let minY = Infinity, maxY = -Infinity;
     for (let i = 0; i < n; i++) { const y = refPositions[i * 3 + 1]; if (y < minY) minY = y; if (y > maxY) maxY = y; }
     const span = (maxY - minY) || 1;
-    const refCol = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) {
-      const [r, g, b] = heightRamp((refPositions[i * 3 + 1] - minY) / span);
-      refCol[i * 3] = srgbToLinear(r); refCol[i * 3 + 1] = srgbToLinear(g); refCol[i * 3 + 2] = srgbToLinear(b);
-    }
+    const heights = new Float32Array(n);
+    for (let i = 0; i < n; i++) heights[i] = (refPositions[i * 3 + 1] - minY) / span;
     dot = dotTexture(THREE);
     const refGeo = new THREE.BufferGeometry();
     refGeo.setAttribute('position', new THREE.BufferAttribute(refPositions, 3));
-    refGeo.setAttribute('aColor', new THREE.BufferAttribute(refCol, 3));
+    refGeo.setAttribute('aHeight', new THREE.BufferAttribute(heights, 1));
     const refUniforms = {
       uScale: { value: uScale }, uSize: { value: CFG.REF_POINT_SIZE },
-      uOpacity: { value: REF_OPACITY_LIGHT }, uMap: { value: dot },
+      uOpacity: { value: LIGHT_PALETTES[0].opacity }, uMap: { value: dot },
+      uLowA: { value: new THREE.Vector3() }, uMidA: { value: new THREE.Vector3() }, uHighA: { value: new THREE.Vector3() },
+      uLowB: { value: new THREE.Vector3() }, uMidB: { value: new THREE.Vector3() }, uHighB: { value: new THREE.Vector3() },
+      uMix: { value: 1 },
     };
     const refMat: ShaderMaterial = new THREE.ShaderMaterial({
       uniforms: refUniforms,
       vertexShader: `
-        attribute vec3 aColor; uniform float uScale; uniform float uSize; varying vec3 vColor;
-        void main(){ vColor = aColor; vec4 mv = modelViewMatrix * vec4(position,1.0);
-          gl_PointSize = uSize * uScale / max(0.001, -mv.z); gl_Position = projectionMatrix * mv; }`,
+        attribute float aHeight;
+        uniform vec3 uLowA; uniform vec3 uMidA; uniform vec3 uHighA;
+        uniform vec3 uLowB; uniform vec3 uMidB; uniform vec3 uHighB;
+        uniform float uMix; uniform float uScale; uniform float uSize; varying vec3 vColor;
+        vec3 ramp(vec3 lo, vec3 mid, vec3 hi, float t){
+          float k = clamp(t, 0.0, 1.0);
+          return k < 0.5 ? mix(lo, mid, k * 2.0) : mix(mid, hi, (k - 0.5) * 2.0);
+        }
+        void main(){
+          vec3 from = ramp(uLowA, uMidA, uHighA, aHeight);
+          vec3 to = ramp(uLowB, uMidB, uHighB, aHeight);
+          vColor = mix(from, to, uMix);
+          vec4 mv = modelViewMatrix * vec4(position,1.0);
+          gl_PointSize = uSize * uScale / max(0.001, -mv.z); gl_Position = projectionMatrix * mv;
+        }`,
       fragmentShader: `
         uniform sampler2D uMap; uniform float uOpacity; varying vec3 vColor;
         void main(){ float a = texture2D(uMap, gl_PointCoord).a; if(a<0.02) discard;
           gl_FragColor = vec4(vColor, a*uOpacity); }`,
       transparent: true, blending: THREE.NormalBlending, depthWrite: false,
     });
+    refPaletteUniforms = refUniforms;
+    applyPaletteUniforms();
     refPoints = new THREE.Points(refGeo, refMat);
     refPoints.frustumCulled = false;
     refPoints.renderOrder = 1;
@@ -1172,6 +1248,7 @@ export async function startMemoryPointCloud(
       while (physAcc >= CFG.PHYS_STEP && sub < CFG.MAX_SUBSTEPS) { physAcc -= CFG.PHYS_STEP; physicsStep(); physicsExtStep(); sub++; }
       if (sub >= CFG.MAX_SUBSTEPS) physAcc = 0;
       azimuth += ORBIT_STEP * dt;
+      tickPalette(dt * 1000);
     }
     placeCamera();
 
