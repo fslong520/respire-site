@@ -14,10 +14,21 @@ test('marketing routes use production portals, not prototype account screens',()
 });
 test('installation and product guidance describe the supported CLI',()=>{
   const details=read('../src/respire/product-details.tsx');
-  assert.ok(details.includes('npm i -g @rsrsai/cli'));
-  assert.ok(details.includes('pnpm add -g @rsrsai/cli'));
+  assert.ok(details.includes('npm i -g rsrs-cli'));
+  assert.ok(details.includes('pnpm add -g rsrs-cli'));
   assert.ok(details.includes('rsrs doctor'));
   assert.doesNotMatch(details,/proprietary|open source|product brief|hospital deployment/i);
+});
+test('homepage lists every supported plugin with a matching docs guide',()=>{
+  const plugins=read('../src/respire/plugins.tsx');
+  const destinations=read('../src/destinations.ts');
+  const expected=[['zcode','/plugins/zcode'],['kimi','/plugins/kimi'],['dim','/plugins/dimcode'],['qoder','/plugins/qoder'],['workbuddy','/plugins/workbuddy'],['hermes','/plugins/hermes'],['codex','/plugins/codex'],['pi','/plugins/pi']];
+  assert.ok(destinations.includes('https://docs.rsrs.rs'));
+  assert.ok(destinations.includes('docsUrl'));
+  for(const [id,path] of expected){
+    assert.ok(plugins.includes(`id:'${id}'`),`missing plugin ${id}`);
+    assert.ok(plugins.includes(`path:'${path}'`),`missing docs path ${path}`);
+  }
 });
 test('production output copies the current website assets',()=>{
   assert.ok(read('../vite.config.mjs').includes('publicDir: "assets"'));

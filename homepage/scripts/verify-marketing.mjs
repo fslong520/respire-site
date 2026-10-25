@@ -39,8 +39,13 @@ try{
   assert.match(await page.locator('h1').innerText(),/Memory as/);
   assert.equal(await page.locator('html').getAttribute('lang'),'en');
   assert.equal(await page.getByRole('link',{name:'Sign in',exact:true}).getAttribute('href'),process.env.VITE_DASHBOARD_URL || 'https://dash.rsrs.rs');
-  assert.ok((await page.locator('body').innerText()).includes('npm i -g @rsrsai/cli'));
+  assert.ok((await page.locator('body').innerText()).includes('npm i -g rsrs-cli'));
   assert.doesNotMatch(await page.locator('body').innerText(),/DESIGN PREVIEW|No live services|proprietary components/);
+  const docsOrigin=(process.env.VITE_DOCS_URL||'https://docs.rsrs.rs').replace(/\/+$/,'');
+  const pluginPaths=['/plugins/zcode','/plugins/kimi','/plugins/dimcode','/plugins/qoder','/plugins/workbuddy','/plugins/hermes','/plugins/codex','/plugins/pi'];
+  const pluginCards=page.locator('[data-plugin-card]');
+  assert.equal(await pluginCards.count(),pluginPaths.length);
+  assert.deepEqual(await pluginCards.evaluateAll(nodes=>nodes.map(node=>node.getAttribute('href'))),pluginPaths.map(path=>docsOrigin+path));
   await page.locator('[data-memory-body]').waitFor();
   await page.waitForFunction(()=>['ready','fallback','unavailable','setup-error'].includes(document.querySelector('[data-gpu-status]')?.dataset.gpuStatus));
   const gpuStatus=await page.locator('[data-gpu-status]').getAttribute('data-gpu-status');
@@ -52,10 +57,11 @@ try{
   assert.equal(await page.locator('[data-memory-body]').getAttribute('data-paused'),'false');
   if(screenshots){mkdirSync(screenshots,{recursive:true});await page.screenshot({path:resolve(screenshots,'desktop.png'),fullPage:true});}
   await page.getByRole('button',{name:'How do I get started?',exact:true}).click();
-  assert.ok(await page.getByText('Install @rsrsai/cli with npm, run rsrs doctor,',{exact:false}).isVisible());
+  assert.ok(await page.getByText('Install rsrs-cli with npm, run rsrs doctor,',{exact:false}).isVisible());
   await page.getByRole('button',{name:'中文',exact:true}).click();
   assert.equal(new URL(page.url()).pathname,base+'zh/');
   assert.equal(await page.locator('html').getAttribute('lang'),'zh-CN');
+  assert.equal(await page.locator('[data-plugin="zcode"]').getAttribute('href'),docsOrigin+'/zh/plugins/zcode');
   await page.reload();
   assert.match(await page.locator('h1').innerText(),/记忆/);
   await page.setViewportSize({width:390,height:844});
@@ -68,5 +74,5 @@ try{
   await page.locator('[data-memory-body] [data-gpu-status="ready"]').waitFor();
   await page.waitForFunction(()=>document.querySelector('.memory-narrative')?.dataset.threadProgress==='1.000');
   assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:true,base,gpu_status:gpuStatus,checks:['exact public build provenance','English rendering','production links','installation','no demo notices','animation pause/resume','FAQ','Chinese URL and reload','mobile overflow/menu','reduced motion','no page errors']}));
+  console.log(JSON.stringify({passed:true,base,gpu_status:gpuStatus,checks:['exact public build provenance','English rendering','production links','installation','plugin guides','no demo notices','animation pause/resume','FAQ','Chinese URL and reload','mobile overflow/menu','reduced motion','no page errors']}));
 }finally{await browser.close();await new Promise(r=>server.close(r));}

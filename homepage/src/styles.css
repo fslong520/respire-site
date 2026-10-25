@@ -205,3 +205,23 @@ body{background:#faf8f4;color:#1b1c19}.logo,.logo.light{font-family:var(--font-s
 @media(min-width:1450px){.hero-note{font-size:13px}}
 @media(max-width:950px){.hero-note{font-size:10px}}
 @media(max-width:767px){.hero-note{font-size:11px}}
+
+/* Supported host plugins: one indexed card per documentation guide. */
+.plugins-section{padding:64px 5.1% 72px;background:#f8f6f2;border-top:1px solid #dcd5ca;border-bottom:1px solid #dcd5ca}
+.plugins-heading{display:grid;grid-template-columns:1.1fr 1fr;gap:70px;align-items:end;margin-top:34px}
+.plugins-heading h2{font-family:var(--font-serif);font-size:45px;line-height:1.16;letter-spacing:-1.5px;color:#292821;font-weight:400}
+.plugins-heading h2 em{color:#6c6254}
+.plugins-heading>p{font-family:var(--font-serif);font-size:14px;line-height:1.95;color:#776958;max-width:465px}
+.plugin-grid{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid #d8d2c8;border-left:1px solid #d8d2c8;margin-top:34px}
+.plugin-card{display:flex;flex-direction:column;min-height:218px;padding:22px;border-right:1px solid #d8d2c8;border-bottom:1px solid #d8d2c8;background:#fbf9f5;color:#39362f;text-decoration:none;transition:background .18s,border-color .18s}
+.plugin-card:hover{background:#f2eee8}
+.plugin-card:focus-visible{outline:2px solid #a93021;outline-offset:-3px}
+.plugin-index{font-family:ui-monospace,monospace;font-size:9px;letter-spacing:.7px;color:#a93021}
+.plugin-card h3{font-family:var(--font-serif);font-size:26px;line-height:1.15;letter-spacing:-.6px;margin-top:22px;font-weight:400}
+.plugin-card p{font-family:var(--font-serif);font-size:12px;line-height:1.85;color:#776958;margin-top:12px}
+.plugin-link{display:flex;align-items:center;gap:7px;margin-top:auto;padding-top:20px;font-family:var(--font-sans);font-size:10px;letter-spacing:.3px;color:#a93021}
+.plugin-card:hover .plugin-link{text-decoration:underline;text-underline-offset:4px}
+.plugins-all{display:inline-flex;align-items:center;gap:7px;margin-top:22px;font-family:var(--font-sans);font-size:11px;color:#565047}
+.plugins-all:hover{color:#a93021}
+@media(max-width:1000px){.plugins-heading{gap:35px}.plugins-heading h2{font-size:39px}.plugin-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:767px){.plugins-section{padding:43px 6%}.plugins-heading{grid-template-columns:1fr;gap:23px;margin-top:29px}.plugins-heading h2{font-size:35px;letter-spacing:-1px}.plugins-heading>p{font-size:13px}.plugin-grid{grid-template-columns:1fr;margin-top:28px}.plugin-card{min-height:0;padding:20px}.plugin-card h3{font-size:25px;margin-top:16px}.plugin-card p{font-size:12px}.plugin-link{padding-top:16px}.plugins-all{font-size:11px}}

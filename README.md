@@ -54,9 +54,9 @@ Keep the rollout order: deploy and validate the API, verify Pages with exact Ser
 ## CLI
 
 ```sh
-npm i -g @rsrsai/cli
+npm i -g rsrs-cli
 # or
-pnpm add -g @rsrsai/cli
+pnpm add -g rsrs-cli
 rsrs doctor
 rsrs --help
 rsrs recall "query" --titles --json
