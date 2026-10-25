@@ -53,8 +53,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: passkey-settings-ui
           retention-days: 1
+          name: passkey-settings-ui
           path: console/artifacts/passkey-settings
           if-no-files-found: ignore
       - run: npm run test:hosted-cors
@@ -107,3 +107,26 @@ jobs:
           npm --prefix homepage ci
           npm --prefix homepage run build
           node scripts/assemble-pages.mjs
+
+  cleanup-receipt:
+    needs: [homepage, consoles, windows-consoles]
+    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Record the completed producer and delivery inventory
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/cleanup_artifacts.py stamp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cleanup-ready-v1
+          path: ${{ runner.temp }}/cleanup-ready.json
+          retention-days: 1
+          if-no-files-found: ignore
