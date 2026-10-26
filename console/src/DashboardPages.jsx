@@ -71,7 +71,7 @@ function EmptyInstallHint() {
 /** Onboarding card shown in the list/tree/card area while the vault is empty. */
 function EmptyGuide({ notify }) {
   const steps = [
-    { cmd: 'npm i -g @rsrsai/cli', label: t('guideStepInstall'), desc: t('guideStepInstallDesc') },
+    { cmd: 'npm i -g rsrs-cli', label: t('guideStepInstall'), desc: t('guideStepInstallDesc') },
     { cmd: 'rsrs doctor', label: t('guideStepDoctor'), desc: t('guideStepDoctorDesc') },
   ];
   return (

@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "repository": "risense-ai/respire-site",
+  "workflows": {
+    ".github/workflows/ci.yml": {
+      "mode": "completed",
+      "artifacts": [
+        "passkey-settings-ui"
+      ],
+      "consumer_workflows": []
+    }
+  }
+}
